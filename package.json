@@ -1,17 +1,27 @@
 {
   "name": "bb-plugin-google-antigravity-acp",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
-    "test": "node --import tsx --test tests/model-utils.test.ts test/wrapper-render.test.mjs test/wrapper-proxy.test.mjs test/install-handshake.test.mjs test/launch-spec.test.mjs"
+    "test": "node --import ./test/node-runtime.mjs --import tsx --test tests/*.test.ts test/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "bb plugin build && node scripts/verify-runtime-build.mjs",
+    "test:bundle": "npm run build && REINH_TEST_BUNDLE=1 node --import tsx --test tests/bridge-integration.test.ts tests/usage.test.ts tests/permissions.test.ts qa/upstream-tests/*.test.ts qa/runtime-tests/*.test.ts",
+    "test:release-gates": "npm run build && REINH_TEST_BUNDLE=1 node --import tsx --test qa/upstream-tests/*.test.ts qa/runtime-tests/*.test.ts",
+    "check:upstream-proposal": "python3 scripts/check-upstream-fix.py",
+    "prepare:runtime": "node scripts/vendor-acp-runtime.mjs --write",
+    "check:runtime": "node scripts/vendor-acp-runtime.mjs",
+    "pretest": "npm run check:runtime",
+    "prebuild": "npm run prepare:runtime",
+    "test:upstream-baseline": "REINH_TEST_UPSTREAM=1 node --import tsx --test qa/upstream-tests/*.test.ts"
   },
   "engines": {
-    "bb": ">=0.42",
-    "bbPluginSdk": ">=0.4.45"
+    "bb": ">=0.49.0",
+    "bbPluginSdk": ">=0.6.132"
   },
   "bb": {
-    "name": "Google Antigravity (ACP)",
-    "description": "Run bb threads on Google Antigravity through its official ACP server (agy_acp_server.par).",
+    "name": "Reinh Antigravity ACP",
+    "description": "Google Antigravity provider: real Low/Medium/High reasoning, Argon and Flash quota, working accept-edits. Fork of rawizhere's plugin.",
     "branding": {
       "icon": "./icons/google-antigravity.svg"
     },
@@ -19,13 +29,18 @@
     "host": "./host.ts"
   },
   "dependencies": {
-    "@get-bb/plugin-sdk": "^0.4.50",
-    "zod": "^4.3.6"
+    "@get-bb/plugin-sdk": "0.6.132",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "description": "Google Antigravity ACP provider for bb with real reasoning levels, per-model quota and working accept-edits.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reinh2/reinh-antigravity-acp.git"
+  }
 }

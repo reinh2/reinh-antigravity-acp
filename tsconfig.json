@@ -13,14 +13,11 @@
       "node"
     ],
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "resolveJsonModule": true
   },
   "include": [
-    "server.ts",
-    "host.ts",
-    "model-utils.ts",
-    "contract.ts",
-    "install.ts",
+    "*.ts",
     "tests/**/*.ts"
   ]
 }

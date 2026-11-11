@@ -1,0 +1,11 @@
+✔ upstream native thinking refusal must fail session construction (447.884041ms)
+✔ release gate: execution-session roster drift must reject a missing selected model (492.143917ms)
+✔ release gate: concurrent changed turns must not pass model reconciliation together (896.707791ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1490.686375

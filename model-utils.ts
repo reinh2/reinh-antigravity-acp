@@ -1,254 +1,160 @@
-// Pure model parsing and resolution. No bb dependencies, so tests import it directly.
-
+// Pure catalog parsing. ACP ids are opaque: never invent executable model ids.
+export const REASONING_LEVELS = ["none", "low", "medium", "high", "xhigh", "ultracode", "max", "ultra"] as const;
+export type ReasoningLevel = typeof REASONING_LEVELS[number];
+export function isReasoningLevel(value: unknown): value is ReasoningLevel {
+  return typeof value === "string" && (REASONING_LEVELS as readonly string[]).includes(value);
+}
+export interface NativeReasoning {
+  configId: string;
+  levelValues: Partial<Record<ReasoningLevel, string>>;
+}
 export interface RawModel {
   id: string;
   name: string;
+  isDefault?: boolean;
+  defaultReasoningEffort?: ReasoningLevel;
+  nativeReasoning?: NativeReasoning;
+  selectionConfigIds?: string[];
 }
-
 export interface ModelFamily {
   id: string;
   displayName: string;
   variants: Map<string, string>;
   defaultEffort: string;
+  nativeReasoning?: NativeReasoning;
 }
-
 export interface AvailableModelReasoningEffort {
-  reasoningEffort: string;
+  reasoningEffort: ReasoningLevel;
   description: string;
 }
-
 export interface AvailableModel {
   id: string;
   model: string;
   displayName: string;
   description: string;
   supportedReasoningEfforts: AvailableModelReasoningEffort[];
-  defaultReasoningEffort: string;
+  defaultReasoningEffort: ReasoningLevel;
   isDefault: boolean;
 }
-
 export interface ModelCatalog {
   families: Map<string, ModelFamily>;
   models: AvailableModel[];
   defaultFamilyId: string;
   rawModels: RawModel[];
 }
-
+// Kept as exported legacy constants; execution never uses a hardcoded fallback.
 export const FALLBACK_DEFAULT_MODEL_ID = "gemini-3.8-flash";
 export const FALLBACK_DEFAULT_VARIANT_ID = "gemini-3.8-flash-medium";
-
 export function normalizeModelId(id: string): string {
-  return id
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9.]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-");
+  return id.trim().toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "").replace(/-+/g, "-");
 }
-
 export function normalizeEffort(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-") || "medium";
+  return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-+/g, "-") || "medium";
 }
-
 export function prettyEffort(effort: string): string {
-  return effort
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join("-");
+  return effort.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("-");
 }
-
 export function extractVersion(id: string): number[] {
-  const match = id.match(/(\d+(?:\.\d+)*)/);
-  if (!match) return [0];
-  return match[1].split(".").map((n) => parseInt(n, 10) || 0);
+  return id.match(/(\d+(?:\.\d+)*)/)?.[1].split(".").map(Number) ?? [0];
 }
-
 export function compareVersions(a: number[], b: number[]): number {
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    const va = a[i] ?? 0;
-    const vb = b[i] ?? 0;
-    if (va !== vb) return va - vb;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff) return diff;
   }
   return 0;
 }
 
 export function parseRawModels(
-  rawList: RawModel[],
-  preferredDefaultId?: string,
+  rawList: RawModel[], preferredDefaultId?: string,
   preferredFromSettings?: { model: string; effort: string } | null,
 ): ModelCatalog {
   const families = new Map<string, ModelFamily>();
-
+  let acpDefaultFamily = "";
   for (const raw of rawList) {
-    const rawId = raw.id;
-    const rawName = (raw.name || rawId).trim();
-
-    const parenMatch = rawName.match(/^(.*)\s*\(([^)]+)\)\s*$/);
-    let displayName: string;
-    let effort: string;
-
-    if (parenMatch) {
-      displayName = parenMatch[1].trim();
-      effort = normalizeEffort(parenMatch[2]);
-    } else {
-      displayName = rawName;
-      const lastHyphen = rawId.lastIndexOf("-");
-      if (lastHyphen > 0) {
-        const candidate = rawId.slice(lastHyphen + 1);
-        if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(candidate) && candidate.length <= 20) {
-          effort = normalizeEffort(candidate);
-        } else {
-          effort = "medium";
-        }
-      } else {
-        effort = "medium";
-      }
-    }
-
-    const familyId = normalizeModelId(displayName);
-
+    const rawName = raw.name || raw.id;
+    const paren = rawName.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    const namedEffort = paren ? normalizeEffort(paren[2]) : "";
+    const suffix = paren && !isReasoningLevel(namedEffort) ? null : raw.id.match(/^(.*)-(none|low|medium|high|xhigh|ultracode|max|ultra)$/i);
+    // Parenthetical metadata such as (Preview) is not a reasoning level.
+    const conflictingMetadata = suffix && isReasoningLevel(namedEffort) && namedEffort !== suffix[2].toLowerCase();
+    const effort = conflictingMetadata ? "" : isReasoningLevel(namedEffort) ? namedEffort : suffix?.[2].toLowerCase() ?? "";
+    let displayName = rawName;
+    if (!conflictingMetadata && paren && isReasoningLevel(namedEffort)) displayName = paren[1].trim();
+    else if (!conflictingMetadata && suffix) displayName = rawName.replace(new RegExp(`(?:[ -]+|\\s*\\()${effort}\\)?$`, "i"), "").trim();
+    const familyId = conflictingMetadata ? raw.id : suffix ? suffix[1] : effort ? normalizeModelId(displayName) : raw.id;
     let fam = families.get(familyId);
     if (!fam) {
-      fam = {
-        id: familyId,
-        displayName,
-        variants: new Map(),
-        defaultEffort: effort,
-      };
+      fam = { id: familyId, displayName, variants: new Map(), defaultEffort: effort };
       families.set(familyId, fam);
     }
-    fam.variants.set(effort, rawId);
-    if (fam.variants.size === 1) fam.defaultEffort = effort;
+    // Do not overwrite ambiguous variants: the first advertised executable id wins.
+    if (!fam.variants.has(effort)) fam.variants.set(effort, raw.id);
+    if (raw.nativeReasoning && !effort) {
+      fam.nativeReasoning = raw.nativeReasoning;
+      for (const level of REASONING_LEVELS) {
+        if (raw.nativeReasoning.levelValues[level]) fam.variants.set(level, raw.id);
+      }
+    }
+    if (raw.isDefault) acpDefaultFamily = familyId;
+    if (raw.defaultReasoningEffort && fam.variants.has(raw.defaultReasoningEffort)) {
+      fam.defaultEffort = raw.defaultReasoningEffort;
+    }
   }
-
-  // Ensure default effort is medium if available, or first available variant
   for (const fam of families.values()) {
-    if (fam.variants.has("medium")) {
-      fam.defaultEffort = "medium";
-    } else if (!fam.variants.has(fam.defaultEffort)) {
-      fam.defaultEffort = fam.variants.keys().next().value! as string;
+    const explicit = rawList.find(raw => raw.defaultReasoningEffort && [...fam.variants.values()].includes(raw.id));
+    const current = rawList.find(raw => raw.isDefault && [...fam.variants.values()].includes(raw.id));
+    const currentEffort = current ? [...fam.variants].find(([level, id]) => id === current.id && isReasoningLevel(level))?.[0] : undefined;
+    fam.defaultEffort = explicit?.defaultReasoningEffort ?? currentEffort ?? (fam.variants.has("medium") ? "medium" : [...fam.variants.keys()].find(isReasoningLevel) ?? "");
+    if (preferredFromSettings && (preferredFromSettings.model === fam.id || normalizeModelId(preferredFromSettings.model) === fam.id) && fam.variants.has(preferredFromSettings.effort)) {
+      fam.defaultEffort = preferredFromSettings.effort;
     }
   }
-
-  let defaultFamilyId = "";
-  const preferredModelId = preferredDefaultId ? normalizeModelId(preferredDefaultId) : "";
-  if (preferredModelId && families.has(preferredModelId)) {
-    defaultFamilyId = preferredModelId;
-  }
-  if (!defaultFamilyId && preferredFromSettings && families.has(preferredFromSettings.model)) {
-    defaultFamilyId = preferredFromSettings.model;
-  }
-  if (!defaultFamilyId) {
-    // 1. Fallback: Latest Flash model (highest version number containing "flash")
-    const flashFamilies = [...families.keys()]
-      .filter((id) => id.includes("flash"))
-      .sort((a, b) => compareVersions(extractVersion(b), extractVersion(a)));
-
-    if (flashFamilies.length > 0) {
-      defaultFamilyId = flashFamilies[0];
-    }
-  }
-  if (!defaultFamilyId) {
-    // 2. Fallback: Highest version model overall
-    const sortedFamilies = [...families.keys()]
-      .sort((a, b) => compareVersions(extractVersion(b), extractVersion(a)));
-    if (sortedFamilies.length > 0) {
-      defaultFamilyId = sortedFamilies[0];
-    }
-  }
-  if (!defaultFamilyId && families.size > 0) {
-    defaultFamilyId = families.keys().next().value! as string;
-  }
-
-  const standardLadder = ["low", "medium", "high"];
-  const models: AvailableModel[] = [];
-
-  for (const fam of families.values()) {
-    const efforts: string[] = [];
-    for (const eff of standardLadder) if (fam.variants.has(eff)) efforts.push(eff);
-    for (const eff of fam.variants.keys()) if (!efforts.includes(eff)) efforts.push(eff);
-
-    const supportedReasoningEfforts: AvailableModelReasoningEffort[] = efforts.map((eff) => ({
-      reasoningEffort: eff,
-      description: `${prettyEffort(eff)} reasoning effort`,
-    }));
-
-    let defaultReasoningEffort = fam.defaultEffort;
-    if (preferredFromSettings && fam.id === preferredFromSettings.model && fam.variants.has(preferredFromSettings.effort)) {
-      defaultReasoningEffort = preferredFromSettings.effort;
-    }
-
-    models.push({
-      id: fam.id,
-      model: fam.id,
-      displayName: fam.displayName,
-      description: "",
-      supportedReasoningEfforts,
-      defaultReasoningEffort,
-      isDefault: fam.id === defaultFamilyId,
-    });
-  }
-
+  const sorted = [...families.keys()].sort((a, b) => compareVersions(extractVersion(b), extractVersion(a)));
+  const preferredSettingModel = preferredFromSettings?.model && (families.has(preferredFromSettings.model) ? preferredFromSettings.model : normalizeModelId(preferredFromSettings.model));
+  const defaultFamilyId = [preferredDefaultId, preferredSettingModel, acpDefaultFamily, sorted.find(id => id.includes("flash")), sorted[0]]
+    .find(id => id && families.has(id)) ?? "";
+  const models = [...families.values()].map(fam => ({
+    id: fam.id, model: fam.id, displayName: fam.displayName, description: "",
+    supportedReasoningEfforts: REASONING_LEVELS.filter(eff => fam.variants.has(eff)).map(reasoningEffort => ({
+      reasoningEffort, description: `${prettyEffort(reasoningEffort)} reasoning effort`,
+    })),
+    // bb requires an enum even when there is no reasoning selector. It is not sent to ACP.
+    defaultReasoningEffort: isReasoningLevel(fam.defaultEffort) ? fam.defaultEffort : "medium" as const,
+    isDefault: fam.id === defaultFamilyId,
+  }));
   return { families, models, defaultFamilyId, rawModels: rawList };
 }
 
-export function resolveRawModelId(
-  model: string | undefined,
-  reasoningLevel: string | undefined,
-  catalog: ModelCatalog,
-): string {
-  const families = catalog.families;
-  const defFamId = catalog.defaultFamilyId;
-  const rawList = catalog.rawModels;
-
-  const cleanModel = model && model.trim() ? normalizeModelId(model) : "";
-  const targetModel = cleanModel || defFamId || FALLBACK_DEFAULT_MODEL_ID;
-
-  const rawHit = rawList.find((r) => r.id.toLowerCase() === targetModel.toLowerCase());
-  if (rawHit) return rawHit.id;
-
-  let fam: ModelFamily | undefined;
-  for (const [k, v] of families.entries()) {
-    if (k.toLowerCase() === targetModel.toLowerCase()) {
-      fam = v;
-      break;
-    }
+export function resolveModelSelection(model: string | undefined, reasoningLevel: string | undefined, catalog: ModelCatalog) {
+  const target = model?.trim() || catalog.defaultFamilyId;
+  const raw = catalog.rawModels.find(r => r.id === target);
+  const fam = catalog.families.get(target) ?? [...catalog.families.values()].find(f => [...f.variants.values()].includes(target));
+  if (!fam) throw new Error(`Model "${target || "(default)"}" is unavailable. Refresh the model catalog.`);
+  if (reasoningLevel !== undefined && !isReasoningLevel(reasoningLevel)) {
+    throw new Error(`Unsupported reasoning level "${reasoningLevel}". Refresh the model catalog.`);
   }
-
-  if (fam) {
-    const effort = normalizeEffort(reasoningLevel ?? fam.defaultEffort ?? "medium");
-    const variant = fam.variants.get(effort);
-    if (variant) return variant;
-    for (const [k, v] of fam.variants.entries()) {
-      if (normalizeEffort(k) === effort) return v;
-    }
-    return fam.variants.get("medium") ?? fam.variants.values().next().value ?? targetModel;
+  const hasReasoning = [...fam.variants.keys()].some(isReasoningLevel);
+  if (!hasReasoning) {
+    // The UI may supply bb's mandatory placeholder default for a model without a selector.
+    if (reasoningLevel !== undefined && reasoningLevel !== "medium") throw new Error(`Model "${target}" does not advertise reasoning levels.`);
+    return { modelId: raw?.id ?? fam.variants.get("")!, family: fam };
   }
-
-  if (
-    targetModel.endsWith("-low") ||
-    targetModel.endsWith("-medium") ||
-    targetModel.endsWith("-high") ||
-    targetModel === "gemini-pro-agent"
-  ) {
-    return targetModel;
-  }
-
-  if (reasoningLevel) return `${targetModel}-${normalizeEffort(reasoningLevel)}`;
-  if (!cleanModel && !defFamId) return FALLBACK_DEFAULT_VARIANT_ID;
-  return targetModel;
+  // Preserve legacy raw ids when no new effort was requested.
+  if (raw && raw.id !== fam.id && !fam.nativeReasoning && reasoningLevel === undefined) return { modelId: raw.id, family: fam };
+  const level = reasoningLevel ?? fam.defaultEffort;
+  const modelId = fam.variants.get(level);
+  if (!modelId) throw new Error(`Model "${target}" does not advertise reasoning level "${level}".`);
+  return { modelId, family: fam, reasoningLevel: isReasoningLevel(level) ? level : undefined };
 }
-
+export function resolveRawModelId(model: string | undefined, reasoningLevel: string | undefined, catalog: ModelCatalog): string {
+  return resolveModelSelection(model, reasoningLevel, catalog).modelId;
+}
 export function rawListsEqual(a: RawModel[], b: RawModel[]): boolean {
-  if (a.length !== b.length) return false;
-  const sa = [...a].sort((x, y) => x.id.localeCompare(y.id));
-  const sb = [...b].sort((x, y) => x.id.localeCompare(y.id));
-  for (let i = 0; i < sa.length; i++) if (sa[i].id !== sb[i].id || sa[i].name !== sb[i].name) return false;
-  return true;
+  const canonical = (list: RawModel[]) => JSON.stringify([...list].sort((x, y) => x.id.localeCompare(y.id)).map(raw => ({
+    id: raw.id, name: raw.name, isDefault: raw.isDefault, defaultReasoningEffort: raw.defaultReasoningEffort,
+    selectionConfigIds: raw.selectionConfigIds,
+    nativeReasoning: raw.nativeReasoning ? { configId: raw.nativeReasoning.configId, levelValues: REASONING_LEVELS.map(level => raw.nativeReasoning?.levelValues[level]) } : undefined,
+  })));
+  return canonical(a) === canonical(b);
 }

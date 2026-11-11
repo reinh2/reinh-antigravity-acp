@@ -28,6 +28,26 @@ export const agyHostContract = defineRpcContract({
       notes: z.array(z.string()),
     }),
   },
+  // Antigravity quota from the host's ACP server `/usage` command.
+  usage: {
+    input: z.null(),
+    output: z.discriminatedUnion("status", [
+      z.object({
+        status: z.literal("ok"),
+        planLabel: z.string().nullable(),
+        windows: z.array(z.object({
+          id: z.string().min(1),
+          label: z.string().min(1),
+          kind: z.enum(["five-hour", "daily", "weekly", "custom"]),
+          model: z.string().nullable(),
+          usedPercent: z.number().nonnegative(),
+          resetsAt: z.string().nullable(),
+        })),
+      }),
+      z.object({ status: z.enum(["not_installed", "unauthenticated", "expired"]) }),
+      z.object({ status: z.literal("error"), message: z.string() }),
+    ]),
+  },
   probe: {
     input: z.null(),
     output: z.object({

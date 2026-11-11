@@ -1,0 +1,25007 @@
+/*! Reinh local ACP runtime: derived from @get-bb/plugin-sdk 0.6.132.
+ * Copyright (c) 2026 Michael Yong, MIT. See vendor/BB-SDK-LICENSE and THIRD_PARTY_NOTICES.md.
+ * Local modifications: strict model/reasoning selection and lifecycle admission.
+ */
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/debug.js
+var require_debug = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/debug.js"(exports, module) {
+    "use strict";
+    var debug = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {
+    };
+    module.exports = debug;
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/constants.js
+var require_constants = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/constants.js"(exports, module) {
+    "use strict";
+    var SEMVER_SPEC_VERSION = "2.0.0";
+    var MAX_LENGTH = 256;
+    var MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER || /* istanbul ignore next */
+    9007199254740991;
+    var MAX_SAFE_COMPONENT_LENGTH = 16;
+    var MAX_SAFE_BUILD_LENGTH = MAX_LENGTH - 6;
+    var WHITESPACE_CHARACTERS = [
+      "	",
+      "\n",
+      "\v",
+      "\f",
+      "\r",
+      " ",
+      "\xA0",
+      "\u1680",
+      "\u2000",
+      "\u2001",
+      "\u2002",
+      "\u2003",
+      "\u2004",
+      "\u2005",
+      "\u2006",
+      "\u2007",
+      "\u2008",
+      "\u2009",
+      "\u200A",
+      "\u2028",
+      "\u2029",
+      "\u202F",
+      "\u205F",
+      "\u3000",
+      "\uFEFF"
+    ];
+    var RELEASE_TYPES = [
+      "major",
+      "premajor",
+      "minor",
+      "preminor",
+      "patch",
+      "prepatch",
+      "prerelease"
+    ];
+    module.exports = {
+      MAX_LENGTH,
+      MAX_SAFE_COMPONENT_LENGTH,
+      MAX_SAFE_BUILD_LENGTH,
+      MAX_SAFE_INTEGER,
+      WHITESPACE_CHARACTERS,
+      RELEASE_TYPES,
+      SEMVER_SPEC_VERSION,
+      FLAG_INCLUDE_PRERELEASE: 1,
+      FLAG_LOOSE: 2
+    };
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/re.js
+var require_re = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/re.js"(exports, module) {
+    "use strict";
+    var {
+      MAX_SAFE_COMPONENT_LENGTH,
+      MAX_SAFE_BUILD_LENGTH,
+      MAX_LENGTH
+    } = require_constants();
+    var debug = require_debug();
+    exports = module.exports = {};
+    var re = exports.re = [];
+    var safeRe = exports.safeRe = [];
+    var src = exports.src = [];
+    var safeSrc = exports.safeSrc = [];
+    var t = exports.t = {};
+    var R = 0;
+    var LETTERDASHNUMBER = "[a-zA-Z0-9-]";
+    var safeRegexReplacements = [
+      ["\\s", 1],
+      ["\\d", MAX_LENGTH],
+      [LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH]
+    ];
+    var makeSafeRegex = (value) => {
+      for (const [token, max] of safeRegexReplacements) {
+        value = value.split(`${token}*`).join(`${token}{0,${max}}`).split(`${token}+`).join(`${token}{1,${max}}`);
+      }
+      return value;
+    };
+    var createToken = (name, value, isGlobal) => {
+      const safe = makeSafeRegex(value);
+      const index = R++;
+      debug(name, index, value);
+      t[name] = index;
+      src[index] = value;
+      safeSrc[index] = safe;
+      re[index] = new RegExp(value, isGlobal ? "g" : void 0);
+      safeRe[index] = new RegExp(safe, isGlobal ? "g" : void 0);
+    };
+    createToken("NUMERICIDENTIFIER", "0|[1-9]\\d*");
+    createToken("NUMERICIDENTIFIERLOOSE", "\\d+");
+    createToken("NONNUMERICIDENTIFIER", `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
+    createToken("MAINVERSION", `(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})`);
+    createToken("MAINVERSIONLOOSE", `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})`);
+    createToken("PRERELEASEIDENTIFIER", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIER]})`);
+    createToken("PRERELEASEIDENTIFIERLOOSE", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
+    createToken("PRERELEASE", `(?:-(${src[t.PRERELEASEIDENTIFIER]}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
+    createToken("PRERELEASELOOSE", `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
+    createToken("BUILDIDENTIFIER", `${LETTERDASHNUMBER}+`);
+    createToken("BUILD", `(?:\\+(${src[t.BUILDIDENTIFIER]}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
+    createToken("FULLPLAIN", `v?${src[t.MAINVERSION]}${src[t.PRERELEASE]}?${src[t.BUILD]}?`);
+    createToken("FULL", `^${src[t.FULLPLAIN]}$`);
+    createToken("LOOSEPLAIN", `[v=\\s]*${src[t.MAINVERSIONLOOSE]}${src[t.PRERELEASELOOSE]}?${src[t.BUILD]}?`);
+    createToken("LOOSE", `^${src[t.LOOSEPLAIN]}$`);
+    createToken("GTLT", "((?:<|>)?=?)");
+    createToken("XRANGEIDENTIFIERLOOSE", `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
+    createToken("XRANGEIDENTIFIER", `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
+    createToken("XRANGEPLAIN", `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:${src[t.PRERELEASE]})?${src[t.BUILD]}?)?)?`);
+    createToken("XRANGEPLAINLOOSE", `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:${src[t.PRERELEASELOOSE]})?${src[t.BUILD]}?)?)?`);
+    createToken("XRANGE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
+    createToken("XRANGELOOSE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
+    createToken("COERCEPLAIN", `${"(^|[^\\d])(\\d{1,"}${MAX_SAFE_COMPONENT_LENGTH}})(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
+    createToken("COERCE", `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
+    createToken("COERCEFULL", src[t.COERCEPLAIN] + `(?:${src[t.PRERELEASE]})?(?:${src[t.BUILD]})?(?:$|[^\\d])`);
+    createToken("COERCERTL", src[t.COERCE], true);
+    createToken("COERCERTLFULL", src[t.COERCEFULL], true);
+    createToken("LONETILDE", "(?:~>?)");
+    createToken("TILDETRIM", `(\\s*)${src[t.LONETILDE]}\\s+`, true);
+    exports.tildeTrimReplace = "$1~";
+    createToken("TILDE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
+    createToken("TILDELOOSE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
+    createToken("LONECARET", "(?:\\^)");
+    createToken("CARETTRIM", `(\\s*)${src[t.LONECARET]}\\s+`, true);
+    exports.caretTrimReplace = "$1^";
+    createToken("CARET", `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
+    createToken("CARETLOOSE", `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
+    createToken("COMPARATORLOOSE", `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
+    createToken("COMPARATOR", `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
+    createToken("COMPARATORTRIM", `(\\s*)${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
+    exports.comparatorTrimReplace = "$1$2$3";
+    createToken("HYPHENRANGE", `^\\s*(${src[t.XRANGEPLAIN]})\\s+-\\s+(${src[t.XRANGEPLAIN]})\\s*$`);
+    createToken("HYPHENRANGELOOSE", `^\\s*(${src[t.XRANGEPLAINLOOSE]})\\s+-\\s+(${src[t.XRANGEPLAINLOOSE]})\\s*$`);
+    createToken("STAR", "(<|>)?=?\\s*\\*");
+    createToken("GTE0", "^\\s*>=\\s*0\\.0\\.0\\s*$");
+    createToken("GTE0PRE", "^\\s*>=\\s*0\\.0\\.0-0\\s*$");
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/parse-options.js
+var require_parse_options = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/parse-options.js"(exports, module) {
+    "use strict";
+    var looseOption = Object.freeze({ loose: true });
+    var emptyOpts = Object.freeze({});
+    var parseOptions = (options) => {
+      if (!options) {
+        return emptyOpts;
+      }
+      if (typeof options !== "object") {
+        return looseOption;
+      }
+      return options;
+    };
+    module.exports = parseOptions;
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/identifiers.js
+var require_identifiers = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/internal/identifiers.js"(exports, module) {
+    "use strict";
+    var numeric = /^[0-9]+$/;
+    var compareIdentifiers = (a2, b) => {
+      if (typeof a2 === "number" && typeof b === "number") {
+        return a2 === b ? 0 : a2 < b ? -1 : 1;
+      }
+      const anum = numeric.test(a2);
+      const bnum = numeric.test(b);
+      if (anum && bnum) {
+        a2 = +a2;
+        b = +b;
+      }
+      return a2 === b ? 0 : anum && !bnum ? -1 : bnum && !anum ? 1 : a2 < b ? -1 : 1;
+    };
+    var rcompareIdentifiers = (a2, b) => compareIdentifiers(b, a2);
+    module.exports = {
+      compareIdentifiers,
+      rcompareIdentifiers
+    };
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/classes/semver.js
+var require_semver = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/classes/semver.js"(exports, module) {
+    "use strict";
+    var debug = require_debug();
+    var { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants();
+    var { safeRe: re, t } = require_re();
+    var parseOptions = require_parse_options();
+    var { compareIdentifiers } = require_identifiers();
+    var isPrereleaseIdentifier = (prerelease, identifier) => {
+      const identifiers = identifier.split(".");
+      if (identifiers.length > prerelease.length) {
+        return false;
+      }
+      for (let i2 = 0; i2 < identifiers.length; i2++) {
+        if (compareIdentifiers(prerelease[i2], identifiers[i2]) !== 0) {
+          return false;
+        }
+      }
+      return true;
+    };
+    var SemVer = class _SemVer {
+      constructor(version, options) {
+        options = parseOptions(options);
+        if (version instanceof _SemVer) {
+          if (version.loose === !!options.loose && version.includePrerelease === !!options.includePrerelease) {
+            return version;
+          } else {
+            version = version.version;
+          }
+        } else if (typeof version !== "string") {
+          throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`);
+        }
+        if (version.length > MAX_LENGTH) {
+          throw new TypeError(
+            `version is longer than ${MAX_LENGTH} characters`
+          );
+        }
+        debug("SemVer", version, options);
+        this.options = options;
+        this.loose = !!options.loose;
+        this.includePrerelease = !!options.includePrerelease;
+        const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
+        if (!m) {
+          throw new TypeError(`Invalid Version: ${version}`);
+        }
+        this.raw = version;
+        this.major = +m[1];
+        this.minor = +m[2];
+        this.patch = +m[3];
+        if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
+          throw new TypeError("Invalid major version");
+        }
+        if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
+          throw new TypeError("Invalid minor version");
+        }
+        if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
+          throw new TypeError("Invalid patch version");
+        }
+        if (!m[4]) {
+          this.prerelease = [];
+        } else {
+          this.prerelease = m[4].split(".").map((id) => {
+            if (/^[0-9]+$/.test(id)) {
+              const num = +id;
+              if (num >= 0 && num < MAX_SAFE_INTEGER) {
+                return num;
+              }
+            }
+            return id;
+          });
+        }
+        this.build = m[5] ? m[5].split(".") : [];
+        this.format();
+      }
+      format() {
+        this.version = `${this.major}.${this.minor}.${this.patch}`;
+        if (this.prerelease.length) {
+          this.version += `-${this.prerelease.join(".")}`;
+        }
+        return this.version;
+      }
+      toString() {
+        return this.version;
+      }
+      compare(other) {
+        debug("SemVer.compare", this.version, this.options, other);
+        if (!(other instanceof _SemVer)) {
+          if (typeof other === "string" && other === this.version) {
+            return 0;
+          }
+          other = new _SemVer(other, this.options);
+        }
+        if (other.version === this.version) {
+          return 0;
+        }
+        return this.compareMain(other) || this.comparePre(other);
+      }
+      compareMain(other) {
+        if (!(other instanceof _SemVer)) {
+          other = new _SemVer(other, this.options);
+        }
+        if (this.major < other.major) {
+          return -1;
+        }
+        if (this.major > other.major) {
+          return 1;
+        }
+        if (this.minor < other.minor) {
+          return -1;
+        }
+        if (this.minor > other.minor) {
+          return 1;
+        }
+        if (this.patch < other.patch) {
+          return -1;
+        }
+        if (this.patch > other.patch) {
+          return 1;
+        }
+        return 0;
+      }
+      comparePre(other) {
+        if (!(other instanceof _SemVer)) {
+          other = new _SemVer(other, this.options);
+        }
+        if (this.prerelease.length && !other.prerelease.length) {
+          return -1;
+        } else if (!this.prerelease.length && other.prerelease.length) {
+          return 1;
+        } else if (!this.prerelease.length && !other.prerelease.length) {
+          return 0;
+        }
+        let i2 = 0;
+        do {
+          const a2 = this.prerelease[i2];
+          const b = other.prerelease[i2];
+          debug("prerelease compare", i2, a2, b);
+          if (a2 === void 0 && b === void 0) {
+            return 0;
+          } else if (b === void 0) {
+            return 1;
+          } else if (a2 === void 0) {
+            return -1;
+          } else if (a2 === b) {
+            continue;
+          } else {
+            return compareIdentifiers(a2, b);
+          }
+        } while (++i2);
+      }
+      compareBuild(other) {
+        if (!(other instanceof _SemVer)) {
+          other = new _SemVer(other, this.options);
+        }
+        let i2 = 0;
+        do {
+          const a2 = this.build[i2];
+          const b = other.build[i2];
+          debug("build compare", i2, a2, b);
+          if (a2 === void 0 && b === void 0) {
+            return 0;
+          } else if (b === void 0) {
+            return 1;
+          } else if (a2 === void 0) {
+            return -1;
+          } else if (a2 === b) {
+            continue;
+          } else {
+            return compareIdentifiers(a2, b);
+          }
+        } while (++i2);
+      }
+      // preminor will bump the version up to the next minor release, and immediately
+      // down to pre-release. premajor and prepatch work the same way.
+      inc(release, identifier, identifierBase) {
+        if (release.startsWith("pre")) {
+          if (!identifier && identifierBase === false) {
+            throw new Error("invalid increment argument: identifier is empty");
+          }
+          if (identifier) {
+            const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
+            if (!match || match[1] !== identifier) {
+              throw new Error(`invalid identifier: ${identifier}`);
+            }
+          }
+        }
+        switch (release) {
+          case "premajor":
+            this.prerelease.length = 0;
+            this.patch = 0;
+            this.minor = 0;
+            this.major++;
+            this.inc("pre", identifier, identifierBase);
+            break;
+          case "preminor":
+            this.prerelease.length = 0;
+            this.patch = 0;
+            this.minor++;
+            this.inc("pre", identifier, identifierBase);
+            break;
+          case "prepatch":
+            this.prerelease.length = 0;
+            this.inc("patch", identifier, identifierBase);
+            this.inc("pre", identifier, identifierBase);
+            break;
+          // If the input is a non-prerelease version, this acts the same as
+          // prepatch.
+          case "prerelease":
+            if (this.prerelease.length === 0) {
+              this.inc("patch", identifier, identifierBase);
+            }
+            this.inc("pre", identifier, identifierBase);
+            break;
+          case "release":
+            if (this.prerelease.length === 0) {
+              throw new Error(`version ${this.raw} is not a prerelease`);
+            }
+            this.prerelease.length = 0;
+            break;
+          case "major":
+            if (this.minor !== 0 || this.patch !== 0 || this.prerelease.length === 0) {
+              this.major++;
+            }
+            this.minor = 0;
+            this.patch = 0;
+            this.prerelease = [];
+            break;
+          case "minor":
+            if (this.patch !== 0 || this.prerelease.length === 0) {
+              this.minor++;
+            }
+            this.patch = 0;
+            this.prerelease = [];
+            break;
+          case "patch":
+            if (this.prerelease.length === 0) {
+              this.patch++;
+            }
+            this.prerelease = [];
+            break;
+          // This probably shouldn't be used publicly.
+          // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
+          case "pre": {
+            const base = Number(identifierBase) ? 1 : 0;
+            if (this.prerelease.length === 0) {
+              this.prerelease = [base];
+            } else {
+              let i2 = this.prerelease.length;
+              while (--i2 >= 0) {
+                if (typeof this.prerelease[i2] === "number") {
+                  this.prerelease[i2]++;
+                  i2 = -2;
+                }
+              }
+              if (i2 === -1) {
+                if (identifier === this.prerelease.join(".") && identifierBase === false) {
+                  throw new Error("invalid increment argument: identifier already exists");
+                }
+                this.prerelease.push(base);
+              }
+            }
+            if (identifier) {
+              let prerelease = [identifier, base];
+              if (identifierBase === false) {
+                prerelease = [identifier];
+              }
+              if (isPrereleaseIdentifier(this.prerelease, identifier)) {
+                const prereleaseBase = this.prerelease[identifier.split(".").length];
+                if (isNaN(prereleaseBase)) {
+                  this.prerelease = prerelease;
+                }
+              } else {
+                this.prerelease = prerelease;
+              }
+            }
+            break;
+          }
+          default:
+            throw new Error(`invalid increment argument: ${release}`);
+        }
+        this.raw = this.format();
+        if (this.build.length) {
+          this.raw += `+${this.build.join(".")}`;
+        }
+        return this;
+      }
+    };
+    module.exports = SemVer;
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/compare.js
+var require_compare = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/compare.js"(exports, module) {
+    "use strict";
+    var SemVer = require_semver();
+    var compare = (a2, b, loose) => new SemVer(a2, loose).compare(new SemVer(b, loose));
+    module.exports = compare;
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/parse.js
+var require_parse = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/parse.js"(exports, module) {
+    "use strict";
+    var SemVer = require_semver();
+    var parse2 = (version, options, throwErrors = false) => {
+      if (version instanceof SemVer) {
+        return version;
+      }
+      try {
+        return new SemVer(version, options);
+      } catch (er) {
+        if (!throwErrors) {
+          return null;
+        }
+        throw er;
+      }
+    };
+    module.exports = parse2;
+  }
+});
+
+// ../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/valid.js
+var require_valid = __commonJS({
+  "../../node_modules/.pnpm/semver@7.8.6/node_modules/semver/functions/valid.js"(exports, module) {
+    "use strict";
+    var parse2 = require_parse();
+    var valid = (version, options) => {
+      const v = parse2(version, options);
+      return v ? v.version : null;
+    };
+    module.exports = valid;
+  }
+});
+
+// ../domain/src/context-snapshot.ts
+import { z } from "zod";
+var tokenCountSchema = z.number().int().nonnegative();
+var contextEntrySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  tokens: tokenCountSchema
+});
+var contextCategorySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  kind: z.enum(["used", "free", "reserved", "deferred"]),
+  tokens: tokenCountSchema,
+  entries: z.array(contextEntrySchema)
+});
+var contextSnapshotSchema = z.object({
+  capturedAt: z.iso.datetime(),
+  providerSessionId: z.string().min(1),
+  providerTurnId: z.string().min(1).nullable(),
+  model: z.string().min(1),
+  usedTokens: tokenCountSchema,
+  contextWindowTokens: z.number().int().positive(),
+  autoCompactAtTokens: z.number().int().positive().nullable(),
+  estimated: z.boolean(),
+  categories: z.array(contextCategorySchema)
+});
+
+// ../domain/src/acp-cli.ts
+import { z as z4 } from "zod";
+
+// ../domain/src/provider-skill-roots.ts
+function isAbsoluteProviderSkillRootPath(value) {
+  if (value.length === 0) {
+    return false;
+  }
+  const normalized = value.replaceAll("\\", "/");
+  const drive = /^[a-zA-Z]:\//u.exec(normalized);
+  const rest = drive ? normalized.slice(drive[0].length) : normalized.slice(1);
+  if (!drive && !normalized.startsWith("/")) {
+    return false;
+  }
+  return rest.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+function isRelativeProviderSkillRootPath(value) {
+  if (value.length === 0) {
+    return false;
+  }
+  const normalized = value.replaceAll("\\", "/");
+  return !normalized.startsWith("/") && !/^[a-zA-Z]:\//u.test(normalized) && normalized.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+// ../domain/src/shared-types.ts
+import { z as z3 } from "zod";
+
+// ../domain/src/json-value.ts
+import { z as z2 } from "zod";
+var jsonValueSchema = z2.lazy(
+  () => z2.union([
+    z2.string(),
+    z2.number(),
+    z2.boolean(),
+    z2.null(),
+    z2.array(jsonValueSchema),
+    z2.record(z2.string(), jsonValueSchema)
+  ])
+);
+var jsonObjectSchema = z2.record(
+  z2.string(),
+  jsonValueSchema
+);
+
+// ../domain/src/shared-types.ts
+var reasoningLevelValues = [
+  "none",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "ultracode",
+  "max",
+  "ultra"
+];
+var reasoningLevelSchema = z3.string().min(1);
+function isStandardReasoningLevel(level) {
+  return reasoningLevelValues.includes(level);
+}
+function standardReasoningLevelRank(level) {
+  const rank = reasoningLevelValues.indexOf(level);
+  return rank === -1 ? null : rank;
+}
+function compareReasoningLevels(a2, b) {
+  const aRank = standardReasoningLevelRank(a2);
+  const bRank = standardReasoningLevelRank(b);
+  if (aRank === null || bRank === null) {
+    return aRank === bRank ? 0 : aRank === null ? 1 : -1;
+  }
+  return aRank - bRank;
+}
+var serviceTierSchema = z3.string().min(1);
+var instructionModeValues = ["append", "replace"];
+var instructionModeSchema = z3.enum(instructionModeValues);
+var permissionModeValues = ["accept-edits", "auto", "full"];
+var permissionModeSchema = z3.enum(permissionModeValues);
+var permissionModeInputSchema = z3.union([permissionModeSchema, z3.literal("workspace-write")]).transform(
+  (permissionMode) => permissionMode === "workspace-write" ? "accept-edits" : permissionMode
+);
+var legacyRecordedPermissionModeValues = [
+  "workspace-write",
+  "readonly"
+];
+var recordedPermissionModeSchema = z3.enum([
+  ...permissionModeValues,
+  ...legacyRecordedPermissionModeValues
+]);
+var permissionEscalationValues = ["ask", "deny"];
+var permissionEscalationSchema = z3.enum(permissionEscalationValues);
+var promptInputVisibilityValues = ["agent-only"];
+var promptInputVisibilitySchema = z3.enum(promptInputVisibilityValues);
+var promptInputVisibilityFields = {
+  visibility: promptInputVisibilitySchema.optional()
+};
+var promptMentionPathSourceValues = ["workspace", "thread-storage"];
+var promptMentionPathSourceSchema = z3.enum(promptMentionPathSourceValues);
+var promptMentionPathEntryKindValues = ["file", "directory"];
+var promptMentionPathEntryKindSchema = z3.enum(
+  promptMentionPathEntryKindValues
+);
+var promptMentionCommandTriggerValues = ["/", "$"];
+var promptMentionCommandTriggerSchema = z3.enum(
+  promptMentionCommandTriggerValues
+);
+var promptMentionCommandSourceValues = ["skill", "command"];
+var promptMentionCommandSourceSchema = z3.enum(
+  promptMentionCommandSourceValues
+);
+var promptMentionCommandOriginValues = [
+  "builtin",
+  "project",
+  "user"
+];
+var promptMentionCommandOriginSchema = z3.enum(
+  promptMentionCommandOriginValues
+);
+var canonicalPromptMentionResourceSchema = z3.discriminatedUnion("kind", [
+  z3.object({
+    kind: z3.literal("thread"),
+    threadId: z3.string(),
+    projectId: z3.string().optional(),
+    label: z3.string()
+  }),
+  z3.object({
+    kind: z3.literal("project"),
+    projectId: z3.string(),
+    label: z3.string()
+  }),
+  z3.object({
+    kind: z3.literal("section"),
+    sectionId: z3.string(),
+    label: z3.string()
+  }),
+  z3.object({
+    kind: z3.literal("path"),
+    source: promptMentionPathSourceSchema,
+    entryKind: promptMentionPathEntryKindSchema,
+    path: z3.string(),
+    label: z3.string()
+  }),
+  z3.object({
+    kind: z3.literal("command"),
+    trigger: promptMentionCommandTriggerSchema,
+    name: z3.string(),
+    source: promptMentionCommandSourceSchema,
+    origin: promptMentionCommandOriginSchema,
+    label: z3.string(),
+    argumentHint: z3.string().nullable()
+  }),
+  z3.object({
+    kind: z3.literal("plugin"),
+    pluginId: z3.string(),
+    icon: z3.string().nullable().optional(),
+    itemId: z3.string(),
+    label: z3.string()
+  }),
+  z3.object({
+    kind: z3.literal("attachment"),
+    path: z3.string(),
+    label: z3.string()
+  })
+]);
+function normalizeLegacyPromptMentionResource(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record2 = value;
+  if (record2.kind !== "folder" || typeof record2.folderId !== "string") {
+    return value;
+  }
+  const { folderId, ...rest } = record2;
+  return { ...rest, kind: "section", sectionId: folderId };
+}
+var promptMentionResourceSchema = z3.preprocess(
+  normalizeLegacyPromptMentionResource,
+  canonicalPromptMentionResourceSchema
+);
+var promptTextMentionSchema = z3.object({
+  start: z3.number().int().nonnegative(),
+  end: z3.number().int().nonnegative(),
+  resource: promptMentionResourceSchema
+});
+var promptInputSchema = z3.discriminatedUnion("type", [
+  z3.object({
+    type: z3.literal("text"),
+    text: z3.string(),
+    mentions: z3.array(promptTextMentionSchema).default([]),
+    ...promptInputVisibilityFields
+  }),
+  z3.object({
+    type: z3.literal("image"),
+    url: z3.string().url(),
+    ...promptInputVisibilityFields
+  }),
+  z3.object({
+    type: z3.literal("localImage"),
+    path: z3.string(),
+    sourceProjectId: z3.string().min(1).optional(),
+    hostId: z3.string().min(1).optional(),
+    ...promptInputVisibilityFields
+  }),
+  z3.object({
+    type: z3.literal("localFile"),
+    path: z3.string(),
+    sourceProjectId: z3.string().min(1).optional(),
+    hostId: z3.string().min(1).optional(),
+    name: z3.string().optional(),
+    sizeBytes: z3.number().int().nonnegative().optional(),
+    mimeType: z3.string().optional(),
+    ...promptInputVisibilityFields
+  })
+]);
+function isSelectedPromptCommandMention(mention, selector) {
+  return mention.resource.kind === "command" && mention.resource.trigger === selector.trigger && mention.resource.name === selector.name;
+}
+function isStandaloneBuiltinCommand(input, name) {
+  const selector = { trigger: "/", name };
+  const selected = input.flatMap(
+    (item) => item.type === "text" ? item.mentions.filter(
+      (mention2) => isSelectedPromptCommandMention(mention2, selector)
+    ).map((mention2) => ({ mention: mention2, text: item.text })) : []
+  );
+  const standalone = selected[0];
+  if (selected.length !== 1 || !standalone || input.some((item) => item.type !== "text")) {
+    return false;
+  }
+  const { mention, text } = standalone;
+  if (mention.resource.kind !== "command" || mention.resource.source !== "command" || mention.resource.origin !== "builtin" || text.slice(mention.start, mention.end) !== `/${name}`) {
+    return false;
+  }
+  return removeCommandMentionsFromPromptInput(input, selector).every(
+    (item) => item.type === "text" && item.text.trim() === ""
+  );
+}
+function isStandaloneBuiltinCompactCommand(input) {
+  return isStandaloneBuiltinCommand(input, "compact");
+}
+function commandRemovalRanges(input, selector) {
+  return input.mentions.filter((mention) => isSelectedPromptCommandMention(mention, selector)).map((mention) => ({
+    start: mention.start,
+    end: input.text[mention.end] === " " && mention.end < input.text.length ? mention.end + 1 : mention.end
+  })).sort((left, right) => left.start - right.start || left.end - right.end);
+}
+function removedBefore(ranges, position) {
+  let removed = 0;
+  for (const range of ranges) {
+    if (range.end <= position) {
+      removed += range.end - range.start;
+    }
+  }
+  return removed;
+}
+function isInsideRemovalRange(ranges, mention) {
+  return ranges.some(
+    (range) => mention.start < range.end && mention.end > range.start
+  );
+}
+function removeCommandMentionsFromTextInput(input, selector) {
+  const ranges = commandRemovalRanges(input, selector);
+  if (ranges.length === 0) {
+    return input;
+  }
+  let text = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    text += input.text.slice(cursor, range.start);
+    cursor = range.end;
+  }
+  text += input.text.slice(cursor);
+  return {
+    ...input,
+    text,
+    mentions: input.mentions.filter(
+      (mention) => !isSelectedPromptCommandMention(mention, selector) && !isInsideRemovalRange(ranges, mention)
+    ).map((mention) => {
+      const start = mention.start - removedBefore(ranges, mention.start);
+      const end = mention.end - removedBefore(ranges, mention.end);
+      return { ...mention, start, end };
+    })
+  };
+}
+function removeCommandMentionsFromPromptInput(input, selector) {
+  return input.map(
+    (item) => item.type === "text" ? removeCommandMentionsFromTextInput(item, selector) : item
+  );
+}
+var threadExecutionSourceSchema = z3.enum([
+  "client/thread/start",
+  "client/turn/requested",
+  "client/turn/start"
+]);
+var callerExecutionInputSourceValues = [
+  "explicit",
+  "client-preference"
+];
+var callerExecutionInputSourceSchema = z3.enum(
+  callerExecutionInputSourceValues
+);
+var threadExecutionOptionsSchema = z3.object({
+  model: z3.string().optional(),
+  serviceTier: serviceTierSchema.optional(),
+  reasoningLevel: reasoningLevelSchema.optional(),
+  permissionMode: permissionModeSchema.optional(),
+  source: threadExecutionSourceSchema.optional(),
+  seq: z3.number().int().optional()
+});
+var resolvedThreadExecutionOptionsSchema = threadExecutionOptionsSchema.extend({
+  model: z3.string().min(1),
+  serviceTier: serviceTierSchema,
+  reasoningLevel: reasoningLevelSchema,
+  permissionMode: permissionModeSchema,
+  source: threadExecutionSourceSchema
+});
+var recordedThreadExecutionOptionsSchema = resolvedThreadExecutionOptionsSchema.extend({
+  permissionMode: recordedPermissionModeSchema
+});
+var runtimePermissionScopeValues = ["workspace", "full"];
+var runtimePermissionScopeSchema = z3.enum(runtimePermissionScopeValues);
+var runtimePermissionPolicySchema = z3.discriminatedUnion(
+  "permissionMode",
+  [
+    z3.object({
+      permissionMode: z3.literal("accept-edits"),
+      permissionScope: z3.literal("workspace"),
+      approvalReviewer: z3.literal("user"),
+      permissionEscalation: permissionEscalationSchema
+    }),
+    z3.object({
+      permissionMode: z3.literal("auto"),
+      permissionScope: z3.literal("workspace"),
+      approvalReviewer: z3.literal("automatic"),
+      permissionEscalation: permissionEscalationSchema
+    }),
+    z3.object({
+      permissionMode: z3.literal("full"),
+      permissionScope: z3.literal("full"),
+      approvalReviewer: z3.null(),
+      permissionEscalation: z3.null()
+    })
+  ]
+);
+var promptModeSchema = z3.literal("plan");
+var sessionOptionValueSchema = z3.union([z3.string(), z3.boolean()]);
+var sessionOptionSelectionsSchema = z3.record(
+  z3.string().min(1),
+  sessionOptionValueSchema
+);
+var runtimeThreadExecutionBaseOptionsSchema = z3.object({
+  model: z3.string().min(1),
+  serviceTier: serviceTierSchema,
+  reasoningLevel: reasoningLevelSchema.optional(),
+  promptMode: promptModeSchema.optional(),
+  sessionOptions: sessionOptionSelectionsSchema.optional(),
+  providerOptions: jsonObjectSchema
+});
+var runtimeThreadExecutionOptionsSchema = runtimeThreadExecutionBaseOptionsSchema.and(runtimePermissionPolicySchema);
+var projectExecutionDefaultsSchema = z3.object({
+  providerId: z3.string().min(1),
+  model: z3.string().min(1),
+  serviceTier: serviceTierSchema,
+  reasoningLevel: reasoningLevelSchema,
+  permissionMode: permissionModeSchema
+});
+
+// ../domain/src/acp-cli.ts
+var providerSkillRootPathSchema = z4.string().min(1).refine(
+  isRelativeProviderSkillRootPath,
+  "Skill roots must be relative paths without dot segments"
+);
+var uniqueProviderSkillRootPathsSchema = z4.array(providerSkillRootPathSchema).superRefine((paths, context) => {
+  if (new Set(paths).size !== paths.length) {
+    context.addIssue({
+      code: "custom",
+      message: "Skill roots must not contain duplicates"
+    });
+  }
+});
+var providerNativeSkillRootsSchema = z4.object({
+  user: uniqueProviderSkillRootPathsSchema.default([]),
+  project: uniqueProviderSkillRootPathsSchema.default([])
+}).strict();
+var acpReasoningCliLevelValueOverridesSchema = z4.record(
+  reasoningLevelSchema,
+  z4.string().min(1)
+);
+var acpReasoningCliSchema = z4.object({
+  flag: z4.string().min(1),
+  supportedLevels: z4.array(reasoningLevelSchema).min(1),
+  levelValues: acpReasoningCliLevelValueOverridesSchema.optional(),
+  defaultLevel: reasoningLevelSchema.optional()
+}).strict().superRefine((reasoningCli, context) => {
+  const supportedLevels = new Set(reasoningCli.supportedLevels);
+  if (supportedLevels.size !== reasoningCli.supportedLevels.length) {
+    context.addIssue({
+      code: "custom",
+      message: "supportedLevels must not contain duplicates",
+      path: ["supportedLevels"]
+    });
+  }
+  if (reasoningCli.defaultLevel !== void 0 && !supportedLevels.has(reasoningCli.defaultLevel)) {
+    context.addIssue({
+      code: "custom",
+      message: "defaultLevel must be one of supportedLevels",
+      path: ["defaultLevel"]
+    });
+  }
+});
+var acpNativeReasoningSchema = z4.object({
+  configId: z4.string().min(1),
+  supportedLevels: z4.array(reasoningLevelSchema).min(1),
+  levelValues: acpReasoningCliLevelValueOverridesSchema.optional(),
+  defaultLevel: reasoningLevelSchema.optional()
+}).strict().superRefine((nativeReasoning, context) => {
+  const supportedLevels = new Set(nativeReasoning.supportedLevels);
+  if (supportedLevels.size !== nativeReasoning.supportedLevels.length) {
+    context.addIssue({
+      code: "custom",
+      message: "supportedLevels must not contain duplicates",
+      path: ["supportedLevels"]
+    });
+  }
+  if (nativeReasoning.defaultLevel !== void 0 && !supportedLevels.has(nativeReasoning.defaultLevel)) {
+    context.addIssue({
+      code: "custom",
+      message: "defaultLevel must be one of supportedLevels",
+      path: ["defaultLevel"]
+    });
+  }
+});
+var acpPermissionCliArgsSchema = z4.array(z4.string().min(1)).min(1);
+var acpPermissionCliSchema = z4.object({
+  full: acpPermissionCliArgsSchema.optional(),
+  workspaceWrite: acpPermissionCliArgsSchema.optional(),
+  readonly: acpPermissionCliArgsSchema.optional(),
+  insertAfterArgs: z4.number().int().min(0).optional()
+}).strict().superRefine((permissionCli, context) => {
+  if (permissionCli.full === void 0 && permissionCli.workspaceWrite === void 0 && permissionCli.readonly === void 0) {
+    context.addIssue({
+      code: "custom",
+      message: "permissionCli must configure at least one permission mode"
+    });
+  }
+});
+
+// ../domain/src/native-roots.ts
+import { z as z5 } from "zod";
+var PROVIDER_NATIVE_ROOTS_MAX = 32;
+var PROVIDER_NATIVE_ROOT_NAME_PREFIX_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}:$/u;
+var nativeRootNamePrefixSchema = z5.string().refine(
+  (value) => value === "" || PROVIDER_NATIVE_ROOT_NAME_PREFIX_PATTERN.test(value),
+  "A root name prefix is a plugin-name-like token ending in ':'"
+);
+var nativeRootManifestPathSchema = z5.string().min(1).refine(
+  isRelativeProviderSkillRootPath,
+  "A manifest marker is a relative path without dot segments"
+);
+var relativeNativeRootPathSchema = z5.string().min(1).refine(
+  isRelativeProviderSkillRootPath,
+  "Roots must be relative paths without dot segments"
+);
+var absoluteNativeRootPathSchema = z5.string().min(1).refine(
+  isAbsoluteProviderSkillRootPath,
+  "Absolute roots must be absolute paths without dot segments"
+);
+var providerNativeRootInputSchema = z5.union([
+  z5.string().min(1),
+  z5.object({
+    path: z5.string().min(1),
+    /** Skills nest in subdirectories (the agent scans recursively). */
+    recursive: z5.boolean().optional(),
+    /**
+     * Scan the same relative directory in every ancestor of the workspace
+     * up to the repository root (`project` roots only).
+     */
+    ancestors: z5.boolean().optional(),
+    /**
+     * Prepended to every name under the root, a vendor plugin's
+     * `plugin-name:`; a prefixed root is listed as a plugin root.
+     */
+    namePrefix: nativeRootNamePrefixSchema.optional(),
+    /**
+     * A file, relative to a skill directory under this root, that marks the
+     * directory as a vendor plugin rather than a skill (Claude's
+     * `.claude-plugin/plugin.json`): bb skips such a directory. The plugin
+     * that knows the vendor layout declares it; core names no vendor path.
+     */
+    skipIfManifest: nativeRootManifestPathSchema.optional()
+  }).strict()
+]);
+var providerNativeRootsInputSchema = z5.object({
+  user: z5.array(providerNativeRootInputSchema).optional(),
+  project: z5.array(providerNativeRootInputSchema).optional()
+}).strict();
+var providerNativeRootSchema = z5.object({
+  path: z5.string().min(1),
+  recursive: z5.boolean(),
+  ancestors: z5.boolean(),
+  namePrefix: nativeRootNamePrefixSchema,
+  /** Absent: every skill-shaped directory under the root is a skill. */
+  skipIfManifest: nativeRootManifestPathSchema.optional()
+}).strict();
+function uniqueByPath(roots) {
+  return new Set(roots.map((root) => root.path)).size === roots.length;
+}
+function nativeRootSideSchema(side) {
+  return z5.array(
+    providerNativeRootSchema.extend({ path: relativeNativeRootPathSchema }).superRefine((root, context) => {
+      if (root.ancestors && side !== "project") {
+        context.addIssue({
+          code: "custom",
+          message: "Only project roots may walk ancestors"
+        });
+      }
+    })
+  ).max(PROVIDER_NATIVE_ROOTS_MAX).refine(uniqueByPath, "Roots must not repeat a path");
+}
+var providerNativeRootsSchema = z5.object({
+  user: nativeRootSideSchema("user"),
+  project: nativeRootSideSchema("project")
+}).strict();
+var EMPTY_PROVIDER_NATIVE_ROOTS = Object.freeze({
+  user: Object.freeze([]),
+  project: Object.freeze([])
+});
+function normalizeProviderNativeRoot(entry) {
+  if (typeof entry === "string") {
+    return { path: entry, recursive: false, ancestors: false, namePrefix: "" };
+  }
+  return {
+    path: entry.path,
+    recursive: entry.recursive ?? false,
+    ancestors: entry.ancestors ?? false,
+    namePrefix: entry.namePrefix ?? "",
+    ...entry.skipIfManifest === void 0 ? {} : { skipIfManifest: entry.skipIfManifest }
+  };
+}
+function normalizeProviderNativeRoots(roots) {
+  return {
+    user: (roots?.user ?? []).map(normalizeProviderNativeRoot),
+    project: (roots?.project ?? []).map(normalizeProviderNativeRoot)
+  };
+}
+var providerResolvedNativeRootShapeSchema = z5.enum([
+  "skills",
+  "skill",
+  "skill-file",
+  "commands",
+  "command-file"
+]);
+var resolvedNativeRootFieldsSchema = z5.object({
+  path: absoluteNativeRootPathSchema,
+  origin: z5.enum(["user", "project"]),
+  recursive: z5.boolean(),
+  /** Only with origin `project`, for a path inside the workspace. */
+  ancestors: z5.boolean(),
+  namePrefix: nativeRootNamePrefixSchema,
+  shape: providerResolvedNativeRootShapeSchema,
+  /**
+   * `skill-file` only: the skill name when the file's frontmatter names
+   * none. A vendor plugin's root SKILL.md takes the plugin's name; absent
+   * means the parent directory's name.
+   */
+  fallbackName: z5.string().min(1).optional(),
+  /**
+   * `skills` only: a file, relative to a skill directory under this root,
+   * that marks the directory as a vendor plugin rather than a skill; the
+   * daemon skips such a directory (see the declared root's `skipIfManifest`).
+   */
+  skipIfManifest: nativeRootManifestPathSchema.optional()
+}).strict();
+var providerResolvedNativeRootSchema = resolvedNativeRootFieldsSchema.superRefine((root, context) => {
+  if (root.skipIfManifest !== void 0 && root.shape !== "skills") {
+    context.addIssue({
+      code: "custom",
+      message: "Only a skills root carries a manifest marker"
+    });
+  }
+  if (root.ancestors && root.origin !== "project") {
+    context.addIssue({
+      code: "custom",
+      message: "Only project roots may walk ancestors"
+    });
+  }
+  if (root.fallbackName !== void 0 && root.shape !== "skill-file") {
+    context.addIssue({
+      code: "custom",
+      message: "Only a skill-file root carries a fallback name"
+    });
+  }
+});
+var providerResolvedNativeRootInputSchema = resolvedNativeRootFieldsSchema.partial({
+  recursive: true,
+  ancestors: true,
+  namePrefix: true,
+  shape: true
+});
+var resolvedSkillShapes = /* @__PURE__ */ new Set([
+  "skills",
+  "skill",
+  "skill-file"
+]);
+var resolvedCommandShapes = /* @__PURE__ */ new Set([
+  "commands",
+  "command-file"
+]);
+var PROVIDER_RESOLVED_NATIVE_ROOTS_MAX = 256;
+var providerResolvedNativeRootsSchema = z5.object({
+  skills: z5.array(
+    providerResolvedNativeRootSchema.refine(
+      (root) => resolvedSkillShapes.has(root.shape),
+      "A skills root needs a skill shape"
+    )
+  ).max(PROVIDER_RESOLVED_NATIVE_ROOTS_MAX),
+  commands: z5.array(
+    providerResolvedNativeRootSchema.refine(
+      (root) => resolvedCommandShapes.has(root.shape),
+      "A commands root needs a command shape"
+    )
+  ).max(PROVIDER_RESOLVED_NATIVE_ROOTS_MAX)
+}).strict();
+var EMPTY_PROVIDER_RESOLVED_NATIVE_ROOTS = Object.freeze({
+  skills: Object.freeze([]),
+  commands: Object.freeze([])
+});
+var providerNativeRootSetSchema = z5.object({
+  skills: providerNativeRootsSchema,
+  commands: providerNativeRootsSchema,
+  resolved: providerResolvedNativeRootsSchema
+}).strict();
+
+// ../domain/src/completed-turn-display.ts
+import { z as z6 } from "zod";
+var COMPLETED_TURN_DISPLAY_VALUES = ["collapse", "flat"];
+var completedTurnDisplaySchema = z6.enum(COMPLETED_TURN_DISPLAY_VALUES);
+
+// ../domain/src/plugin-id.ts
+import { z as z7 } from "zod";
+var pluginIdSchema = z7.string().regex(/^[a-z0-9][a-z0-9-]*$/u);
+
+// ../domain/src/background-task.ts
+import { z as z8 } from "zod";
+var backgroundTaskStatusValues = [
+  "pending",
+  "running",
+  "paused",
+  "completed",
+  "failed",
+  "killed",
+  "stopped"
+];
+var backgroundTaskStatusSchema = z8.enum(backgroundTaskStatusValues);
+var workflowAgentStateValues = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+  "skipped"
+];
+var workflowAgentStateSchema = z8.enum(workflowAgentStateValues);
+var workflowAgentSnapshotSchema = z8.object({
+  index: z8.number().int().positive(),
+  label: z8.string(),
+  state: workflowAgentStateSchema,
+  model: z8.string(),
+  attempt: z8.number().int().positive(),
+  cached: z8.boolean(),
+  lastProgressAt: z8.number(),
+  phaseIndex: z8.number().int().positive().optional(),
+  phaseTitle: z8.string().optional(),
+  agentType: z8.string().optional(),
+  isolation: z8.string().optional(),
+  queuedAt: z8.number().optional(),
+  startedAt: z8.number().optional(),
+  lastToolName: z8.string().optional(),
+  lastToolSummary: z8.string().optional(),
+  promptPreview: z8.string().optional(),
+  resultPreview: z8.string().optional(),
+  error: z8.string().optional(),
+  tokens: z8.number().optional(),
+  toolCalls: z8.number().optional(),
+  durationMs: z8.number().optional()
+});
+var workflowPhaseSnapshotSchema = z8.object({
+  index: z8.number().int().positive(),
+  title: z8.string(),
+  kind: z8.string().optional()
+});
+var workflowProgressSnapshotSchema = z8.object({
+  phases: z8.array(workflowPhaseSnapshotSchema),
+  agents: z8.array(workflowAgentSnapshotSchema)
+});
+var backgroundTaskUsageSchema = z8.object({
+  totalTokens: z8.number(),
+  toolUses: z8.number(),
+  durationMs: z8.number()
+});
+
+// ../domain/src/protocol-ids.ts
+import { z as z9 } from "zod";
+var clientTurnRequestIdSchema = z9.string().regex(/^creq_[23456789abcdefghijkmnpqrstuvwxyz]{10}$/u);
+
+// ../domain/src/system-message.ts
+import { z as z10 } from "zod";
+var systemMessageKindValues = [
+  "ownership-assigned",
+  "ownership-removed",
+  "ownership-batch",
+  "child-needs-attention",
+  "child-completed",
+  "child-failed",
+  "child-interrupted",
+  "child-outcome-batch",
+  "tool-result-delivered",
+  "environment-directory-updated",
+  "unlabeled"
+];
+var systemMessageKindSchema = z10.enum(systemMessageKindValues);
+var systemThreadInterruptedReasonSchema = z10.enum([
+  "manual-stop",
+  "host-daemon-restarted",
+  "host-removed",
+  "provider-turn-idle"
+]);
+var childThreadOutcomeSchema = z10.object({
+  threadId: z10.string(),
+  status: z10.enum(["completed", "failed", "interrupted"]),
+  interruption: z10.object({
+    reason: systemThreadInterruptedReasonSchema,
+    cause: z10.literal("host-connection-lost").optional()
+  }).optional()
+});
+var systemMessageSubjectSchema = z10.discriminatedUnion("kind", [
+  z10.object({
+    kind: z10.literal("thread"),
+    threadId: z10.string(),
+    threadName: z10.string(),
+    outcomes: z10.array(childThreadOutcomeSchema).optional()
+  }),
+  z10.object({
+    kind: z10.literal("thread-batch"),
+    count: z10.number(),
+    outcomes: z10.array(childThreadOutcomeSchema).optional()
+  }),
+  z10.object({
+    kind: z10.literal("tool-call"),
+    toolName: z10.string(),
+    suppress: z10.boolean()
+  }),
+  z10.object({
+    kind: z10.literal("directory"),
+    path: z10.string()
+  })
+]);
+
+// ../domain/src/item-presentation.ts
+import { z as z11 } from "zod";
+var THREAD_EVENT_ITEM_PRESENTATION_DETAIL_MAX_LENGTH = 280;
+var threadEventItemPresentationLabelSchema = z11.object({
+  pending: z11.string().min(1),
+  completed: z11.string().min(1)
+});
+var threadEventItemPresentationIconSchema = z11.object({
+  glyph: z11.string().min(1)
+});
+var threadEventItemPresentationTintSchema = z11.object({
+  light: z11.string().min(1),
+  dark: z11.string().min(1)
+});
+var THREAD_EVENT_ITEM_PRESENTATION_BADGE_LABEL_MAX_LENGTH = 80;
+var threadEventItemPresentationBadgeSchema = z11.object({
+  glyph: z11.string().min(1),
+  label: z11.string().min(1).max(THREAD_EVENT_ITEM_PRESENTATION_BADGE_LABEL_MAX_LENGTH),
+  hint: z11.string().min(1).max(THREAD_EVENT_ITEM_PRESENTATION_BADGE_LABEL_MAX_LENGTH),
+  tone: z11.enum(["neutral", "destructive"])
+});
+var threadEventItemPresentationSchema = z11.object({
+  label: threadEventItemPresentationLabelSchema,
+  icon: threadEventItemPresentationIconSchema,
+  title: z11.string().optional(),
+  detail: z11.string().max(THREAD_EVENT_ITEM_PRESENTATION_DETAIL_MAX_LENGTH).optional(),
+  suppress: z11.boolean().optional(),
+  tint: threadEventItemPresentationTintSchema.optional(),
+  badge: threadEventItemPresentationBadgeSchema.optional()
+});
+
+// ../domain/src/pending-interactions.ts
+import { z as z13 } from "zod";
+
+// ../domain/src/plugin-interaction-limits.ts
+var PLUGIN_INTERACTION_MAX_TITLE_LENGTH = 160;
+var PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES = 64 * 1024;
+var PLUGIN_INTERACTION_MAX_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1e3;
+function jsonByteLength(value) {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+// ../domain/src/provider-extension-kind.ts
+import { z as z12 } from "zod";
+var EXTENSION_KIND_PATTERN = /^[a-z0-9-]+\/[a-z0-9-]+$/u;
+function isExtensionKind(value) {
+  return EXTENSION_KIND_PATTERN.test(value);
+}
+var extensionKindSchema = z12.string().refine(isExtensionKind, {
+  message: 'extension kinds are "<pluginId>/<name>" (lowercase letters, digits, and "-")'
+});
+
+// ../domain/src/pending-interactions.ts
+var pendingInteractionStatusSchema = z13.enum([
+  "pending",
+  "resolving",
+  "resolved",
+  "interrupted"
+]);
+var pendingInteractionCommandActionSchema = z13.discriminatedUnion(
+  "type",
+  [
+    z13.object({
+      type: z13.literal("read"),
+      command: z13.string(),
+      name: z13.string(),
+      path: z13.string()
+    }),
+    z13.object({
+      type: z13.literal("listFiles"),
+      command: z13.string(),
+      path: z13.string().nullable()
+    }),
+    z13.object({
+      type: z13.literal("search"),
+      command: z13.string(),
+      query: z13.string().nullable(),
+      path: z13.string().nullable()
+    }),
+    z13.object({
+      type: z13.literal("unknown"),
+      command: z13.string()
+    })
+  ]
+);
+var pendingInteractionNetworkPermissionsSchema = z13.object({
+  enabled: z13.boolean().nullable()
+});
+var pendingInteractionFileSystemPermissionsSchema = z13.object({
+  read: z13.array(z13.string()),
+  write: z13.array(z13.string())
+});
+var pendingInteractionMacOsPreferencesPermissionSchema = z13.enum([
+  "none",
+  "read_only",
+  "read_write"
+]);
+var pendingInteractionMacOsContactsPermissionSchema = z13.enum([
+  "none",
+  "read_only",
+  "read_write"
+]);
+var pendingInteractionMacOsAutomationPermissionSchema = z13.union([
+  z13.literal("none"),
+  z13.literal("all"),
+  z13.object({
+    kind: z13.literal("bundle_ids"),
+    bundleIds: z13.array(z13.string())
+  })
+]);
+var pendingInteractionMacOsPermissionsSchema = z13.object({
+  preferences: pendingInteractionMacOsPreferencesPermissionSchema,
+  automations: pendingInteractionMacOsAutomationPermissionSchema,
+  launchServices: z13.boolean(),
+  accessibility: z13.boolean(),
+  calendar: z13.boolean(),
+  reminders: z13.boolean(),
+  contacts: pendingInteractionMacOsContactsPermissionSchema
+});
+var pendingInteractionRequestedPermissionProfileSchema = z13.object({
+  network: pendingInteractionNetworkPermissionsSchema.nullable(),
+  fileSystem: pendingInteractionFileSystemPermissionsSchema.nullable(),
+  macos: pendingInteractionMacOsPermissionsSchema.nullable()
+});
+var pendingInteractionGrantablePermissionProfileSchema = z13.object({
+  network: pendingInteractionNetworkPermissionsSchema.nullable(),
+  fileSystem: pendingInteractionFileSystemPermissionsSchema.nullable()
+}).strict();
+var pendingInteractionGrantedPermissionProfileSchema = pendingInteractionGrantablePermissionProfileSchema;
+var pendingInteractionApprovalDecisionSchema = z13.enum([
+  "allow_once",
+  "allow_for_session",
+  "deny"
+]);
+var pendingInteractionFileChangeWriteScopeSchema = z13.string().min(1);
+var pendingInteractionCommandApprovalSubjectSchema = z13.object({
+  kind: z13.literal("command"),
+  itemId: z13.string().min(1),
+  command: z13.string().min(1),
+  cwd: z13.string().nullable(),
+  actions: z13.array(pendingInteractionCommandActionSchema),
+  sessionGrant: pendingInteractionGrantablePermissionProfileSchema.nullable()
+});
+var pendingInteractionFileChangeApprovalSubjectSchema = z13.object({
+  kind: z13.literal("file_change"),
+  itemId: z13.string().min(1),
+  writeScope: pendingInteractionFileChangeWriteScopeSchema.nullable(),
+  sessionGrant: pendingInteractionGrantablePermissionProfileSchema.nullable()
+});
+var pendingInteractionPermissionGrantApprovalSubjectSchema = z13.object({
+  kind: z13.literal("permission_grant"),
+  itemId: z13.string().min(1),
+  toolName: z13.string().nullable(),
+  permissions: pendingInteractionGrantablePermissionProfileSchema
+});
+var pendingInteractionPlanApprovalSubjectSchema = z13.object({
+  kind: z13.literal("plan"),
+  itemId: z13.string().min(1),
+  plan: z13.string().min(1),
+  planFilePath: z13.string().min(1).nullable()
+});
+var pendingInteractionToolUseApprovalSubjectSchema = z13.object({
+  kind: z13.literal("tool_use"),
+  itemId: z13.string().min(1),
+  tool: z13.string().min(1),
+  presentation: threadEventItemPresentationSchema
+});
+var pendingInteractionApprovalSubjectSchema = z13.discriminatedUnion("kind", [
+  pendingInteractionCommandApprovalSubjectSchema,
+  pendingInteractionFileChangeApprovalSubjectSchema,
+  pendingInteractionPermissionGrantApprovalSubjectSchema,
+  pendingInteractionPlanApprovalSubjectSchema,
+  pendingInteractionToolUseApprovalSubjectSchema
+]);
+var approvalPendingInteractionPayloadSchema = z13.object({
+  kind: z13.literal("approval"),
+  subject: pendingInteractionApprovalSubjectSchema,
+  reason: z13.string().nullable(),
+  availableDecisions: z13.array(pendingInteractionApprovalDecisionSchema).min(1)
+});
+var USER_QUESTION_MAX_QUESTIONS = 10;
+var USER_QUESTION_MAX_OPTIONS = 4;
+var USER_QUESTION_MAX_SELECTED = 4;
+var USER_QUESTION_MAX_FREE_TEXT_LENGTH = 4096;
+var pendingInteractionUserQuestionIdSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question ids cannot be blank"
+});
+var pendingInteractionUserQuestionPromptSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question prompts cannot be blank"
+});
+var pendingInteractionUserQuestionShortLabelSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question short labels cannot be blank"
+});
+var pendingInteractionUserQuestionOptionValueSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question option values cannot be blank"
+});
+var pendingInteractionUserQuestionOptionLabelSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question option labels cannot be blank"
+});
+var pendingInteractionUserQuestionOptionDescriptionSchema = z13.string().min(1).refine((value) => value.trim().length > 0, {
+  message: "User question option descriptions cannot be blank"
+});
+var pendingInteractionUserQuestionFreeTextSchema = z13.string().min(1).max(
+  USER_QUESTION_MAX_FREE_TEXT_LENGTH,
+  `User question free text cannot exceed ${USER_QUESTION_MAX_FREE_TEXT_LENGTH} characters`
+).refine((value) => value.trim().length > 0, {
+  message: "User question free text cannot be blank"
+});
+var pendingInteractionUserQuestionOptionSchema = z13.object({
+  value: pendingInteractionUserQuestionOptionValueSchema,
+  label: pendingInteractionUserQuestionOptionLabelSchema,
+  description: pendingInteractionUserQuestionOptionDescriptionSchema.optional()
+});
+var pendingInteractionUserQuestionQuestionSchema = z13.object({
+  id: pendingInteractionUserQuestionIdSchema,
+  prompt: pendingInteractionUserQuestionPromptSchema,
+  shortLabel: pendingInteractionUserQuestionShortLabelSchema.optional(),
+  multiSelect: z13.boolean(),
+  options: z13.array(pendingInteractionUserQuestionOptionSchema).max(
+    USER_QUESTION_MAX_OPTIONS,
+    `User questions cannot include more than ${USER_QUESTION_MAX_OPTIONS} options`
+  ).optional(),
+  allowFreeText: z13.boolean(),
+  required: z13.boolean().default(true)
+}).superRefine((question, context) => {
+  const optionValues = /* @__PURE__ */ new Set();
+  question.options?.forEach((option, index) => {
+    if (optionValues.has(option.value)) {
+      context.addIssue({
+        code: z13.ZodIssueCode.custom,
+        message: "User question option values must be unique",
+        path: ["options", index, "value"]
+      });
+      return;
+    }
+    optionValues.add(option.value);
+  });
+}).refine(
+  (question) => question.allowFreeText || (question.options?.length ?? 0) > 0,
+  {
+    message: "User questions must allow free text or provide at least one option",
+    path: ["options"]
+  }
+);
+var userQuestionPendingInteractionPayloadSchema = z13.object({
+  kind: z13.literal("user_question"),
+  questions: z13.array(pendingInteractionUserQuestionQuestionSchema).min(1).max(
+    USER_QUESTION_MAX_QUESTIONS,
+    `User questions cannot include more than ${USER_QUESTION_MAX_QUESTIONS} questions`
+  )
+}).superRefine((payload, context) => {
+  const questionIds = /* @__PURE__ */ new Set();
+  payload.questions.forEach((question, index) => {
+    if (questionIds.has(question.id)) {
+      context.addIssue({
+        code: z13.ZodIssueCode.custom,
+        message: "User question ids must be unique",
+        path: ["questions", index, "id"]
+      });
+      return;
+    }
+    questionIds.add(question.id);
+  });
+});
+var pluginPendingInteractionPayloadSchema = z13.object({
+  kind: z13.literal("plugin"),
+  title: z13.string().trim().min(1).max(PLUGIN_INTERACTION_MAX_TITLE_LENGTH),
+  data: jsonValueSchema,
+  presentation: threadEventItemPresentationSchema.optional()
+});
+var pluginExtensionInteractionRequestPayloadSchema = z13.object({
+  kind: extensionKindSchema,
+  title: z13.string().trim().min(1).max(PLUGIN_INTERACTION_MAX_TITLE_LENGTH),
+  data: jsonValueSchema.refine(
+    (value) => jsonByteLength(value) <= PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES,
+    { message: "Plugin request data exceeds 64 KiB" }
+  )
+});
+var interactionRequestPayloadSchema = z13.union([
+  userQuestionPendingInteractionPayloadSchema,
+  pluginExtensionInteractionRequestPayloadSchema
+]);
+var pendingInteractionPayloadSchema = z13.union([
+  approvalPendingInteractionPayloadSchema,
+  userQuestionPendingInteractionPayloadSchema,
+  pluginExtensionInteractionRequestPayloadSchema
+]);
+function isApprovalPendingInteractionPayload(payload) {
+  return payload.kind === "approval";
+}
+var approvalDecisionDiscriminatorError = "Invalid discriminator value. Expected 'allow_once' | 'allow_for_session' | 'deny'";
+var approvalPendingInteractionResolutionSchema = z13.discriminatedUnion(
+  "decision",
+  [
+    z13.object({
+      decision: z13.literal("allow_once"),
+      grantedPermissions: pendingInteractionGrantedPermissionProfileSchema.nullable()
+    }),
+    z13.object({
+      decision: z13.literal("allow_for_session"),
+      grantedPermissions: pendingInteractionGrantedPermissionProfileSchema.nullable()
+    }),
+    z13.object({
+      decision: z13.literal("deny")
+    })
+  ],
+  approvalDecisionDiscriminatorError
+);
+var pendingInteractionUserAnswerSchema = z13.object({
+  selected: z13.array(z13.string().min(1)).max(
+    USER_QUESTION_MAX_SELECTED,
+    `User question selected choices cannot exceed ${USER_QUESTION_MAX_SELECTED}`
+  ),
+  freeText: pendingInteractionUserQuestionFreeTextSchema.optional()
+});
+var userQuestionPendingInteractionResolutionSchema = z13.object({
+  kind: z13.literal("user_answer"),
+  answers: z13.record(z13.string().min(1), pendingInteractionUserAnswerSchema)
+});
+var pluginInteractionDescriptionSchema = z13.object({
+  title: z13.string().trim().min(1).max(PLUGIN_INTERACTION_MAX_TITLE_LENGTH).optional(),
+  detail: z13.string().trim().min(1).max(THREAD_EVENT_ITEM_PRESENTATION_DETAIL_MAX_LENGTH).optional(),
+  payload: jsonValueSchema.refine(
+    (value) => jsonByteLength(value) <= PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES,
+    { message: "Plugin interaction description payload exceeds 64 KiB" }
+  ).optional()
+});
+var pluginPendingInteractionResolutionSchema = z13.object({
+  kind: z13.literal("plugin_submitted"),
+  description: pluginInteractionDescriptionSchema.optional()
+});
+var pluginExtensionInteractionResolutionSchema = z13.object({
+  kind: z13.literal("request_answer"),
+  value: jsonValueSchema
+});
+var resolutionDiscriminatorKeys = /* @__PURE__ */ new Set(["decision", "kind"]);
+function pendingInteractionResolutionError(issue) {
+  if (issue.code !== "invalid_union") {
+    return approvalDecisionDiscriminatorError;
+  }
+  for (const branch of issue.errors) {
+    const first = branch[0];
+    if (first !== void 0 && !resolutionDiscriminatorKeys.has(first.path[0] ?? "")) {
+      return first.message;
+    }
+  }
+  return approvalDecisionDiscriminatorError;
+}
+var pendingInteractionResolutionSchema = z13.union(
+  [
+    approvalPendingInteractionResolutionSchema,
+    userQuestionPendingInteractionResolutionSchema,
+    pluginPendingInteractionResolutionSchema,
+    pluginExtensionInteractionResolutionSchema
+  ],
+  { error: pendingInteractionResolutionError }
+);
+function isApprovalPendingInteractionResolution(resolution) {
+  return "decision" in resolution;
+}
+var approvalInteractionOutcomeSchema = z13.object({
+  payload: approvalPendingInteractionPayloadSchema,
+  resolution: approvalPendingInteractionResolutionSchema
+});
+var userQuestionInteractionOutcomeSchema = z13.object({
+  payload: userQuestionPendingInteractionPayloadSchema,
+  resolution: userQuestionPendingInteractionResolutionSchema
+});
+var pluginExtensionInteractionOutcomeSchema = z13.object({
+  payload: pluginExtensionInteractionRequestPayloadSchema,
+  resolution: pluginExtensionInteractionResolutionSchema
+});
+var providerInteractionOutcomeSchema = z13.union([
+  approvalInteractionOutcomeSchema,
+  userQuestionInteractionOutcomeSchema,
+  pluginExtensionInteractionOutcomeSchema
+]);
+var pendingInteractionProviderOriginSchema = z13.object({
+  kind: z13.literal("provider"),
+  providerId: z13.string().min(1),
+  providerThreadId: z13.string().min(1),
+  providerRequestId: z13.string().min(1)
+});
+var pendingInteractionPluginOriginSchema = z13.object({
+  kind: z13.literal("plugin"),
+  pluginId: z13.string().min(1),
+  rendererId: z13.string().min(1)
+});
+var pendingInteractionCreateSchema = z13.object({
+  threadId: z13.string().min(1),
+  turnId: z13.string().min(1),
+  providerId: z13.string().min(1),
+  providerThreadId: z13.string().min(1),
+  providerRequestId: z13.string().min(1),
+  payload: pendingInteractionPayloadSchema
+});
+var pendingInteractionBaseSchema = z13.object({
+  id: z13.string().min(1),
+  threadId: z13.string().min(1),
+  status: pendingInteractionStatusSchema,
+  statusReason: z13.string().nullable(),
+  createdAt: z13.number().int().nonnegative(),
+  expiresAt: z13.number().int().nonnegative().nullable().optional(),
+  resolvedAt: z13.number().int().nonnegative().nullable()
+});
+var providerPendingInteractionBaseSchema = pendingInteractionBaseSchema.extend({
+  turnId: z13.string().min(1),
+  providerId: z13.string().min(1),
+  providerThreadId: z13.string().min(1),
+  providerRequestId: z13.string().min(1),
+  origin: pendingInteractionProviderOriginSchema.optional()
+});
+var approvalPendingInteractionSchema = providerPendingInteractionBaseSchema.extend({
+  payload: approvalPendingInteractionPayloadSchema,
+  resolution: approvalPendingInteractionResolutionSchema.nullable()
+});
+var userQuestionPendingInteractionSchema = providerPendingInteractionBaseSchema.extend({
+  payload: userQuestionPendingInteractionPayloadSchema,
+  resolution: userQuestionPendingInteractionResolutionSchema.nullable()
+});
+var pluginExtensionPendingInteractionSchema = providerPendingInteractionBaseSchema.extend({
+  payload: pluginExtensionInteractionRequestPayloadSchema,
+  resolution: pluginExtensionInteractionResolutionSchema.nullable()
+});
+var providerPendingInteractionSchema = z13.union([
+  approvalPendingInteractionSchema,
+  userQuestionPendingInteractionSchema,
+  pluginExtensionPendingInteractionSchema
+]);
+var pluginPendingInteractionSchema = pendingInteractionBaseSchema.extend({
+  turnId: z13.string().min(1).nullable(),
+  origin: pendingInteractionPluginOriginSchema,
+  payload: pluginPendingInteractionPayloadSchema,
+  resolution: pluginPendingInteractionResolutionSchema.nullable()
+});
+var pendingInteractionSchema = z13.union([
+  providerPendingInteractionSchema,
+  pluginPendingInteractionSchema
+]);
+var interactionLifecycleRecordBaseSchema = z13.object({
+  id: z13.string().min(1),
+  status: pendingInteractionStatusSchema,
+  statusReason: z13.string().nullable()
+});
+var interactionLifecycleProviderOriginSchema = z13.object({
+  kind: z13.literal("provider"),
+  providerId: z13.string().min(1),
+  providerRequestId: z13.string().min(1)
+});
+var approvalInteractionLifecycleRecordPayloadSchema = approvalPendingInteractionPayloadSchema.omit({ availableDecisions: true });
+var approvalInteractionLifecycleSchema = interactionLifecycleRecordBaseSchema.extend({
+  origin: interactionLifecycleProviderOriginSchema,
+  payload: approvalInteractionLifecycleRecordPayloadSchema,
+  resolution: approvalPendingInteractionResolutionSchema.nullable()
+});
+var userQuestionInteractionLifecycleSchema = interactionLifecycleRecordBaseSchema.extend({
+  origin: interactionLifecycleProviderOriginSchema,
+  payload: userQuestionPendingInteractionPayloadSchema,
+  resolution: userQuestionPendingInteractionResolutionSchema.nullable()
+});
+var pluginInteractionLifecycleSchema = interactionLifecycleRecordBaseSchema.extend({
+  origin: pendingInteractionPluginOriginSchema,
+  payload: pluginPendingInteractionPayloadSchema.omit({ data: true }),
+  resolution: pluginPendingInteractionResolutionSchema.nullable()
+});
+var pluginExtensionInteractionLifecycleSchema = interactionLifecycleRecordBaseSchema.extend({
+  origin: interactionLifecycleProviderOriginSchema,
+  payload: pluginExtensionInteractionRequestPayloadSchema.omit({
+    data: true
+  }),
+  resolution: pluginExtensionInteractionResolutionSchema.omit({ value: true }).nullable()
+});
+var interactionLifecycleSchema = z13.union([
+  approvalInteractionLifecycleSchema,
+  userQuestionInteractionLifecycleSchema,
+  pluginInteractionLifecycleSchema,
+  pluginExtensionInteractionLifecycleSchema
+]);
+
+// ../domain/src/provider-event.ts
+import { z as z18 } from "zod";
+
+// ../domain/src/thread-events.ts
+import { z as z14 } from "zod";
+var threadTurnInitiatorValues = ["user", "agent", "system"];
+var threadTurnInitiatorSchema = z14.enum(threadTurnInitiatorValues);
+var turnRequestOptionsSchema = recordedThreadExecutionOptionsSchema;
+var turnRequestTargetSchema = z14.discriminatedUnion("kind", [
+  z14.object({ kind: z14.literal("thread-start") }),
+  z14.object({ kind: z14.literal("new-turn") }),
+  z14.object({
+    kind: z14.literal("auto"),
+    expectedTurnId: z14.string().nullable()
+  }),
+  z14.object({
+    kind: z14.literal("steer"),
+    expectedTurnId: z14.string().nullable()
+  })
+]);
+var clientTurnLifecycleEventDataSchema = z14.object({
+  direction: z14.literal("outbound"),
+  source: z14.enum(["spawn", "tell"]),
+  initiator: threadTurnInitiatorSchema,
+  request: z14.object({
+    method: z14.enum(["thread/start", "turn/start"]),
+    params: z14.record(z14.string(), z14.unknown())
+  })
+});
+var turnRequestEventDataSchema = z14.object({
+  direction: z14.literal("outbound"),
+  requestId: clientTurnRequestIdSchema,
+  // Retry provenance, written only when a `turn.failed` gate's retry row
+  // dispatches. Both fields are present together or not at all: absence means
+  // "this is an original dispatch", which is the overwhelmingly common case.
+  // (Supersedes the pre-plugin `continuationOfRequestId` key, which the removed
+  // core rate-limit recovery wrote and nothing ever read.)
+  /** The original request this attempt re-submits, unchanged across attempts. */
+  retryOfRequestId: clientTurnRequestIdSchema.optional(),
+  /** Which attempt this is: 2 is the first retry of the original request. */
+  retryAttempt: z14.number().int().min(2).optional(),
+  source: z14.enum(["spawn", "tell"]),
+  initiator: threadTurnInitiatorSchema,
+  senderThreadId: z14.string().nullable(),
+  originPluginId: pluginIdSchema.optional(),
+  systemMessageKind: systemMessageKindSchema.optional(),
+  systemMessageSubject: systemMessageSubjectSchema.nullable().optional(),
+  input: z14.array(promptInputSchema),
+  inputGroups: z14.array(z14.array(promptInputSchema).min(1)).min(1).optional(),
+  target: turnRequestTargetSchema,
+  request: z14.object({
+    method: z14.enum(["thread/start", "turn/start"]),
+    params: z14.record(z14.string(), z14.unknown())
+  }),
+  execution: turnRequestOptionsSchema
+});
+var turnRequestRejectedEventDataSchema = z14.object({
+  requestId: clientTurnRequestIdSchema,
+  reason: z14.string().min(1),
+  message: z14.string().min(1)
+});
+var systemErrorEventDataSchema = z14.object({
+  code: z14.string().optional(),
+  message: z14.string(),
+  detail: z14.string().optional()
+});
+var ownershipChangeOperationActionValues = [
+  "assign",
+  "release",
+  "transfer"
+];
+var ownershipChangeOperationActionSchema = z14.enum(
+  ownershipChangeOperationActionValues
+);
+var ownershipChangeOperationMetadataSchema = z14.object({
+  action: ownershipChangeOperationActionSchema,
+  nextParentThreadId: z14.string().nullable(),
+  nextParentThreadTitle: z14.string().nullable(),
+  previousParentThreadId: z14.string().nullable(),
+  previousParentThreadTitle: z14.string().nullable()
+});
+var systemOperationEventDataSchema = z14.object({
+  operation: z14.string(),
+  status: z14.string(),
+  message: z14.string(),
+  operationId: z14.string(),
+  metadata: z14.record(z14.string(), jsonValueSchema).optional()
+});
+var systemInteractionLifecycleEventDataSchema = z14.object({
+  interaction: interactionLifecycleSchema
+});
+var systemPermissionGrantLifecycleEventDataSchema = z14.object({
+  interactionId: z14.string(),
+  providerId: z14.string(),
+  providerRequestId: z14.string(),
+  status: pendingInteractionStatusSchema,
+  resolution: approvalPendingInteractionResolutionSchema.nullable().default(null),
+  statusReason: z14.string().nullable().default(null),
+  subject: pendingInteractionPermissionGrantApprovalSubjectSchema
+});
+var systemUserQuestionLifecycleEventDataSchema = z14.object({
+  interactionId: z14.string(),
+  providerId: z14.string(),
+  providerRequestId: z14.string(),
+  status: pendingInteractionStatusSchema,
+  resolution: userQuestionPendingInteractionResolutionSchema.nullable().default(null),
+  statusReason: z14.string().nullable().default(null),
+  payload: userQuestionPendingInteractionPayloadSchema
+});
+var systemThreadInterruptedEventDataSchema = z14.object({
+  reason: systemThreadInterruptedReasonSchema,
+  cause: z14.literal("host-connection-lost").optional()
+});
+var provisioningTranscriptEntrySchema = z14.object({
+  type: z14.enum(["step", "output"]),
+  key: z14.string(),
+  text: z14.string(),
+  startedAt: z14.number().optional(),
+  status: z14.enum(["started", "completed", "failed"]).optional(),
+  metadata: z14.record(z14.string(), z14.unknown()).optional()
+});
+var systemThreadProvisioningStatusValues = [
+  "active",
+  "completed",
+  "failed",
+  "cancelled"
+];
+var systemThreadProvisioningStatusSchema = z14.enum(
+  systemThreadProvisioningStatusValues
+);
+var systemThreadProvisioningEventDataSchema = z14.object({
+  provisioningId: z14.string(),
+  status: systemThreadProvisioningStatusSchema,
+  environmentId: z14.string().nullable(),
+  entries: z14.array(provisioningTranscriptEntrySchema)
+});
+var systemLegacyUserMessageEventDataSchema = z14.object({
+  text: z14.string(),
+  toolCallId: z14.string().optional(),
+  turnId: z14.string().optional()
+});
+var systemProviderTurnWatchdogEventDataSchema = z14.object({
+  reason: z14.literal("provider-turn-idle"),
+  thresholdMs: z14.number().int().positive(),
+  elapsedMs: z14.number().int().nonnegative(),
+  activeTurnId: z14.string().min(1),
+  activeTurnStartedAt: z14.number().int().nonnegative(),
+  lastActivityEventSequence: z14.number().int().positive(),
+  lastActivityEventType: z14.string().min(1),
+  lastActivityEventAt: z14.number().int().nonnegative(),
+  providerId: z14.string().min(1),
+  providerThreadId: z14.string().min(1).nullable(),
+  firedAt: z14.number().int().nonnegative()
+});
+
+// ../domain/src/thread-event-scope.ts
+import { z as z15 } from "zod";
+var threadEventScopeKindValues = ["thread", "turn"];
+var threadEventScopeKindSchema = z15.enum(threadEventScopeKindValues);
+var threadEventScopeSchema = z15.discriminatedUnion("kind", [
+  z15.object({ kind: z15.literal("thread") }),
+  z15.object({ kind: z15.literal("turn"), turnId: z15.string().min(1) })
+]);
+var threadEventScopePolicyValues = [
+  "thread",
+  "turn",
+  "thread-or-turn"
+];
+var threadEventScopePolicySchema = z15.enum(threadEventScopePolicyValues);
+var threadEventScopeDefinitionByType = {
+  "thread/started": {
+    policy: "thread",
+    rationale: "Thread lifecycle event; it creates the thread timeline itself."
+  },
+  "thread/identity": {
+    policy: "thread",
+    rationale: "Thread metadata event; it identifies the provider thread outside turn chronology."
+  },
+  "turn/started": { policy: "turn" },
+  "turn/completed": { policy: "turn" },
+  "turn/input/accepted": { policy: "turn" },
+  "thread/name/updated": {
+    policy: "thread",
+    rationale: "Thread metadata event; names are not part of a specific turn transcript."
+  },
+  "thread/compacted": { policy: "turn" },
+  "thread/context/cleared": { policy: "turn" },
+  "thread/goal/updated": {
+    policy: "thread",
+    rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
+  },
+  "thread/goal/cleared": {
+    policy: "thread",
+    rationale: "Thread goal state is current thread metadata, not part of a specific turn transcript."
+  },
+  "item/started": { policy: "turn" },
+  "item/completed": { policy: "turn" },
+  "item/agentMessage/delta": { policy: "turn" },
+  "item/commandExecution/outputDelta": { policy: "turn" },
+  "item/fileChange/outputDelta": { policy: "turn" },
+  "item/reasoning/summaryTextDelta": { policy: "turn" },
+  "item/reasoning/textDelta": { policy: "turn" },
+  "item/plan/delta": { policy: "turn" },
+  "item/mcpToolCall/progress": { policy: "turn" },
+  "item/toolCall/progress": { policy: "turn" },
+  "item/backgroundTask/progress": {
+    policy: "thread",
+    rationale: "Background tasks outlive their spawning turn; thread scope keeps turn windows sequence-contiguous (late progress must not interleave into later turns' ranges)."
+  },
+  "item/backgroundTask/completed": {
+    policy: "thread",
+    rationale: "Terminal task state can arrive turns after the spawning turn completed; thread scope avoids appending into a closed turn's sequence range."
+  },
+  "item/delegation/progress": {
+    policy: "thread",
+    rationale: "Background delegations outlive their spawning turn exactly like background tasks; thread scope keeps turn windows sequence-contiguous."
+  },
+  "item/delegation/completed": {
+    policy: "thread",
+    rationale: "A background delegation's terminal state can arrive turns after the spawning turn completed; thread scope avoids appending into a closed turn's sequence range."
+  },
+  "thread/tokenUsage/updated": { policy: "turn" },
+  "thread/contextWindowUsage/updated": {
+    policy: "thread-or-turn",
+    rationale: "Context usage is session state; providers can report it before, during, or after a turn."
+  },
+  "turn/plan/updated": { policy: "turn" },
+  "turn/diff/updated": { policy: "turn" },
+  "turn/mainRun/updated": { policy: "turn" },
+  "provider/error": {
+    policy: "thread-or-turn",
+    rationale: "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope."
+  },
+  "provider/rateLimits/updated": {
+    policy: "thread",
+    rationale: "Subscription usage is account-scoped state that can affect multiple turns and threads."
+  },
+  "provider.env-resolved": {
+    policy: "thread",
+    rationale: "Resolved provider environment is session state and can change between turns."
+  },
+  "thread/extensionState/updated": {
+    policy: "thread",
+    rationale: "Plugin-declared thread state is current thread metadata (like goals), not part of a specific turn transcript; latest snapshot per kind wins."
+  },
+  "provider/warning": {
+    policy: "thread-or-turn",
+    rationale: "Provider warnings use thread scope for config, deprecation, or global notices; turn-specific warnings use turn scope."
+  },
+  "provider/modelFallback": {
+    policy: "thread-or-turn",
+    rationale: "Provider model fallback signals can occur while a turn is active or at session scope before a turn is established."
+  },
+  "provider/unhandled": {
+    policy: "thread-or-turn",
+    rationale: "Unhandled provider events use thread scope only when no active turn context exists; in-turn unknown events use turn scope."
+  },
+  "client/thread/start": {
+    policy: "thread",
+    rationale: "Outbound client lifecycle event; it requests thread creation before any turn exists."
+  },
+  "client/turn/requested": {
+    policy: "thread",
+    rationale: "Outbound client lifecycle event; it records the request before provider turn acceptance."
+  },
+  "client/turn/rejected": {
+    policy: "thread",
+    rationale: "Client request rejection occurs before provider turn acceptance and identifies the request at thread scope."
+  },
+  "client/turn/start": {
+    policy: "thread",
+    rationale: "Outbound client lifecycle event; it records the start request before provider turn acceptance."
+  },
+  "system/error": {
+    policy: "thread-or-turn",
+    rationale: "System errors use thread scope for app, daemon, or session failures outside a turn; turn failures use turn scope."
+  },
+  "system/manager/user_message": {
+    policy: "thread-or-turn",
+    rationale: "Legacy persisted user-visible system messages may be thread-scoped for general updates or turn-scoped for in-turn updates."
+  },
+  "system/thread/interrupted": {
+    policy: "thread",
+    rationale: "Thread stop lifecycle event; it represents user interruption of the whole running thread."
+  },
+  "system/operation": {
+    policy: "thread-or-turn",
+    rationale: "Thread-management operations use thread scope outside provider turns; tool-owned operations use turn scope so the operation stays with the tool call that caused it."
+  },
+  "system/interaction/lifecycle": {
+    policy: "thread-or-turn",
+    rationale: "A provider interaction belongs to the turn that raised it; a plugin may raise one outside any turn."
+  },
+  "system/permissionGrant/lifecycle": { policy: "turn" },
+  "system/userQuestion/lifecycle": { policy: "turn" },
+  "system/thread-provisioning": {
+    policy: "thread",
+    rationale: "Workspace provisioning lifecycle event; environment setup belongs to the thread, not a turn."
+  },
+  "system/provider-turn-watchdog": {
+    policy: "thread",
+    rationale: "Legacy persisted watchdog diagnostics are decoded for old timelines only; there is no current producer."
+  }
+};
+function getThreadEventScopePolicyDefinitionEntries() {
+  return Object.entries(threadEventScopeDefinitionByType).map(
+    ([type, definition]) => ({
+      type,
+      definition
+    })
+  );
+}
+function buildThreadEventScopePolicyByType() {
+  const policies = {};
+  for (const entry of getThreadEventScopePolicyDefinitionEntries()) {
+    policies[entry.type] = entry.definition.policy;
+  }
+  return policies;
+}
+var threadEventScopePolicyByType = buildThreadEventScopePolicyByType();
+function validateThreadEventScope(args) {
+  const policy = threadEventScopePolicyByType[args.type];
+  if (policy === "thread-or-turn") {
+    return { valid: true };
+  }
+  if (policy !== args.scope.kind) {
+    return {
+      valid: false,
+      message: `${args.type} requires ${policy} scope but received ${args.scope.kind} scope`
+    };
+  }
+  return { valid: true };
+}
+
+// ../domain/src/thread-timeline-goal.ts
+import { z as z16 } from "zod";
+var threadTimelineGoalStatusSchema = z16.enum([
+  "active",
+  "paused",
+  "blocked",
+  "usageLimited",
+  "budgetLimited",
+  "complete"
+]);
+
+// ../domain/src/thread-usage-cost.ts
+import { z as z17 } from "zod";
+var threadUsageCostSchema = z17.object({
+  amount: z17.number().nonnegative(),
+  currency: z17.string().min(1)
+});
+
+// ../domain/src/provider-event.ts
+var threadEventItemStatusSchema = z18.enum([
+  "pending",
+  "completed",
+  "failed",
+  "interrupted"
+]);
+var threadEventItemApprovalStatusSchema = z18.enum(["waiting_for_approval", "denied"]).nullable();
+var threadEventTurnStatusSchema = z18.enum([
+  "completed",
+  "failed",
+  "interrupted"
+]);
+var providerErrorCategoryValues = [
+  "active-turn-not-steerable",
+  "bad-request",
+  "connection-failed",
+  "context-window-exceeded",
+  "billing",
+  "budget-exceeded",
+  "internal",
+  "max-output-tokens",
+  "max-turns",
+  "overloaded",
+  "policy",
+  "rate-limit",
+  "sandbox",
+  "stream-disconnected",
+  "structured-output-retries",
+  "thread-rollback-failed",
+  "too-many-failed-attempts",
+  "unauthorized",
+  "unknown"
+];
+var providerErrorCategorySchema = z18.enum(providerErrorCategoryValues);
+var providerErrorInfoSchema = z18.object({
+  category: providerErrorCategorySchema,
+  providerCode: z18.string().nullable(),
+  httpStatusCode: z18.number().nullable()
+});
+var providerRateLimitStatusSchema = z18.enum([
+  "allowed",
+  "warning",
+  "blocked",
+  "unknown"
+]);
+var providerRateLimitWindowSchema = z18.object({
+  providerKey: z18.string().min(1).nullable(),
+  label: z18.string().min(1).nullable(),
+  status: providerRateLimitStatusSchema,
+  resetsAtMs: z18.number().int().nonnegative().nullable()
+});
+var providerRateLimitStateSchema = z18.object({
+  providerId: z18.string().min(1),
+  status: providerRateLimitStatusSchema,
+  kind: z18.enum(["subscription-window", "credits", "spend-control", "unknown"]),
+  windows: z18.array(providerRateLimitWindowSchema),
+  reachedReason: z18.string().min(1).nullable(),
+  overageStatus: z18.enum(["allowed", "warning", "rejected", "unavailable"]).nullable(),
+  overageReason: z18.string().min(1).nullable()
+});
+var threadEventFileChangeKindSchema = z18.enum(["add", "delete", "update"]);
+var threadEventFileChangeSchema = z18.object({
+  path: z18.string(),
+  kind: threadEventFileChangeKindSchema,
+  movePath: z18.string().optional(),
+  diff: z18.string().optional()
+});
+var threadEventPlanStepStatusSchema = z18.enum([
+  "pending",
+  "active",
+  "completed",
+  "failed"
+]);
+var threadEventPlanStepSchema = z18.object({
+  step: z18.string(),
+  status: threadEventPlanStepStatusSchema.optional()
+});
+var itemPresentationField = {
+  presentation: threadEventItemPresentationSchema.optional()
+};
+var threadEventWebSearchItemSchema = z18.object({
+  type: z18.literal("webSearch"),
+  id: z18.string(),
+  queries: z18.array(z18.string()).min(1),
+  resultText: z18.string().nullable(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventWebFetchItemSchema = z18.object({
+  type: z18.literal("webFetch"),
+  id: z18.string(),
+  url: z18.string(),
+  prompt: z18.string().nullable(),
+  pattern: z18.string().nullable(),
+  resultText: z18.string().nullable(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventImageViewItemSchema = z18.object({
+  type: z18.literal("imageView"),
+  id: z18.string(),
+  path: z18.string(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventFileReadItemSchema = z18.object({
+  type: z18.literal("fileRead"),
+  id: z18.string(),
+  path: z18.string(),
+  cmd: z18.string().optional(),
+  status: threadEventItemStatusSchema,
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventSearchModeSchema = z18.enum(["content", "path", "list"]);
+var threadEventSearchItemSchema = z18.object({
+  type: z18.literal("search"),
+  id: z18.string(),
+  mode: threadEventSearchModeSchema,
+  query: z18.string(),
+  path: z18.string().optional(),
+  cmd: z18.string().optional(),
+  status: threadEventItemStatusSchema,
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventDelegationItemSchema = z18.object({
+  type: z18.literal("delegation"),
+  id: z18.string(),
+  childRef: z18.string().min(1),
+  label: z18.string(),
+  status: threadEventItemStatusSchema,
+  background: z18.boolean(),
+  summary: z18.string().optional(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventPlanStepsItemSchema = z18.object({
+  type: z18.literal("planSteps"),
+  id: z18.string(),
+  steps: z18.array(threadEventPlanStepSchema),
+  explanation: z18.string().optional(),
+  status: threadEventItemStatusSchema,
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventExtensionItemSchema = z18.object({
+  type: z18.literal("extension"),
+  id: z18.string(),
+  kind: extensionKindSchema,
+  payload: jsonValueSchema,
+  status: threadEventItemStatusSchema,
+  presentation: threadEventItemPresentationSchema,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventTextTruncationSchema = z18.object({
+  originalLength: z18.number(),
+  retainedHeadLength: z18.number(),
+  retainedTailLength: z18.number(),
+  truncatedAt: z18.number()
+});
+var threadEventItemTruncationSchema = z18.object({
+  aggregatedOutput: threadEventTextTruncationSchema.optional(),
+  result: threadEventTextTruncationSchema.optional(),
+  resultText: threadEventTextTruncationSchema.optional()
+});
+var threadEventImageGenerationItemSchema = z18.object({
+  type: z18.literal("imageGeneration"),
+  id: z18.string(),
+  status: threadEventItemStatusSchema,
+  prompt: z18.string().nullable(),
+  path: z18.string().nullable(),
+  result: z18.string().optional(),
+  error: z18.string().nullable(),
+  transparentBackground: z18.boolean(),
+  truncation: threadEventItemTruncationSchema.optional(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventUserContentSchema = z18.discriminatedUnion("type", [
+  z18.object({ type: z18.literal("text"), text: z18.string() }),
+  z18.object({ type: z18.literal("image"), url: z18.string() }),
+  z18.object({ type: z18.literal("localImage"), path: z18.string() }),
+  z18.object({ type: z18.literal("localFile"), path: z18.string() })
+]);
+var threadEventTokenUsageBreakdownSchema = z18.object({
+  totalTokens: z18.number(),
+  inputTokens: z18.number(),
+  cachedInputTokens: z18.number(),
+  cacheReadInputTokens: z18.number().nonnegative().optional(),
+  cacheWriteInputTokens: z18.number().nonnegative().optional(),
+  outputTokens: z18.number(),
+  reasoningOutputTokens: z18.number()
+});
+var threadEventContextWindowUsageSchema = z18.object({
+  snapshot: contextSnapshotSchema.optional(),
+  usedTokens: z18.number().nullable(),
+  modelContextWindow: z18.number().nullable(),
+  estimated: z18.boolean(),
+  cost: threadUsageCostSchema.optional()
+});
+var promptCacheTtlMsSchema = z18.number().int().positive();
+var threadEventTokenUsageSchema = z18.object({
+  total: threadEventTokenUsageBreakdownSchema,
+  last: threadEventTokenUsageBreakdownSchema,
+  modelContextWindow: z18.number().nullable(),
+  promptCacheTtlMs: promptCacheTtlMsSchema.optional()
+});
+var threadEventWarningCategorySchema = z18.enum([
+  "deprecation",
+  "config",
+  "general",
+  "compaction-skipped"
+]);
+var providerRawEventSchema = z18.object({
+  jsonrpc: z18.literal("2.0"),
+  id: z18.union([z18.string(), z18.number()]).optional(),
+  method: z18.string(),
+  params: jsonValueSchema.optional()
+});
+var providerUnhandledEventSchema = z18.object({
+  type: z18.literal("provider/unhandled"),
+  threadId: z18.string(),
+  providerThreadId: z18.string(),
+  providerId: z18.string(),
+  rawType: z18.string(),
+  rawEvent: providerRawEventSchema,
+  parentToolCallId: z18.string().optional()
+});
+var toolCallProgressEventSchema = z18.object({
+  type: z18.literal("item/toolCall/progress"),
+  threadId: z18.string(),
+  providerThreadId: z18.string(),
+  itemId: z18.string(),
+  message: z18.string().optional(),
+  parentToolCallId: z18.string().optional()
+});
+var threadEventBackgroundTaskItemSchema = z18.object({
+  type: z18.literal("backgroundTask"),
+  id: z18.string(),
+  familyId: z18.string().optional(),
+  taskType: z18.string(),
+  description: z18.string(),
+  status: threadEventItemStatusSchema,
+  taskStatus: backgroundTaskStatusSchema,
+  skipTranscript: z18.boolean(),
+  foreground: z18.boolean(),
+  workflowName: z18.string().optional(),
+  workflow: workflowProgressSnapshotSchema.optional(),
+  usage: backgroundTaskUsageSchema.optional(),
+  summary: z18.string().optional(),
+  error: z18.string().optional(),
+  outputFile: z18.string().optional(),
+  ownerStopped: z18.literal(true).optional(),
+  ...itemPresentationField,
+  parentToolCallId: z18.string().optional()
+});
+var threadEventItemSchema = z18.discriminatedUnion("type", [
+  z18.object({
+    type: z18.literal("userMessage"),
+    id: z18.string(),
+    content: z18.array(threadEventUserContentSchema),
+    clientRequestId: clientTurnRequestIdSchema.optional(),
+    parentToolCallId: z18.string().optional()
+  }).strict(),
+  z18.object({
+    type: z18.literal("agentMessage"),
+    id: z18.string(),
+    text: z18.string(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("commandExecution"),
+    id: z18.string(),
+    command: z18.string(),
+    cwd: z18.string(),
+    description: z18.string().optional(),
+    status: threadEventItemStatusSchema,
+    approvalStatus: threadEventItemApprovalStatusSchema,
+    aggregatedOutput: z18.string().optional(),
+    exitCode: z18.number().optional(),
+    durationMs: z18.number().optional(),
+    truncation: threadEventItemTruncationSchema.optional(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("fileChange"),
+    id: z18.string(),
+    changes: z18.array(threadEventFileChangeSchema),
+    status: threadEventItemStatusSchema,
+    approvalStatus: threadEventItemApprovalStatusSchema,
+    error: z18.string().optional(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  threadEventWebSearchItemSchema,
+  threadEventWebFetchItemSchema,
+  threadEventImageViewItemSchema,
+  threadEventImageGenerationItemSchema,
+  threadEventFileReadItemSchema,
+  threadEventSearchItemSchema,
+  z18.object({
+    type: z18.literal("toolCall"),
+    id: z18.string(),
+    server: z18.string().optional(),
+    tool: z18.string(),
+    arguments: z18.record(z18.string(), z18.unknown()).optional(),
+    status: threadEventItemStatusSchema,
+    result: z18.unknown().optional(),
+    error: z18.string().optional(),
+    durationMs: z18.number().optional(),
+    truncation: threadEventItemTruncationSchema.optional(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("reasoning"),
+    id: z18.string(),
+    summary: z18.array(z18.string()),
+    content: z18.array(z18.string()),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("plan"),
+    id: z18.string(),
+    text: z18.string(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  threadEventPlanStepsItemSchema,
+  z18.object({
+    type: z18.literal("contextCompaction"),
+    id: z18.string(),
+    ...itemPresentationField,
+    parentToolCallId: z18.string().optional()
+  }),
+  threadEventBackgroundTaskItemSchema,
+  threadEventDelegationItemSchema,
+  threadEventExtensionItemSchema
+]);
+function itemTextDeltaEventSchema(type) {
+  return z18.object({
+    type: z18.literal(type),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    itemId: z18.string(),
+    delta: z18.string(),
+    parentToolCallId: z18.string().optional()
+  });
+}
+var unscopedProviderEventSchema = z18.discriminatedUnion("type", [
+  z18.object({
+    type: z18.literal("thread/started"),
+    threadId: z18.string()
+  }),
+  z18.object({
+    type: z18.literal("thread/identity"),
+    threadId: z18.string(),
+    providerThreadId: z18.string()
+  }),
+  z18.object({
+    type: z18.literal("turn/started"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    parentToolCallId: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("turn/completed"),
+    threadId: z18.string(),
+    providerThreadId: z18.string().nullable(),
+    status: threadEventTurnStatusSchema,
+    error: z18.object({ message: z18.string() }).optional(),
+    providerCheckpointId: z18.string().min(1).optional()
+  }),
+  z18.object({
+    type: z18.literal("turn/input/accepted"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    clientRequestId: clientTurnRequestIdSchema,
+    scope: threadEventScopeSchema
+  }).strict(),
+  z18.object({
+    type: z18.literal("thread/name/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    threadName: z18.string(),
+    source: z18.literal("agent").optional()
+  }),
+  z18.object({
+    type: z18.literal("thread/compacted"),
+    threadId: z18.string(),
+    providerThreadId: z18.string()
+  }),
+  z18.object({
+    type: z18.literal("thread/context/cleared"),
+    threadId: z18.string(),
+    providerThreadId: z18.string()
+  }),
+  z18.object({
+    type: z18.literal("thread/goal/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    objective: z18.string(),
+    status: threadTimelineGoalStatusSchema,
+    tokenBudget: z18.number().nullable(),
+    tokensUsed: z18.number(),
+    timeUsedSeconds: z18.number()
+  }),
+  z18.object({
+    type: z18.literal("thread/goal/cleared"),
+    threadId: z18.string(),
+    providerThreadId: z18.string()
+  }),
+  z18.object({
+    type: z18.literal("item/started"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventItemSchema
+  }),
+  z18.object({
+    type: z18.literal("item/completed"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventItemSchema
+  }),
+  itemTextDeltaEventSchema("item/agentMessage/delta"),
+  z18.object({
+    type: z18.literal("item/commandExecution/outputDelta"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    itemId: z18.string(),
+    delta: z18.string(),
+    reset: z18.boolean().optional(),
+    parentToolCallId: z18.string().optional()
+  }),
+  itemTextDeltaEventSchema("item/fileChange/outputDelta"),
+  itemTextDeltaEventSchema("item/reasoning/summaryTextDelta"),
+  itemTextDeltaEventSchema("item/reasoning/textDelta"),
+  itemTextDeltaEventSchema("item/plan/delta"),
+  z18.object({
+    type: z18.literal("item/mcpToolCall/progress"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    itemId: z18.string(),
+    message: z18.string().optional(),
+    parentToolCallId: z18.string().optional()
+  }),
+  toolCallProgressEventSchema,
+  z18.object({
+    type: z18.literal("item/backgroundTask/progress"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventBackgroundTaskItemSchema
+  }),
+  z18.object({
+    type: z18.literal("item/backgroundTask/completed"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventBackgroundTaskItemSchema
+  }),
+  z18.object({
+    type: z18.literal("item/delegation/progress"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventDelegationItemSchema
+  }),
+  z18.object({
+    type: z18.literal("item/delegation/completed"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    item: threadEventDelegationItemSchema
+  }),
+  z18.object({
+    type: z18.literal("thread/tokenUsage/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    tokenUsage: threadEventTokenUsageSchema
+  }),
+  z18.object({
+    type: z18.literal("thread/contextWindowUsage/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    contextWindowUsage: threadEventContextWindowUsageSchema
+  }),
+  z18.object({
+    type: z18.literal("turn/plan/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    plan: z18.array(threadEventPlanStepSchema),
+    explanation: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("turn/mainRun/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    state: z18.enum(["idle", "running"])
+  }),
+  z18.object({
+    type: z18.literal("turn/diff/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    diff: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("provider/error"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    message: z18.string(),
+    detail: z18.string().optional(),
+    willRetry: z18.boolean().optional(),
+    errorInfo: providerErrorInfoSchema.optional()
+  }),
+  z18.object({
+    type: z18.literal("provider/rateLimits/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    rateLimits: providerRateLimitStateSchema
+  }),
+  z18.object({
+    type: z18.literal("provider.env-resolved"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    entries: z18.array(
+      z18.object({
+        name: z18.string(),
+        source: z18.union([
+          z18.literal("shell"),
+          z18.object({ plugin: z18.string() }).strict(),
+          z18.object({
+            core: z18.enum([
+              "machine-git",
+              "machine-environment",
+              "project-environment"
+            ])
+          }).strict()
+        ]),
+        value: z18.union([
+          z18.string(),
+          z18.object({ masked: z18.literal(true) }).strict()
+        ]),
+        reason: z18.string().optional()
+      }).strict()
+    )
+  }),
+  z18.object({
+    type: z18.literal("thread/extensionState/updated"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    kind: extensionKindSchema,
+    payload: jsonValueSchema
+  }),
+  z18.object({
+    type: z18.literal("provider/warning"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    category: threadEventWarningCategorySchema,
+    summary: z18.string().optional(),
+    details: z18.string().optional()
+  }),
+  z18.object({
+    type: z18.literal("provider/modelFallback"),
+    threadId: z18.string(),
+    providerThreadId: z18.string(),
+    originalModel: z18.string().min(1),
+    fallbackModel: z18.string().min(1),
+    reason: z18.enum(["refusal", "provider"]),
+    message: z18.string()
+  }),
+  providerUnhandledEventSchema
+]);
+var scopedEventDataSchema = z18.object({
+  scope: threadEventScopeSchema
+});
+var providerEventSchema = unscopedProviderEventSchema.and(
+  scopedEventDataSchema
+);
+var unscopedSystemEventSchema = z18.discriminatedUnion("type", [
+  z18.object({
+    type: z18.literal("client/thread/start"),
+    threadId: z18.string()
+  }).merge(clientTurnLifecycleEventDataSchema),
+  z18.object({
+    type: z18.literal("client/turn/requested"),
+    threadId: z18.string()
+  }).merge(turnRequestEventDataSchema),
+  z18.object({
+    type: z18.literal("client/turn/rejected"),
+    threadId: z18.string()
+  }).merge(turnRequestRejectedEventDataSchema),
+  z18.object({
+    type: z18.literal("client/turn/start"),
+    threadId: z18.string()
+  }).merge(clientTurnLifecycleEventDataSchema),
+  z18.object({
+    type: z18.literal("system/error"),
+    threadId: z18.string()
+  }).merge(systemErrorEventDataSchema),
+  z18.object({
+    type: z18.literal("system/manager/user_message"),
+    threadId: z18.string()
+  }).merge(systemLegacyUserMessageEventDataSchema),
+  z18.object({
+    type: z18.literal("system/thread/interrupted"),
+    threadId: z18.string()
+  }).merge(systemThreadInterruptedEventDataSchema),
+  z18.object({
+    type: z18.literal("system/operation"),
+    threadId: z18.string()
+  }).merge(systemOperationEventDataSchema),
+  z18.object({
+    type: z18.literal("system/interaction/lifecycle"),
+    threadId: z18.string()
+  }).merge(systemInteractionLifecycleEventDataSchema),
+  z18.object({
+    type: z18.literal("system/permissionGrant/lifecycle"),
+    threadId: z18.string()
+  }).merge(systemPermissionGrantLifecycleEventDataSchema),
+  z18.object({
+    type: z18.literal("system/userQuestion/lifecycle"),
+    threadId: z18.string()
+  }).merge(systemUserQuestionLifecycleEventDataSchema),
+  z18.object({
+    type: z18.literal("system/thread-provisioning"),
+    threadId: z18.string()
+  }).merge(systemThreadProvisioningEventDataSchema),
+  z18.object({
+    type: z18.literal("system/provider-turn-watchdog"),
+    threadId: z18.string()
+  }).merge(systemProviderTurnWatchdogEventDataSchema)
+]);
+var systemEventSchema = unscopedSystemEventSchema.and(scopedEventDataSchema);
+var threadEventSchema = z18.union([providerEventSchema, systemEventSchema]).superRefine((event, ctx) => {
+  const result = validateThreadEventScope({
+    type: event.type,
+    scope: event.scope
+  });
+  if (!result.valid) {
+    ctx.addIssue({
+      code: z18.ZodIssueCode.custom,
+      message: result.message ?? "Invalid thread event scope",
+      path: ["scope"]
+    });
+    return;
+  }
+});
+
+// ../domain/src/thread-provider-state.ts
+import { z as z21 } from "zod";
+
+// ../domain/src/provider-types.ts
+import { z as z20 } from "zod";
+
+// ../domain/src/thread-session-option.ts
+import { z as z19 } from "zod";
+var threadSessionOptionValueSchema = z19.object({
+  id: z19.string().min(1),
+  label: z19.string().min(1),
+  description: z19.string().min(1).optional(),
+  group: z19.string().min(1).optional()
+});
+var threadSessionOptionBaseShape = {
+  id: z19.string().min(1),
+  label: z19.string().min(1),
+  description: z19.string().min(1).optional(),
+  category: z19.string().min(1).optional()
+};
+var threadSessionOptionSchema = z19.discriminatedUnion("type", [
+  z19.object({
+    ...threadSessionOptionBaseShape,
+    type: z19.literal("select"),
+    value: z19.string(),
+    values: z19.array(threadSessionOptionValueSchema).max(1e3)
+  }),
+  z19.object({
+    ...threadSessionOptionBaseShape,
+    type: z19.literal("boolean"),
+    value: z19.boolean(),
+    fixed: z19.boolean().optional()
+  })
+]);
+
+// ../domain/src/provider-types.ts
+var modelReasoningEffortSchema = z20.object({
+  reasoningEffort: reasoningLevelSchema,
+  label: z20.string().min(1).optional(),
+  description: z20.string()
+});
+var modelServiceTierSchema = z20.object({
+  id: serviceTierSchema,
+  label: z20.string().min(1).optional(),
+  description: z20.string().min(1).optional()
+});
+var availableModelSchema = z20.object({
+  id: z20.string(),
+  model: z20.string(),
+  displayName: z20.string(),
+  routeProviderId: z20.string().min(1).optional(),
+  description: z20.string(),
+  reasoningDiscovery: z20.enum(["unknown", "known"]).default("known"),
+  supportedReasoningEfforts: z20.array(modelReasoningEffortSchema),
+  defaultReasoningEffort: reasoningLevelSchema,
+  supportedServiceTiers: z20.array(modelServiceTierSchema).optional(),
+  sessionOptions: z20.array(threadSessionOptionSchema).max(64).optional(),
+  isDefault: z20.boolean()
+});
+var providerModelCatalogScopeSchema = z20.enum(["host", "workspace"]);
+var providerCapabilitiesSchema = z20.object({
+  supportsThreadArchive: z20.boolean(),
+  supportsThreadRename: z20.boolean(),
+  supportsServiceTier: z20.boolean(),
+  supportsNativeUserQuestion: z20.boolean(),
+  supportsFork: z20.boolean(),
+  supportsSessionRewind: z20.boolean(),
+  permissionModes: z20.array(permissionModeSchema).min(1),
+  modelCatalogScope: providerModelCatalogScopeSchema
+});
+var providerComposerCommandSchema = z20.object({
+  trigger: promptMentionCommandTriggerSchema,
+  name: z20.string().min(1).regex(/^[^\s/$]+$/u),
+  trailingText: z20.string().regex(/^\s*$/u)
+});
+var providerComposerActionSchema = z20.discriminatedUnion("kind", [
+  z20.object({
+    kind: z20.literal("skills"),
+    trigger: promptMentionCommandTriggerSchema
+  }),
+  z20.object({
+    kind: z20.literal("plan"),
+    command: providerComposerCommandSchema
+  }),
+  z20.object({
+    kind: z20.literal("goal"),
+    command: providerComposerCommandSchema
+  })
+]);
+var providerStringsSchema = z20.object({
+  signInHint: z20.string().min(1),
+  expiredHint: z20.string().min(1),
+  installUrl: z20.string().min(1),
+  brandPrefix: z20.string().min(1).optional(),
+  planModeCopy: z20.string().min(1).optional(),
+  iconTint: z20.object({ light: z20.string().min(1), dark: z20.string().min(1) }).optional()
+});
+var providerOptionDescriptorSchema = z20.object({
+  id: z20.string().min(1),
+  label: z20.string().min(1),
+  description: z20.string().min(1).optional(),
+  icon: z20.string().min(1).optional()
+});
+var providerExtensionKindInfoSchema = z20.object({
+  item: z20.boolean(),
+  state: z20.boolean()
+});
+var providerExtensionKindsSchema = z20.record(
+  extensionKindSchema,
+  providerExtensionKindInfoSchema
+);
+var providerInfoSchema = z20.object({
+  id: z20.string(),
+  pluginId: z20.string().min(1),
+  displayName: z20.string(),
+  family: z20.string().min(1).optional(),
+  icon: z20.object({ glyph: z20.string().min(1) }).optional(),
+  logoUrl: z20.string().min(1).nullable(),
+  maintenance: z20.object({
+    health: z20.boolean(),
+    usage: z20.boolean(),
+    installation: z20.boolean()
+  }),
+  capabilities: providerCapabilitiesSchema,
+  composerActions: z20.array(providerComposerActionSchema),
+  completedTurnDisplay: completedTurnDisplaySchema,
+  available: z20.boolean(),
+  strings: providerStringsSchema.optional(),
+  serviceTiers: z20.array(providerOptionDescriptorSchema).optional(),
+  reasoningLevels: z20.array(providerOptionDescriptorSchema).optional(),
+  extensionKinds: providerExtensionKindsSchema.optional()
+});
+var providerRecoveryKindValues = [
+  "sessionArchived",
+  "authRequired",
+  "restartRecommended",
+  "staleTurn",
+  "rateLimited"
+];
+var providerRecoveryKindSchema = z20.enum(providerRecoveryKindValues);
+var toolCallOutputItemSchema = z20.discriminatedUnion("type", [
+  z20.object({
+    type: z20.literal("inputText"),
+    text: z20.string()
+  }),
+  z20.object({
+    type: z20.literal("inputImage"),
+    imageUrl: z20.string()
+  })
+]);
+var toolCallRequestSchema = z20.object({
+  requestId: z20.union([z20.string().min(1), z20.number()]),
+  threadId: z20.string().min(1),
+  providerThreadId: z20.string().min(1),
+  turnId: z20.string().min(1),
+  callId: z20.string().min(1),
+  tool: z20.string().min(1),
+  arguments: z20.unknown().optional()
+});
+var toolCallResponseSchema = z20.object({
+  contentItems: z20.array(toolCallOutputItemSchema),
+  success: z20.boolean()
+});
+var dynamicToolSchema = z20.object({
+  name: z20.string(),
+  description: z20.string(),
+  inputSchema: z20.unknown(),
+  presentation: threadEventItemPresentationSchema.optional()
+});
+
+// ../domain/src/thread-provider-state.ts
+var THREAD_PROVIDER_COMMANDS_STATE_KIND = "bb/provider-commands";
+var THREAD_SESSION_OPTIONS_STATE_KIND = "bb/session-options";
+var THREAD_PROVIDER_MODEL_CATALOG_STATE_KIND = "bb/provider-model-catalog";
+var threadProviderModelCatalogStateSchema = z21.object({
+  models: z21.array(availableModelSchema).max(1e3),
+  selectedOnlyModels: z21.array(availableModelSchema).max(1e3)
+});
+var threadProviderCommandSchema = z21.object({
+  name: z21.string().min(1),
+  description: z21.string(),
+  inputHint: z21.string().min(1).optional()
+});
+var threadProviderCommandsStateSchema = z21.object({
+  commands: z21.array(threadProviderCommandSchema).max(500)
+});
+var threadSessionOptionsStateSchema = z21.object({
+  options: z21.array(threadSessionOptionSchema).max(64)
+});
+var threadSessionOptionSelectionsStateSchema = z21.object({
+  selections: sessionOptionSelectionsSchema
+});
+var CORE_THREAD_STATE_SCHEMAS = {
+  [THREAD_PROVIDER_MODEL_CATALOG_STATE_KIND]: threadProviderModelCatalogStateSchema,
+  [THREAD_PROVIDER_COMMANDS_STATE_KIND]: threadProviderCommandsStateSchema,
+  [THREAD_SESSION_OPTIONS_STATE_KIND]: threadSessionOptionsStateSchema
+};
+
+// ../domain/src/provider-fork.ts
+import { z as z22 } from "zod";
+var PROVIDER_FORK_VALUES = ["none", "tip", "checkpoint"];
+var providerForkSchema = z22.enum(PROVIDER_FORK_VALUES);
+
+// ../domain/src/reasoning-efforts.ts
+var NONE_REASONING_EFFORT = {
+  reasoningEffort: "none",
+  description: "No extended thinking"
+};
+var LOW_REASONING_EFFORT = {
+  reasoningEffort: "low",
+  description: "Low reasoning effort"
+};
+var MEDIUM_REASONING_EFFORT = {
+  reasoningEffort: "medium",
+  description: "Medium reasoning effort"
+};
+var HIGH_REASONING_EFFORT = {
+  reasoningEffort: "high",
+  description: "High reasoning effort"
+};
+var XHIGH_REASONING_EFFORT = {
+  reasoningEffort: "xhigh",
+  description: "Extra high reasoning effort"
+};
+var ULTRACODE_REASONING_EFFORT = {
+  reasoningEffort: "ultracode",
+  description: "Extra high reasoning effort plus multi-agent workflow orchestration"
+};
+var MAX_REASONING_EFFORT = {
+  reasoningEffort: "max",
+  description: "Maximum reasoning effort"
+};
+var ULTRA_REASONING_EFFORT = {
+  reasoningEffort: "ultra",
+  description: "Maximum reasoning with automatic task delegation"
+};
+var REASONING_EFFORT_BY_LEVEL = {
+  none: NONE_REASONING_EFFORT,
+  low: LOW_REASONING_EFFORT,
+  medium: MEDIUM_REASONING_EFFORT,
+  high: HIGH_REASONING_EFFORT,
+  xhigh: XHIGH_REASONING_EFFORT,
+  ultracode: ULTRACODE_REASONING_EFFORT,
+  max: MAX_REASONING_EFFORT,
+  ultra: ULTRA_REASONING_EFFORT
+};
+function reasoningEffortsForLevels(levels) {
+  return levels.map(
+    (level) => isStandardReasoningLevel(level) ? { ...REASONING_EFFORT_BY_LEVEL[level] } : { reasoningEffort: level, description: level }
+  );
+}
+
+// ../provider-bridge-acp/src/launch-spec.ts
+import { z as z23 } from "zod";
+var acpNativeSkillRootsSchema = z23.object({
+  user: z23.array(providerNativeRootInputSchema).default([]),
+  project: z23.array(providerNativeRootInputSchema).default([])
+}).strict().superRefine((roots, context) => {
+  const normalized = providerNativeRootsSchema.safeParse(
+    normalizeProviderNativeRoots(roots)
+  );
+  if (normalized.success) {
+    return;
+  }
+  for (const issue of normalized.error.issues) {
+    context.addIssue({
+      code: "custom",
+      path: issue.path,
+      message: issue.message
+    });
+  }
+});
+var acpLaunchSpecSchema = z23.object({
+  displayName: z23.string().min(1),
+  command: z23.string().min(1),
+  args: z23.array(z23.string()),
+  env: z23.record(z23.string().min(1), z23.string()),
+  cwd: z23.string().min(1).optional(),
+  modelCli: z23.object({
+    listArgs: z23.array(z23.string()),
+    selectFlag: z23.string().min(1).optional(),
+    primaryModels: z23.array(z23.string())
+  }).strict().transform(
+    (modelCli) => modelCli.listArgs.length > 0 ? modelCli : void 0
+  ).optional(),
+  reasoningCli: acpReasoningCliSchema.optional(),
+  nativeReasoning: acpNativeReasoningSchema.optional(),
+  nativeSkillRoots: acpNativeSkillRootsSchema.optional(),
+  permissionCli: acpPermissionCliSchema.optional()
+}).strict();
+
+// ../provider-bridge-protocol/src/version.ts
+var PROVIDER_BRIDGE_PROTOCOL_VERSION = 2;
+var THREAD_DELTA_GRAMMAR_V3 = 3;
+
+// ../provider-bridge-protocol/src/handshake.ts
+import { z as z24 } from "zod";
+var bridgeGrammarVersionsSchema = z24.tuple([z24.number().int().positive(), z24.number().int().positive()]).refine(([min, max]) => min <= max, {
+  message: "grammarVersions must be an ascending [min, max] range"
+});
+var bridgeSteerModeSchema = z24.enum(["inject", "queue"]);
+var bridgeCapabilitiesSchema = z24.object({
+  sessionRestore: z24.boolean().default(false),
+  threadArchive: z24.boolean().default(false),
+  threadRename: z24.boolean().default(false),
+  threadGoalClear: z24.boolean().default(false),
+  fork: providerForkSchema.default("none"),
+  approvalEnforcedBy: z24.enum(["runtime", "provider"]).default("runtime"),
+  grammarVersions: bridgeGrammarVersionsSchema.default([
+    PROVIDER_BRIDGE_PROTOCOL_VERSION,
+    PROVIDER_BRIDGE_PROTOCOL_VERSION
+  ]),
+  steerMode: bridgeSteerModeSchema.default("queue"),
+  skills: z24.object({ configure: z24.boolean().default(false) }).default({ configure: false }),
+  commands: z24.object({ list: z24.boolean().default(false) }).default({ list: false })
+}).passthrough();
+var initializeParamsSchema = z24.object({
+  protocolVersion: z24.number().int().positive(),
+  client: z24.object({ name: z24.string().min(1), version: z24.string().min(1) }),
+  grammarVersions: bridgeGrammarVersionsSchema.default([
+    PROVIDER_BRIDGE_PROTOCOL_VERSION,
+    PROVIDER_BRIDGE_PROTOCOL_VERSION
+  ])
+}).passthrough();
+var initializeResultSchema = z24.object({
+  protocolVersion: z24.number().int().positive(),
+  capabilities: z24.preprocess(
+    (value) => value ?? {},
+    bridgeCapabilitiesSchema
+  )
+}).passthrough();
+
+// ../provider-bridge-protocol/src/execution-options.ts
+import { z as z25 } from "zod";
+var bridgeExecutionOptionsSchema = z25.object({
+  model: z25.string().min(1).optional(),
+  serviceTier: serviceTierSchema.optional(),
+  reasoningLevel: reasoningLevelSchema.optional(),
+  promptMode: promptModeSchema.optional(),
+  sessionOptions: sessionOptionSelectionsSchema.optional(),
+  instructions: z25.string().optional(),
+  envVars: z25.record(z25.string(), z25.string()).optional(),
+  providerOptions: z25.record(z25.string(), z25.unknown()).optional()
+}).and(runtimePermissionPolicySchema);
+
+// ../provider-bridge-protocol/src/provider-maintenance.ts
+import { z as z26 } from "zod";
+var providerMaintenanceParamsSchema = z26.object({
+  providerId: z26.string().min(1),
+  cwd: z26.string().min(1).optional(),
+  providerOptions: z26.record(z26.string(), z26.unknown()).optional()
+}).passthrough();
+var providerInstallationRequirementSchema = z26.enum(["thread_rewind"]);
+var providerInstallationStatusParamsSchema = providerMaintenanceParamsSchema.extend({
+  requirement: providerInstallationRequirementSchema.optional(),
+  checkUpdates: z26.boolean().default(true)
+});
+var providerHealthSchema = z26.object({
+  status: z26.enum([
+    "ready",
+    "not_installed",
+    "unauthenticated",
+    "expired",
+    "unsupported_version",
+    "unknown"
+  ]),
+  statusMessage: z26.string().min(1).nullable(),
+  accountEmail: z26.string().nullable(),
+  planLabel: z26.string().min(1).nullable(),
+  installedVersion: z26.string().min(1).nullable(),
+  minimumSupportedVersion: z26.string().min(1).nullable(),
+  canInstall: z26.boolean(),
+  canUpdate: z26.boolean(),
+  loginCommand: z26.string().min(1).nullable(),
+  localLoginCommand: z26.string().min(1).nullable().optional(),
+  internal_DO_NOT_USE_setupGuidePlanLabel: z26.string().min(1).nullable().optional()
+}).passthrough();
+var providerUsageWindowSchema = z26.object({
+  label: z26.string().min(1),
+  usedPercent: z26.number().min(0).max(100),
+  resetsAt: z26.string().min(1).nullable(),
+  cost: z26.object({
+    usedUsdCents: z26.number().int().nonnegative(),
+    limitUsdCents: z26.number().int().positive()
+  }).optional()
+}).passthrough();
+var providerUsageSchema = z26.discriminatedUnion("status", [
+  z26.object({
+    status: z26.literal("ok"),
+    accountEmail: z26.string().email().nullable(),
+    planLabel: z26.string().min(1).nullable(),
+    windows: z26.array(providerUsageWindowSchema)
+  }).passthrough(),
+  z26.object({ status: z26.literal("not_installed") }).passthrough(),
+  z26.object({ status: z26.literal("unauthenticated") }).passthrough(),
+  z26.object({ status: z26.literal("expired") }).passthrough(),
+  z26.object({
+    status: z26.literal("error"),
+    message: z26.string().min(1),
+    planLabel: z26.string().min(1).nullable().default(null),
+    accountEmail: z26.string().nullable().default(null)
+  }).passthrough()
+]);
+var providerHealthResultSchema = z26.discriminatedUnion("supported", [
+  z26.object({ supported: z26.literal(false) }).passthrough(),
+  z26.object({
+    supported: z26.literal(true),
+    health: providerHealthSchema
+  }).passthrough()
+]);
+var providerUsageResultSchema = z26.discriminatedUnion("supported", [
+  z26.object({ supported: z26.literal(false) }).passthrough(),
+  z26.object({
+    supported: z26.literal(true),
+    usage: providerUsageSchema
+  }).passthrough()
+]);
+var providerInstallationActionKindSchema = z26.enum([
+  "install",
+  "update"
+]);
+var providerInstallationActionSchema = z26.object({
+  kind: providerInstallationActionKindSchema,
+  label: z26.enum(["Install", "Update"]),
+  command: z26.string().min(1)
+}).passthrough();
+var providerInstallationSourceSchema = z26.enum([
+  "notInstalled",
+  "npmGlobal",
+  "external"
+]);
+var providerInstallationStatusSchema = z26.object({
+  executableName: z26.string().min(1),
+  executablePath: z26.string().min(1).nullable(),
+  installed: z26.boolean(),
+  installSource: providerInstallationSourceSchema,
+  currentVersion: z26.string().min(1).nullable(),
+  latestVersion: z26.string().min(1).nullable(),
+  minimumSupportedVersion: z26.string().min(1).nullable(),
+  npmPackageName: z26.string().min(1).nullable(),
+  npmGlobalPackageVersion: z26.string().min(1).nullable(),
+  installAction: providerInstallationActionSchema.nullable(),
+  needsUpdate: z26.boolean(),
+  versionUnsupported: z26.boolean()
+}).passthrough();
+var providerInstallationRunParamsSchema = providerMaintenanceParamsSchema.extend({
+  action: providerInstallationActionKindSchema
+});
+var providerInstallationCommandSchema = z26.object({
+  command: z26.string().min(1),
+  args: z26.array(z26.string()).max(64),
+  displayCommand: z26.string().min(1)
+}).passthrough();
+var providerInstallationVerificationSchema = z26.discriminatedUnion(
+  "kind",
+  [
+    z26.object({ kind: z26.literal("installed") }).passthrough(),
+    z26.object({
+      kind: z26.literal("version_changed"),
+      previousVersion: z26.string().min(1)
+    }).passthrough(),
+    z26.object({
+      kind: z26.literal("version_at_least"),
+      version: z26.string().min(1)
+    }).passthrough()
+  ]
+);
+var providerInstallationRunResultSchema = z26.discriminatedUnion(
+  "available",
+  [
+    z26.object({
+      available: z26.literal(false),
+      message: z26.string().min(1)
+    }).passthrough(),
+    z26.object({
+      available: z26.literal(true),
+      command: providerInstallationCommandSchema,
+      verification: providerInstallationVerificationSchema
+    }).passthrough()
+  ]
+);
+
+// ../provider-bridge-protocol/src/requests.ts
+import { z as z27 } from "zod";
+var sessionConstructionFields = {
+  threadId: z27.string().min(1),
+  cwd: z27.string().min(1),
+  options: bridgeExecutionOptionsSchema,
+  dynamicTools: z27.array(dynamicToolSchema).optional(),
+  disallowedTools: z27.array(z27.string().min(1)).optional(),
+  instructionMode: instructionModeSchema
+};
+var modelListParamsSchema = z27.object({
+  cwd: z27.string().min(1).optional(),
+  envVars: z27.record(z27.string(), z27.string()).optional(),
+  selectedModel: z27.string().min(1).optional()
+}).passthrough();
+var commandListParamsSchema = z27.object({ cwd: z27.string().min(1) }).passthrough();
+var threadStartParamsSchema = z27.object({
+  ...sessionConstructionFields,
+  input: z27.array(promptInputSchema).optional()
+}).passthrough();
+var threadResumeParamsSchema = z27.object({
+  ...sessionConstructionFields,
+  providerThreadId: z27.string().min(1)
+}).passthrough();
+var threadForkParamsSchema = z27.object({
+  ...sessionConstructionFields,
+  sourceProviderThreadId: z27.string().min(1),
+  sourceProviderCheckpointId: z27.string().min(1).optional()
+}).passthrough();
+var threadStopParamsSchema = z27.object({
+  threadId: z27.string().min(1),
+  providerThreadId: z27.string().min(1),
+  intent: z27.enum(["interrupt", "release"]),
+  activeTurnId: z27.string().min(1).nullable()
+}).passthrough();
+var threadRefParams = z27.object({
+  threadId: z27.string().min(1),
+  providerThreadId: z27.string().min(1)
+}).passthrough();
+var threadDiscardParamsSchema = threadRefParams;
+var threadNameSetParamsSchema = z27.object({
+  threadId: z27.string().min(1),
+  providerThreadId: z27.string().min(1),
+  title: z27.string().min(1)
+}).passthrough();
+var turnInputFields = {
+  threadId: z27.string().min(1),
+  providerThreadId: z27.string().min(1),
+  input: z27.array(promptInputSchema),
+  clientRequestId: clientTurnRequestIdSchema,
+  options: bridgeExecutionOptionsSchema
+};
+var turnStartParamsSchema = z27.object(turnInputFields).passthrough();
+var turnSteerParamsSchema = z27.object({
+  ...turnInputFields,
+  expectedTurnId: z27.string().min(1)
+}).passthrough();
+var skillsConfigureRootSchema = z27.object({
+  id: z27.string().min(1),
+  path: z27.string().min(1),
+  skills: z27.array(
+    z27.object({
+      name: z27.string().min(1),
+      description: z27.string()
+    }).passthrough()
+  )
+}).passthrough();
+var skillsConfigureParamsSchema = z27.object({
+  roots: z27.array(skillsConfigureRootSchema)
+}).passthrough();
+var threadIdentityResultSchema = z27.object({
+  providerThreadId: z27.string().min(1),
+  sessionRestorable: z27.boolean().optional()
+}).passthrough();
+
+// ../provider-bridge-protocol/src/notifications.ts
+import { z as z29 } from "zod";
+
+// ../provider-bridge-protocol/src/errors.ts
+import { z as z28 } from "zod";
+var BRIDGE_JSON_RPC_ERRORS = {
+  INVALID_PARAMS: -32602,
+  METHOD_NOT_FOUND: -32601,
+  BRIDGE_ERROR: -32e3,
+  NO_ACTIVE_TURN: -32001,
+  SESSION_NOT_RESTORABLE: -32002,
+  FORK_CHECKPOINT_UNSUPPORTED: -32003,
+  MISSING_EXECUTABLE: -32004
+};
+var providerRecoveryHintSchema = z28.object({
+  kind: providerRecoveryKindSchema,
+  message: z28.string().min(1),
+  retryable: z28.boolean()
+});
+var bridgeErrorDataSchema = z28.object({ recovery: providerRecoveryHintSchema.optional() }).passthrough();
+
+// ../provider-bridge-protocol/src/notifications.ts
+var BRIDGE_NOTIFICATION_METHODS = {
+  threadIdentity: "thread/identity",
+  sessionReplaced: "session/replaced",
+  providerRaw: "provider/raw",
+  providerRecovery: "provider/recovery",
+  error: "error"
+};
+var threadIdentityNotificationSchema = z29.object({
+  threadId: z29.string().min(1),
+  providerThreadId: z29.string().min(1),
+  sessionRestorable: z29.boolean().optional()
+}).passthrough();
+var sessionReplacedNotificationSchema = z29.object({
+  threadId: z29.string().min(1),
+  providerThreadId: z29.string().min(1).nullable(),
+  reason: z29.string().min(1),
+  contextLost: z29.boolean().default(false),
+  showRuntimeNote: z29.boolean().default(false)
+}).passthrough();
+var providerRecoveryNotificationSchema = z29.object({
+  threadId: z29.string().min(1).optional(),
+  ...providerRecoveryHintSchema.shape
+}).passthrough();
+var errorNotificationSchema = z29.object({
+  threadId: z29.string().min(1).optional(),
+  providerThreadId: z29.string().min(1).optional(),
+  message: z29.string().min(1)
+}).passthrough();
+
+// ../provider-bridge-protocol/src/bridge-requests.ts
+import { z as z30 } from "zod";
+var BRIDGE_INBOUND_REQUEST_METHODS = {
+  toolCall: "item/tool/call",
+  interactionRequest: "interaction/request"
+};
+var toolCallRequestParamsSchema = z30.object({
+  providerThreadId: z30.string().min(1),
+  threadId: z30.string().min(1).optional(),
+  turnId: z30.union([z30.string().min(1), z30.null()]),
+  callId: z30.string().min(1),
+  tool: z30.string().min(1),
+  arguments: z30.unknown()
+}).passthrough();
+var toolCallResultSchema = z30.object({
+  success: z30.boolean(),
+  contentItems: z30.array(
+    z30.discriminatedUnion("type", [
+      z30.object({ type: z30.literal("inputText"), text: z30.string() }),
+      z30.object({
+        type: z30.literal("inputImage"),
+        imageUrl: z30.string().min(1)
+      })
+    ])
+  )
+}).passthrough();
+var interactionRequestParamsSchema = z30.object({
+  providerThreadId: z30.string().min(1),
+  threadId: z30.string().min(1).optional(),
+  turnId: z30.union([z30.string().min(1), z30.null()]),
+  payload: pendingInteractionPayloadSchema
+}).passthrough();
+
+// ../provider-bridge-protocol/src/thread-delta.ts
+import { z as z31 } from "zod";
+var THREAD_DELTA_NOTIFICATION_METHOD = "thread/delta";
+var deltaPresentationSchema = threadEventItemPresentationSchema;
+var THREAD_DELTA_KEY_SEPARATOR = "";
+var deltaKeyPartSchema = z31.string().min(1).refine((value) => !value.includes(THREAD_DELTA_KEY_SEPARATOR), {
+  message: "provider keys must not contain the internal key separator (\\u001f)"
+});
+var deltaItemKeySchema = z31.object({
+  providerItemId: deltaKeyPartSchema.optional(),
+  channel: deltaKeyPartSchema.optional(),
+  parentRef: deltaKeyPartSchema.optional()
+});
+var providerTurnIdSchema = deltaKeyPartSchema;
+var deltaFileChangeSchema = z31.object({
+  path: z31.string(),
+  kind: z31.enum(["add", "update", "delete"]),
+  movePath: z31.string().optional(),
+  diff: z31.string().optional(),
+  oldText: z31.string().optional(),
+  newText: z31.string().optional()
+});
+var deltaBackgroundTaskShapeSchema = z31.object({
+  type: z31.literal("backgroundTask"),
+  familyId: z31.string().min(1),
+  taskType: z31.string(),
+  description: z31.string(),
+  status: threadEventItemStatusSchema,
+  taskStatus: backgroundTaskStatusSchema,
+  skipTranscript: z31.boolean(),
+  foreground: z31.boolean().optional(),
+  workflowName: z31.string().optional(),
+  workflow: workflowProgressSnapshotSchema.optional(),
+  usage: backgroundTaskUsageSchema.optional(),
+  summary: z31.string().optional(),
+  error: z31.string().optional(),
+  outputFile: z31.string().optional()
+});
+var deltaFileReadShapeSchema = z31.object({
+  type: z31.literal("fileRead"),
+  path: z31.string(),
+  cmd: z31.string().optional()
+});
+var deltaSearchShapeSchema = z31.object({
+  type: z31.literal("search"),
+  mode: threadEventSearchModeSchema,
+  query: z31.string(),
+  path: z31.string().optional(),
+  cmd: z31.string().optional()
+});
+var deltaDelegationShapeSchema = z31.object({
+  type: z31.literal("delegation"),
+  childRef: deltaKeyPartSchema,
+  label: z31.string(),
+  background: z31.boolean(),
+  summary: z31.string().optional()
+});
+var deltaPlanStepsShapeSchema = z31.object({
+  type: z31.literal("planSteps"),
+  steps: z31.array(threadEventPlanStepSchema),
+  explanation: z31.string().optional()
+});
+var deltaExtensionShapeSchema = z31.object({
+  type: z31.literal("extension"),
+  kind: extensionKindSchema,
+  payload: jsonValueSchema
+});
+var deltaItemShapeSchema = z31.discriminatedUnion("type", [
+  z31.object({
+    type: z31.literal("command"),
+    command: z31.string(),
+    cwd: z31.string(),
+    description: z31.string().optional(),
+    aggregatedOutput: z31.string().optional(),
+    exitCode: z31.number().optional(),
+    durationMs: z31.number().optional()
+  }),
+  z31.object({
+    type: z31.literal("fileChange"),
+    changes: z31.array(deltaFileChangeSchema)
+  }),
+  z31.object({
+    type: z31.literal("tool"),
+    tool: z31.string(),
+    server: z31.string().optional(),
+    args: z31.unknown().optional(),
+    result: z31.unknown().optional(),
+    error: z31.string().optional(),
+    durationMs: z31.number().optional()
+  }),
+  z31.object({ type: z31.literal("compaction") }),
+  z31.object({ type: z31.literal("agentMessage"), text: z31.string() }),
+  z31.object({
+    type: z31.literal("reasoning"),
+    summary: z31.array(z31.string()),
+    content: z31.array(z31.string())
+  }),
+  z31.object({ type: z31.literal("plan"), text: z31.string() }),
+  z31.object({
+    type: z31.literal("webSearch"),
+    queries: z31.array(z31.string()).min(1)
+  }),
+  z31.object({
+    type: z31.literal("webFetch"),
+    url: z31.string(),
+    prompt: z31.string().nullable().optional(),
+    pattern: z31.string().nullable()
+  }),
+  z31.object({ type: z31.literal("imageView"), path: z31.string() }),
+  z31.object({
+    type: z31.literal("imageGeneration"),
+    prompt: z31.string().nullable(),
+    path: z31.string().nullable(),
+    result: z31.string().optional(),
+    error: z31.string().nullable(),
+    transparentBackground: z31.boolean()
+  }),
+  deltaBackgroundTaskShapeSchema,
+  deltaFileReadShapeSchema,
+  deltaSearchShapeSchema,
+  deltaDelegationShapeSchema,
+  deltaPlanStepsShapeSchema,
+  deltaExtensionShapeSchema
+]);
+var deltaProgressSnapshotSchema = z31.discriminatedUnion("type", [
+  deltaBackgroundTaskShapeSchema,
+  deltaDelegationShapeSchema
+]);
+var deltaTextChannelSchema = z31.enum([
+  "agentMessage",
+  "reasoningSummary",
+  "reasoningText",
+  "plan"
+]);
+var deltaOutputChannelSchema = z31.enum(["command", "fileChange"]);
+var deltaErrorSchema = z31.object({ message: z31.string() });
+var deltaAttachSchema = z31.enum(["open", "currentOrLast"]);
+var deltaNoTurnFallbackSchema = z31.object({
+  raw: providerRawEventSchema,
+  rawType: z31.string()
+});
+function requireExtensionPresentation(delta, ctx) {
+  if (delta.item.type === "extension" && delta.presentation === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "extension items require a presentation on item.open/item.close",
+      path: ["presentation"]
+    });
+  }
+}
+var threadDeltaSchema = z31.discriminatedUnion("kind", [
+  z31.object({
+    kind: z31.literal("input.accepted"),
+    clientRequestId: clientTurnRequestIdSchema,
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("input.provider"),
+    text: z31.string().min(1),
+    parentRef: deltaKeyPartSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("turn.open"),
+    providerTurnId: providerTurnIdSchema.optional(),
+    parentRef: deltaKeyPartSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("turn.mainRun"),
+    state: z31.enum(["idle", "running"])
+  }),
+  z31.object({
+    kind: z31.literal("turn.boundary"),
+    status: threadEventTurnStatusSchema,
+    error: deltaErrorSchema.optional(),
+    providerCheckpointId: z31.string().min(1).optional(),
+    claimIfIdle: z31.boolean().optional(),
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("item.open"),
+    key: deltaItemKeySchema,
+    item: deltaItemShapeSchema,
+    presentation: deltaPresentationSchema.optional(),
+    attach: deltaAttachSchema.optional(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }).superRefine(requireExtensionPresentation),
+  z31.object({
+    kind: z31.literal("item.close"),
+    key: deltaItemKeySchema,
+    status: threadEventItemStatusSchema,
+    resultText: z31.string().optional(),
+    exitCode: z31.number().optional(),
+    aggregatedOutput: z31.string().optional(),
+    approvalStatus: z31.literal("denied").optional(),
+    item: deltaItemShapeSchema,
+    presentation: deltaPresentationSchema.optional(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }).superRefine(requireExtensionPresentation),
+  z31.object({
+    kind: z31.literal("item.progress"),
+    key: deltaItemKeySchema,
+    message: z31.string().optional(),
+    snapshot: deltaProgressSnapshotSchema.optional(),
+    flush: z31.boolean().optional(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("item.textDelta"),
+    key: deltaItemKeySchema,
+    channel: deltaTextChannelSchema,
+    text: z31.string(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("item.textClose"),
+    key: deltaItemKeySchema,
+    channel: deltaTextChannelSchema,
+    text: z31.string().optional(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("item.outputDelta"),
+    key: deltaItemKeySchema,
+    channel: deltaOutputChannelSchema,
+    text: z31.string(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("command.outputSnapshot"),
+    key: deltaItemKeySchema,
+    text: z31.string(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("usage"),
+    total: threadEventTokenUsageBreakdownSchema,
+    last: threadEventTokenUsageBreakdownSchema,
+    modelContextWindow: z31.number().nullable(),
+    promptCacheTtlMs: promptCacheTtlMsSchema.optional(),
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("contextWindow"),
+    snapshot: contextSnapshotSchema.optional(),
+    used: z31.number().nullable(),
+    size: z31.number().nullable().optional(),
+    estimated: z31.boolean(),
+    cost: threadUsageCostSchema.optional(),
+    attach: deltaAttachSchema,
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({
+    kind: z31.literal("context.compacted"),
+    providerTurnId: providerTurnIdSchema.optional(),
+    noTurnFallback: deltaNoTurnFallbackSchema.optional()
+  }),
+  z31.object({ kind: z31.literal("context.cleared") }),
+  z31.object({
+    kind: z31.literal("turn.diff"),
+    diff: z31.string(),
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({ kind: z31.literal("thread.started") }),
+  z31.object({
+    kind: z31.literal("thread.identity"),
+    providerThreadId: z31.string().min(1)
+  }),
+  z31.object({
+    kind: z31.literal("thread.name"),
+    name: z31.string().min(1),
+    source: z31.literal("agent").optional()
+  }),
+  z31.object({
+    kind: z31.literal("extension.state"),
+    extensionKind: extensionKindSchema,
+    payload: jsonValueSchema
+  }),
+  z31.object({
+    kind: z31.literal("provider.rateLimits"),
+    rateLimits: providerRateLimitStateSchema
+  }),
+  z31.object({
+    kind: z31.literal("provider.error"),
+    message: z31.string(),
+    detail: z31.string().optional(),
+    willRetry: z31.boolean().optional(),
+    category: providerErrorCategorySchema.optional(),
+    errorInfo: providerErrorInfoSchema.optional(),
+    settlesTurn: z31.boolean().optional(),
+    providerTurnId: providerTurnIdSchema.optional(),
+    threadScoped: z31.boolean().optional()
+  }),
+  z31.object({
+    kind: z31.literal("provider.modelFallback"),
+    originalModel: z31.string().min(1),
+    fallbackModel: z31.string().min(1),
+    reason: z31.enum(["refusal", "provider"]),
+    message: z31.string()
+  }),
+  z31.object({
+    kind: z31.literal("provider.warning"),
+    summary: z31.string().optional(),
+    details: z31.string().optional(),
+    category: threadEventWarningCategorySchema.optional(),
+    vouchedTurn: z31.boolean().optional()
+  }),
+  z31.object({
+    kind: z31.literal("unhandled"),
+    raw: providerRawEventSchema,
+    rawType: z31.string(),
+    vouchedTurn: z31.boolean(),
+    onlyIfNoTurn: z31.boolean().optional(),
+    parentRef: deltaKeyPartSchema.optional(),
+    providerTurnId: providerTurnIdSchema.optional()
+  }),
+  z31.object({ kind: z31.literal("session.ended") }),
+  z31.object({ kind: z31.literal("session.reset") })
+]);
+var threadDeltaNotificationParamsSchema = z31.object({
+  threadId: z31.string().min(1),
+  deltas: z31.array(threadDeltaSchema)
+}).passthrough();
+
+// ../provider-bridge-protocol/src/bridge-kit/adapter-utils.ts
+import { z as z33 } from "zod";
+
+// ../provider-bridge-protocol/src/bridge-kit/tool-arg-schemas.ts
+import { z as z32 } from "zod";
+var bashArgsSchema = z32.object({
+  command: z32.string().optional(),
+  cwd: z32.string().optional()
+}).passthrough();
+var textBlockSchema = z32.object({
+  type: z32.literal("text"),
+  text: z32.string()
+});
+
+// ../provider-bridge-protocol/src/bridge-kit/provider-visibility-helpers.ts
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function getStringProperty(value, key) {
+  const next = value[key];
+  return typeof next === "string" ? next : void 0;
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/adapter-utils.ts
+var contentWrapperSchema = z33.object({
+  content: z33.array(z33.unknown())
+}).passthrough();
+var shellEnvironmentVariableKeySchema = z33.string().regex(/^[A-Z_][A-Z0-9_]*$/i);
+function toOptionalString(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function extractResultText(content) {
+  if (content === null || content === void 0) return "";
+  if (typeof content === "string") return content;
+  if (typeof content === "number" || typeof content === "boolean") {
+    return JSON.stringify(content);
+  }
+  if (content && typeof content === "object" && !Array.isArray(content)) {
+    const wrapper = contentWrapperSchema.safeParse(content);
+    if (wrapper.success) {
+      return extractResultText(wrapper.data.content);
+    }
+    return JSON.stringify(content);
+  }
+  if (!Array.isArray(content)) return "";
+  const toolReferenceSummary = describeToolReferenceBlocks(content);
+  if (toolReferenceSummary) {
+    return toolReferenceSummary;
+  }
+  const chunks = [];
+  for (const block of content) {
+    const parsed = textBlockSchema.safeParse(block);
+    if (parsed.success) {
+      chunks.push(parsed.data.text);
+      continue;
+    }
+    const fallback = describeResultContentBlock(block);
+    if (fallback) {
+      chunks.push(fallback);
+    }
+  }
+  return chunks.join("\n");
+}
+function describeToolReferenceBlocks(blocks) {
+  const toolNames = [];
+  for (const block of blocks) {
+    if (!isRecord(block) || getStringProperty(block, "type") !== "tool_reference") {
+      return null;
+    }
+    const toolName = getStringProperty(block, "tool_name");
+    if (!toolName) {
+      return null;
+    }
+    toolNames.push(toolName);
+  }
+  return toolNames.length > 0 ? `Matched tools: ${toolNames.join(", ")}` : null;
+}
+function describeResultContentBlock(block) {
+  if (!isRecord(block)) {
+    return null;
+  }
+  const type = getStringProperty(block, "type");
+  if (!type) {
+    return null;
+  }
+  const path12 = getStringProperty(block, "path");
+  const toolName = getStringProperty(block, "tool_name");
+  const url2 = getStringProperty(block, "url") ?? getStringProperty(block, "imageUrl");
+  if (path12) {
+    return `[${type}: ${path12}]`;
+  }
+  if (toolName) {
+    return `[${type}: ${toolName}]`;
+  }
+  if (url2) {
+    return `[${type}: ${url2}]`;
+  }
+  return `[${type}]`;
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/bounded-line-reader.ts
+var MAX_JSON_RPC_LINE_BYTES = 64 * 1024 * 1024;
+
+// ../provider-bridge-protocol/src/bridge-kit/bridge-harness.ts
+var BridgeRecoveryError = class extends Error {
+  code;
+  recovery;
+  constructor(args) {
+    super(
+      args.message,
+      args.cause === void 0 ? void 0 : { cause: args.cause }
+    );
+    this.name = "BridgeRecoveryError";
+    this.code = args.code;
+    this.recovery = args.recovery;
+  }
+};
+function createBridgeIo({
+  write = (line) => process.stdout.write(line)
+} = {}) {
+  const send2 = (message) => {
+    write(`${JSON.stringify(message)}
+`);
+  };
+  return {
+    send: send2,
+    sendError: (id, code, message, data) => {
+      send2({
+        jsonrpc: "2.0",
+        id,
+        error: { code, message, ...data === void 0 ? {} : { data } }
+      });
+    },
+    sendResult: (id, result) => {
+      send2({ jsonrpc: "2.0", id, result });
+    }
+  };
+}
+function createBridgeLineHandler(args) {
+  return (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return;
+    }
+    args.handleParsedMessage(parsed);
+  };
+}
+function runBridgeRequest(args) {
+  void args.handleRequest(args.request).catch((error) => {
+    if (error instanceof BridgeRecoveryError) {
+      args.sendError(args.request.id, error.code, error.message, {
+        recovery: error.recovery
+      });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    args.sendError(args.request.id, -32e3, message);
+  });
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/bridge-recorder.ts
+import { closeSync, mkdirSync, openSync, writeSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
+var PROVIDER_BRIDGE_RECORD_DIR_ENV = "BB_PROVIDER_BRIDGE_RECORD_DIR";
+var BRIDGE_RECORDING_PROCESS_SCOPE = "_process";
+function bridgeRecordingFileName(direction) {
+  return `${direction}.ndjson`;
+}
+function createRecordingLineSplitter(onLine, maxLineBytes = MAX_JSON_RPC_LINE_BYTES) {
+  const decoder = new StringDecoder("utf8");
+  let pending = "";
+  let discarding = false;
+  return {
+    push(chunk) {
+      const text = typeof chunk === "string" ? chunk : decoder.write(Buffer.from(chunk));
+      let start = 0;
+      for (; ; ) {
+        const newlineIndex = text.indexOf("\n", start);
+        if (newlineIndex === -1) {
+          break;
+        }
+        if (!discarding) {
+          const line = pending + text.slice(start, newlineIndex);
+          onLine(line.endsWith("\r") ? line.slice(0, -1) : line);
+        }
+        discarding = false;
+        pending = "";
+        start = newlineIndex + 1;
+      }
+      if (discarding) {
+        return;
+      }
+      pending += text.slice(start);
+      if (Buffer.byteLength(pending) > maxLineBytes) {
+        discarding = true;
+        pending = "";
+      }
+    }
+  };
+}
+function safeScopeSegment(threadId) {
+  if (threadId === null || threadId === "") {
+    return BRIDGE_RECORDING_PROCESS_SCOPE;
+  }
+  const sanitized = threadId.replace(/[^A-Za-z0-9_.-]+/g, "-");
+  return sanitized === "" || sanitized.startsWith("_") ? `t-${sanitized}` : sanitized;
+}
+function parseRuntimeLine(line) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+  const record2 = parsed;
+  const id = typeof record2.id === "string" || typeof record2.id === "number" ? record2.id : void 0;
+  const method = typeof record2.method === "string" ? record2.method : void 0;
+  const params = record2.params;
+  const threadId = typeof params === "object" && params !== null && typeof params.threadId === "string" ? params.threadId : void 0;
+  return { id, method, threadId };
+}
+function pendingKey(id) {
+  return `${typeof id}:${String(id)}`;
+}
+function createBridgeRecorder(args) {
+  const dir = resolve(args.dir);
+  const fds = /* @__PURE__ */ new Map();
+  const runtimeRequestThreads = /* @__PURE__ */ new Map();
+  const bridgeRequestThreads = /* @__PURE__ */ new Map();
+  const run = Date.now();
+  let seq = 0;
+  let closed = false;
+  function fdFor(scope, direction) {
+    const key = `${scope}\0${direction}`;
+    const existing = fds.get(key);
+    if (existing !== void 0) {
+      return existing;
+    }
+    const scopeDir = join(dir, scope);
+    mkdirSync(scopeDir, { recursive: true });
+    const fd = openSync(
+      join(scopeDir, bridgeRecordingFileName(direction)),
+      "a"
+    );
+    fds.set(key, fd);
+    return fd;
+  }
+  function record2(recordArgs) {
+    if (closed) {
+      return;
+    }
+    seq += 1;
+    const entry = {
+      ts: Date.now(),
+      run,
+      seq,
+      dir: recordArgs.direction,
+      line: recordArgs.line
+    };
+    try {
+      writeSync(
+        fdFor(safeScopeSegment(recordArgs.threadId), recordArgs.direction),
+        `${JSON.stringify(entry)}
+`
+      );
+    } catch (error) {
+      process.stderr.write(
+        `provider bridge recorder: failed to append to ${dir}: ${error instanceof Error ? error.message : String(error)}
+`
+      );
+    }
+  }
+  function recordRuntimeLine(direction, line) {
+    const parsed = parseRuntimeLine(line);
+    let threadId = parsed?.threadId ?? null;
+    if (parsed !== null && parsed.id !== void 0) {
+      const key = pendingKey(parsed.id);
+      if (parsed.method !== void 0) {
+        (direction === "runtime\u2192bridge" ? runtimeRequestThreads : bridgeRequestThreads).set(key, threadId);
+      } else {
+        const pending = direction === "runtime\u2192bridge" ? bridgeRequestThreads : runtimeRequestThreads;
+        const owner = pending.get(key);
+        if (owner !== void 0) {
+          pending.delete(key);
+          threadId = owner;
+        }
+      }
+    }
+    record2({ direction, line, threadId });
+  }
+  function recordChildIo(child, scope) {
+    const { stdin, stdout } = child;
+    if (stdout) {
+      const splitter = createRecordingLineSplitter(
+        (line) => record2({
+          direction: "provider\u2192bridge",
+          line,
+          threadId: scope.threadId
+        })
+      );
+      stdout.on("data", (chunk) => splitter.push(chunk));
+    }
+    if (stdin) {
+      const splitter = createRecordingLineSplitter(
+        (line) => record2({
+          direction: "bridge\u2192provider",
+          line,
+          threadId: scope.threadId
+        })
+      );
+      const originalWrite = stdin.write.bind(stdin);
+      stdin.write = ((chunk, ...rest) => {
+        splitter.push(chunk);
+        return originalWrite(
+          chunk,
+          ...rest
+        );
+      });
+    }
+  }
+  return {
+    record: record2,
+    recordRuntimeLine,
+    recordChildIo,
+    close() {
+      closed = true;
+      for (const fd of fds.values()) {
+        try {
+          closeSync(fd);
+        } catch {
+        }
+      }
+      fds.clear();
+    }
+  };
+}
+var RECORDER_GLOBAL_KEY = /* @__PURE__ */ Symbol.for("bb.providerBridgeRecorder");
+function globalSlot() {
+  const holder = globalThis;
+  const existing = holder[RECORDER_GLOBAL_KEY];
+  if (existing !== void 0) {
+    return existing;
+  }
+  const slot = { recorder: null, resolved: false };
+  holder[RECORDER_GLOBAL_KEY] = slot;
+  return slot;
+}
+function getBridgeRecorder() {
+  const slot = globalSlot();
+  if (!slot.resolved) {
+    slot.resolved = true;
+    const dir = process.env[PROVIDER_BRIDGE_RECORD_DIR_ENV];
+    if (dir !== void 0 && dir.trim() !== "") {
+      slot.recorder = createBridgeRecorder({ dir: dir.trim() });
+    }
+  }
+  return slot.recorder;
+}
+function experimental_recordProviderChildIo(child, scope) {
+  getBridgeRecorder()?.recordChildIo(child, scope);
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/bridge-runtime-env.ts
+function withoutBridgeRuntimeEnv(env) {
+  const childEnv = { ...env };
+  delete childEnv.ELECTRON_RUN_AS_NODE;
+  delete childEnv[PROVIDER_BRIDGE_RECORD_DIR_ENV];
+  return childEnv;
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/bridge-tool-calls.ts
+import { z as z34 } from "zod";
+var bridgeRequestEnvelopeSchema = z34.object({
+  jsonrpc: z34.literal("2.0"),
+  id: z34.union([z34.string(), z34.number()]),
+  method: z34.string(),
+  params: z34.record(z34.string(), z34.unknown()).optional()
+});
+var jsonRpcErrorSchema = z34.object({
+  code: z34.number(),
+  message: z34.string().optional(),
+  data: z34.unknown().optional()
+});
+var jsonRpcSuccessResponseSchema = z34.object({
+  jsonrpc: z34.literal("2.0"),
+  id: z34.union([z34.string(), z34.number()]),
+  result: z34.unknown()
+});
+var jsonRpcErrorResponseSchema = z34.object({
+  jsonrpc: z34.literal("2.0"),
+  id: z34.union([z34.string(), z34.number()]),
+  error: jsonRpcErrorSchema
+});
+function isJsonRpcRequest(input) {
+  return typeof input === "object" && input !== null && "method" in input && input.method !== void 0;
+}
+function decodeBridgeJsonRpcResponse(input) {
+  if (isJsonRpcRequest(input)) return null;
+  const error = jsonRpcErrorResponseSchema.safeParse(input);
+  if (error.success) return error.data;
+  const success = jsonRpcSuccessResponseSchema.safeParse(input);
+  return success.success ? success.data : null;
+}
+var IMAGE_DATA_URL = /^data:(.+);base64,(.+)$/s;
+function decodeImageDataUrl(imageUrl) {
+  const match = IMAGE_DATA_URL.exec(imageUrl);
+  if (match === null) {
+    return null;
+  }
+  const [, mimeType, data] = match;
+  if (data.length === 0) {
+    return null;
+  }
+  return { data, mimeType };
+}
+function decodeToolCallResponsePayload(result) {
+  const parsed = toolCallResultSchema.safeParse(result);
+  if (!parsed.success) {
+    return {
+      content: "Invalid tool call response",
+      contentBlocks: [{ type: "text", text: "Invalid tool call response" }],
+      images: [],
+      isError: true
+    };
+  }
+  const texts = [];
+  const contentBlocks = [];
+  const images = [];
+  for (const item of parsed.data.contentItems) {
+    if (item.type === "inputText") {
+      texts.push(item.text);
+      if (item.text !== "") {
+        contentBlocks.push({ type: "text", text: item.text });
+      }
+      continue;
+    }
+    const image = decodeImageDataUrl(item.imageUrl);
+    if (image === null) {
+      texts.push(item.imageUrl);
+      contentBlocks.push({ type: "text", text: item.imageUrl });
+      continue;
+    }
+    images.push(image);
+    contentBlocks.push({ type: "image", ...image });
+  }
+  const text = texts.join("\n");
+  const isError = !parsed.data.success;
+  if (contentBlocks.length === 0) {
+    const fallback = isError ? "Tool call failed" : "OK";
+    return {
+      content: fallback,
+      contentBlocks: [{ type: "text", text: fallback }],
+      images,
+      isError
+    };
+  }
+  return {
+    content: text,
+    contentBlocks,
+    images,
+    isError
+  };
+}
+function buildBridgeToolCallContent(result) {
+  if (result.contentBlocks !== void 0) {
+    return result.contentBlocks;
+  }
+  const blocks = [];
+  if (result.content !== "") {
+    blocks.push({ type: "text", text: result.content });
+  }
+  for (const image of result.images ?? []) {
+    blocks.push({ type: "image", data: image.data, mimeType: image.mimeType });
+  }
+  return blocks;
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/json-rpc-envelope.ts
+import { z as z35 } from "zod";
+var recordSchema = z35.record(z35.string(), z35.unknown());
+var jsonRpcEnvelopeSchema = z35.object({
+  jsonrpc: z35.literal("2.0"),
+  method: z35.string(),
+  params: recordSchema.optional()
+}).passthrough();
+var sdkMessageEnvelopeSchema = z35.object({
+  jsonrpc: z35.literal("2.0"),
+  method: z35.literal("sdk/message"),
+  params: z35.object({
+    message: z35.unknown(),
+    threadId: z35.string().optional(),
+    parent_tool_use_id: z35.string().optional()
+  }).passthrough()
+}).passthrough();
+var threadIdentityEnvelopeSchema = z35.object({
+  jsonrpc: z35.literal("2.0"),
+  method: z35.literal("thread/identity"),
+  params: z35.object({
+    threadId: z35.string().optional(),
+    providerThreadId: z35.string().optional()
+  }).passthrough()
+}).passthrough();
+var threadContextWindowUsageEnvelopeSchema = z35.object({
+  jsonrpc: z35.literal("2.0"),
+  method: z35.literal("thread/contextWindowUsage/updated"),
+  params: z35.object({
+    threadId: z35.string().optional(),
+    contextWindowUsage: z35.object({
+      usedTokens: z35.number().nullable(),
+      modelContextWindow: z35.number().nullable(),
+      estimated: z35.boolean()
+    })
+  }).passthrough()
+}).passthrough();
+var errorEnvelopeSchema = z35.object({
+  jsonrpc: z35.literal("2.0"),
+  method: z35.literal("error"),
+  params: z35.object({
+    message: z35.string().optional()
+  }).passthrough().optional()
+}).passthrough();
+
+// ../provider-bridge-protocol/src/bridge-kit/mime-types.ts
+import { extname } from "node:path";
+function mimeTypeFromExtension(filePath) {
+  switch (extname(filePath).toLowerCase()) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    case ".svg":
+      return "image/svg+xml";
+    default:
+      return "image/png";
+  }
+}
+
+// ../text-utils/src/utf16.ts
+function isHighSurrogateAt(value, index) {
+  const code = value.charCodeAt(index);
+  return code >= 55296 && code <= 56319;
+}
+function isLowSurrogateAt(value, index) {
+  const code = value.charCodeAt(index);
+  return code >= 56320 && code <= 57343;
+}
+function sliceUtf16Head(value, maxChars) {
+  let end = Math.min(value.length, Math.max(0, maxChars));
+  if (isHighSurrogateAt(value, end - 1) && isLowSurrogateAt(value, end)) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/presentation.ts
+var PRESENTATION_TITLE_MAX_LENGTH = 160;
+function presentationTitle(text) {
+  const firstLine = text.trim().split("\n", 1)[0]?.trim() ?? "";
+  if (firstLine.length === 0) {
+    return void 0;
+  }
+  return firstLine.length > PRESENTATION_TITLE_MAX_LENGTH ? `${sliceUtf16Head(firstLine, PRESENTATION_TITLE_MAX_LENGTH - 1)}\u2026` : firstLine;
+}
+function withTitle(presentation, title) {
+  return title === void 0 ? presentation : { ...presentation, title };
+}
+function presentationFileName(path12) {
+  const segments = path12.split("/").filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? path12;
+}
+var COMPACTION_PRESENTATION = {
+  label: { pending: "Compacting context", completed: "Compacted context" },
+  icon: { glyph: "Archive" }
+};
+var REASONING_PRESENTATION = {
+  label: { pending: "Thinking", completed: "Thought" },
+  icon: { glyph: "Brain" }
+};
+function fileReadPresentation(path12) {
+  return withTitle(
+    {
+      label: { pending: "Reading file", completed: "Read file" },
+      icon: { glyph: "FileText" }
+    },
+    presentationTitle(presentationFileName(path12))
+  );
+}
+function searchPresentation(args) {
+  return withTitle(
+    args.mode === "content" ? {
+      label: { pending: "Searching files", completed: "Searched files" },
+      icon: { glyph: "Search" }
+    } : {
+      label: { pending: "Finding files", completed: "Found files" },
+      icon: { glyph: "FolderOpen" }
+    },
+    presentationTitle(args.query)
+  );
+}
+function webFetchPresentation(url2) {
+  return withTitle(
+    {
+      label: { pending: "Fetching page", completed: "Fetched page" },
+      icon: { glyph: "Browser" }
+    },
+    presentationTitle(url2)
+  );
+}
+function planStepsPresentation(steps) {
+  const active = steps.find((step) => step.status === "active");
+  return withTitle(
+    {
+      label: { pending: "Updating plan", completed: "Updated plan" },
+      icon: { glyph: "ListTodo" },
+      suppress: true
+    },
+    active === void 0 ? void 0 : presentationTitle(active.step)
+  );
+}
+function toolPresentation(tool) {
+  return {
+    label: { pending: `Running ${tool}`, completed: `Ran ${tool}` },
+    icon: { glyph: "Toolbox" }
+  };
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/provider-bridge-entry.ts
+function experimental_defineProviderBridge(definition) {
+  return { experimental_apiVersion: 1, ...definition };
+}
+
+// ../process-utils/src/host-process.ts
+import parse from "cross-spawn/lib/parse.js";
+import {
+  spawn as nodeSpawn,
+  fork as nodeFork,
+  execFile as nodeExecFile
+} from "node:child_process";
+import crossSpawn from "cross-spawn";
+
+// ../process-utils/src/host-toolchain.ts
+import { spawn, spawnSync } from "node:child_process";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  readdirSync,
+  realpathSync,
+  statSync
+} from "node:fs";
+import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import {
+  basename,
+  delimiter,
+  dirname,
+  extname as extname2,
+  isAbsolute,
+  join as join2
+} from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ../../node_modules/.pnpm/which-command@0.1.0/node_modules/which-command/index.js
+import fs from "node:fs";
+import path from "node:path";
+import process2 from "node:process";
+var isWindows = process2.platform === "win32";
+var separatorPattern = isWindows ? new RegExp("[\\/\\\\]", "v") : new RegExp("\\/", "v");
+var defaultPathExt = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
+function resolveOptions(command, options) {
+  if (typeof command !== "string" || command.length === 0) {
+    throw new TypeError("Expected a non-empty string.");
+  }
+  const {
+    cwd = process2.cwd(),
+    // On Windows, `process.env.PATH` can be undefined in some contexts (for example, worker threads), where it's only exposed as `Path`.
+    path: searchPath = process2.env.PATH ?? (isWindows ? process2.env.Path : void 0) ?? "",
+    // `||` (not `??`) so an empty `PATHEXT` falls back to the default instead of disabling all lookup on Windows.
+    pathExt = process2.env.PATHEXT || defaultPathExt
+  } = options;
+  return { cwd, searchPath, pathExt };
+}
+function windowsExtensions(command, pathExt) {
+  const extensions = pathExt.split(path.delimiter).filter(Boolean);
+  const commandExtension = path.extname(command).toLowerCase();
+  if (commandExtension !== "" && extensions.some((extension) => extension.toLowerCase() === commandExtension)) {
+    return ["", ...extensions];
+  }
+  return extensions;
+}
+function* candidatePaths(command, { cwd, searchPath, pathExt }) {
+  const extensions = isWindows ? windowsExtensions(command, pathExt) : [""];
+  if (separatorPattern.test(command)) {
+    const base = path.resolve(cwd, command);
+    for (const extension of extensions) {
+      yield base + extension;
+    }
+    return;
+  }
+  const directories = [
+    // Windows searches the current directory before `PATH`.
+    ...isWindows ? [cwd] : [],
+    ...searchPath.split(path.delimiter)
+  ];
+  for (const directory of directories) {
+    const unquoted = isWindows && directory.length > 1 && directory.startsWith('"') && directory.endsWith('"') ? directory.slice(1, -1) : directory;
+    if (unquoted === "") {
+      continue;
+    }
+    const base = path.resolve(cwd, unquoted, command);
+    for (const extension of extensions) {
+      yield base + extension;
+    }
+  }
+}
+function isExecutableSync(filePath) {
+  let stats;
+  try {
+    stats = fs.statSync(filePath);
+  } catch (error) {
+    return isWindows && error.code === "EACCES";
+  }
+  if (!stats.isFile()) {
+    return false;
+  }
+  if (isWindows) {
+    return true;
+  }
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function whichCommandSync(command, options = {}) {
+  const resolved = resolveOptions(command, options);
+  for (const candidate of candidatePaths(command, resolved)) {
+    if (isExecutableSync(candidate)) {
+      return candidate;
+    }
+  }
+  return void 0;
+}
+
+// ../process-utils/src/node-network.ts
+var NODE_NETWORK_FLAGS = {
+  "--use-system-ca": "NODE_USE_SYSTEM_CA",
+  "--use-env-proxy": "NODE_USE_ENV_PROXY"
+};
+var ENV_PROXY_FLAG = "--use-env-proxy";
+var PROXY_KEYS = /* @__PURE__ */ new Set(["HTTP_PROXY", "HTTPS_PROXY"]);
+var NO_PROXY_KEY = "NO_PROXY";
+var LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
+function isNodeNetworkFlag(arg) {
+  return Object.hasOwn(NODE_NETWORK_FLAGS, arg);
+}
+function isHttpProxyUrl(value) {
+  if (/[\r\n]/u.test(value)) return false;
+  try {
+    const url2 = new URL(value);
+    return (url2.protocol === "http:" || url2.protocol === "https:") && url2.hostname !== "";
+  } catch {
+    return false;
+  }
+}
+function proxyEntries(env) {
+  return Object.entries(env).filter(
+    (entry) => PROXY_KEYS.has(entry[0].toUpperCase()) && entry[1] !== void 0 && entry[1] !== ""
+  );
+}
+function appendLoopback(value) {
+  const entries = value.split(/[\s,]+/u).filter(Boolean);
+  if (entries.includes("*")) return value;
+  const present = new Set(entries.map((entry) => entry.toLowerCase()));
+  return [
+    ...entries,
+    ...LOOPBACK_HOSTS.filter((host) => !present.has(host))
+  ].join(",");
+}
+function withLoopbackNoProxy(env) {
+  const result = { ...env };
+  const keys = Object.keys(result).filter(
+    (key) => key.toUpperCase() === NO_PROXY_KEY && result[key] !== void 0
+  );
+  for (const key of keys.length > 0 ? keys : [NO_PROXY_KEY])
+    result[key] = appendLoopback(result[key] ?? "");
+  return result;
+}
+function nodeNetworkLaunch(nodeArgs, env) {
+  const enabled = nodeArgs.filter(
+    (arg) => !isNodeNetworkFlag(arg) || env[NODE_NETWORK_FLAGS[arg]] !== "0"
+  );
+  if (!enabled.includes(ENV_PROXY_FLAG))
+    return { nodeArgs: enabled, env, rejectedProxyKeys: [] };
+  const proxies = proxyEntries(env);
+  const rejectedProxyKeys = proxies.filter(([, value]) => !isHttpProxyUrl(value)).map(([key]) => key);
+  if (rejectedProxyKeys.length > 0)
+    return {
+      nodeArgs: enabled.filter((arg) => arg !== ENV_PROXY_FLAG),
+      env,
+      rejectedProxyKeys
+    };
+  return {
+    nodeArgs: enabled,
+    env: proxies.length > 0 ? withLoopbackNoProxy(env) : env,
+    rejectedProxyKeys: []
+  };
+}
+var warnedProxyKeys = /* @__PURE__ */ new Set();
+function prepareNodeNetworkLaunch(nodeArgs, env) {
+  const launch = nodeNetworkLaunch(nodeArgs, env);
+  const unwarned = launch.rejectedProxyKeys.filter(
+    (key) => !warnedProxyKeys.has(key)
+  );
+  if (unwarned.length > 0) {
+    for (const key of unwarned) warnedProxyKeys.add(key);
+    process.emitWarning(
+      `bb started a Node process without --use-env-proxy because ${unwarned.join(", ")} is not an http:// or https:// URL. Add the scheme, for example http://proxy.example:3128, so bb uses the proxy.`,
+      { code: "BB_INVALID_PROXY_ENV" }
+    );
+  }
+  return { nodeArgs: launch.nodeArgs, env: launch.env };
+}
+function prepareNodeNetworkCommand(args, env) {
+  const scriptIndex = args.findIndex(
+    (arg) => arg === "--" || !arg.startsWith("-")
+  );
+  const optionCount = scriptIndex < 0 ? args.length : scriptIndex;
+  const launch = prepareNodeNetworkLaunch(args.slice(0, optionCount), env);
+  return {
+    args: [...launch.nodeArgs, ...args.slice(optionCount)],
+    env: launch.env
+  };
+}
+
+// ../process-utils/src/host-toolchain.ts
+var NETWORK_KEYS = [
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR"
+];
+var SHELL_START = "__BB_SHELL_ENV_START__";
+var SHELL_END = "__BB_SHELL_ENV_END__";
+var PROBE_TIMEOUT_MS = 3e3;
+var PROBE_OUTPUT_MAX_CHARS = 1024 * 1024;
+function executable(file) {
+  try {
+    accessSync(
+      file,
+      process.platform === "win32" ? constants.F_OK : constants.X_OK
+    );
+    return statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+function envValue(env, key) {
+  if (process.platform !== "win32") return env[key];
+  return env[Object.keys(env).find(
+    (entry) => entry.toUpperCase() === key.toUpperCase()
+  ) ?? key];
+}
+function mergePath(...paths) {
+  const seen = /* @__PURE__ */ new Set();
+  return paths.flatMap((value) => (value ?? "").split(delimiter)).filter((entry) => {
+    if (!entry) return false;
+    const key = process.platform === "win32" ? entry.replace(/[\\/]+$/u, "").toLowerCase() : entry;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join(delimiter);
+}
+function onDiskName(file) {
+  if (process.platform !== "win32") return file;
+  try {
+    const name = basename(file).toLowerCase();
+    const entry = readdirSync(dirname(file)).find(
+      (candidate) => candidate.toLowerCase() === name
+    );
+    return entry === void 0 ? file : join2(dirname(file), entry);
+  } catch {
+    return file;
+  }
+}
+function runProbe(command, args, env) {
+  return new Promise((resolve5) => {
+    let stdout = "";
+    let settled = false;
+    let timer;
+    const finish = (status) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve5({ status, stdout });
+    };
+    let child;
+    try {
+      child = spawn(command, args, {
+        cwd: homedir(),
+        env,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true
+      });
+    } catch {
+      finish(null);
+      return;
+    }
+    timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(null);
+    }, PROBE_TIMEOUT_MS);
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      if (stdout.length < PROBE_OUTPUT_MAX_CHARS) stdout += chunk;
+    });
+    child.once("error", () => finish(null));
+    child.once("close", (code) => finish(code));
+  });
+}
+async function readShellEnvironment(env, retainPrevious) {
+  if (process.platform === "win32") {
+    const registry2 = join2(
+      envValue(env, "SystemRoot") ?? "C:\\Windows",
+      "System32",
+      "reg.exe"
+    );
+    const values = { ...env };
+    const paths = [];
+    for (const key of [
+      "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+      "HKCU\\Environment"
+    ]) {
+      const result = await runProbe(registry2, ["query", key], env);
+      if (result.status !== 0) continue;
+      for (const match of result.stdout.matchAll(
+        /^ {4}(.+?) {4}REG_[A-Z_]+ {4}(.*)$/gmu
+      )) {
+        const name = match[1]?.trim();
+        if (!name) continue;
+        const value = (match[2] ?? "").trim();
+        if (name.toUpperCase() === "PATH") paths.push(value);
+        else {
+          const existing = Object.keys(values).find(
+            (key2) => key2.toUpperCase() === name.toUpperCase()
+          );
+          values[existing ?? name] = value;
+        }
+      }
+    }
+    const expand = (value) => {
+      for (let depth = 0; depth < 10; depth += 1) {
+        const expanded = value.replace(
+          /%([^%;\\/]+)%/gu,
+          (reference, variable) => envValue(values, variable) ?? reference
+        );
+        if (expanded === value) break;
+        value = expanded;
+      }
+      return value;
+    };
+    return paths.length === 0 ? null : { PATH: mergePath(...paths.map(expand), envValue(env, "PATH")) };
+  }
+  const shell = env.SHELL?.trim() || (process.platform === "darwin" ? "/bin/zsh" : "/bin/sh");
+  const command = `printf '%s\\n' ${SHELL_START}; /usr/bin/env; printf '%s\\n' ${SHELL_END}`;
+  const shellArgs = ["sh", "dash"].includes(basename(shell)) ? ["-lc"] : ["-ilc", "-lc"];
+  for (const arg of shellArgs) {
+    const result = await runProbe(shell, [arg, command], env);
+    if (result.status !== 0) {
+      if (retainPrevious) return null;
+      continue;
+    }
+    const start = result.stdout.indexOf(`${SHELL_START}
+`);
+    const end = result.stdout.indexOf(`
+${SHELL_END}`, start);
+    if (start < 0 || end < 0) {
+      if (retainPrevious) return null;
+      continue;
+    }
+    const values = {};
+    for (const line of result.stdout.slice(start + SHELL_START.length + 1, end).split("\n")) {
+      const separator = line.indexOf("=");
+      const key = line.slice(0, separator);
+      if (key === "PATH" || NETWORK_KEYS.includes(key))
+        values[key] = line.slice(separator + 1);
+    }
+    if (values.PATH) return values;
+  }
+  return null;
+}
+var HostToolchain = class {
+  constructor(baseEnv = process.env, runtimePath = process.execPath) {
+    this.baseEnv = baseEnv;
+    this.runtimePath = runtimePath;
+    this.inheritedPath = envValue(baseEnv, "PATH");
+    this.nodePath = runtimePath;
+  }
+  baseEnv;
+  runtimePath;
+  shellEnv = {};
+  inheritedPath;
+  misses = /* @__PURE__ */ new Set();
+  nodePath;
+  refreshing = null;
+  refreshedAt = 0;
+  refresh() {
+    if (this.refreshing !== null) return this.refreshing;
+    this.misses.clear();
+    this.refreshedAt = Date.now();
+    const retainPrevious = this.shellEnv.PATH !== void 0;
+    this.refreshing = readShellEnvironment(this.baseEnv, retainPrevious).then((env) => {
+      if (env !== null) this.shellEnv = env;
+    }).finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+  invalidateFailure(errorOrCode) {
+    const code = typeof errorOrCode === "object" && errorOrCode !== null && "code" in errorOrCode ? errorOrCode.code : errorOrCode;
+    if (code === "ENOENT" || code === 127) void this.refresh();
+  }
+  searchPath(env) {
+    const inherited = envValue(env, "PATH");
+    const home = envValue(env, process.platform === "win32" ? "USERPROFILE" : "HOME") ?? homedir();
+    const fallbacks = [
+      join2(home, ".local", "bin"),
+      join2(home, ".local", "share", "mise", "shims"),
+      join2(home, ".asdf", "shims"),
+      join2(home, ".asdf", "bin"),
+      join2(home, ".volta", "bin")
+    ];
+    if (process.platform === "darwin") fallbacks.push("/opt/homebrew/bin");
+    if (process.platform !== "win32")
+      fallbacks.push("/usr/local/bin", "/usr/bin", "/bin");
+    const [first, second] = inherited === void 0 || inherited === this.inheritedPath ? [this.shellEnv.PATH, inherited] : [inherited, this.shellEnv.PATH];
+    return mergePath(
+      first,
+      second,
+      executable(this.nodePath) && /^node(?:\.exe)?$/iu.test(basename(this.nodePath)) ? dirname(this.nodePath) : void 0,
+      ...fallbacks
+    );
+  }
+  environment(env = this.baseEnv) {
+    const path12 = this.searchPath(env);
+    const result = { ...env };
+    if (process.platform === "win32") {
+      for (const key of Object.keys(result))
+        if (key !== "PATH" && key.toUpperCase() === "PATH") delete result[key];
+    }
+    if (path12 !== "") result.PATH = path12;
+    const callerKeys = new Set(
+      Object.keys(env).filter((key) => env[key] !== void 0).map((key) => key.toUpperCase())
+    );
+    for (const key of NETWORK_KEYS)
+      if (!callerKeys.has(key.toUpperCase()) && this.shellEnv[key] !== void 0)
+        result[key] = this.shellEnv[key];
+    return result;
+  }
+  lookup(command, options) {
+    const env = this.environment(options.env);
+    const cwd = options.cwd instanceof URL ? fileURLToPath(options.cwd) : options.cwd ?? process.cwd();
+    if (command === "bb") {
+      for (const candidate of [
+        env.BB_CLI_LAUNCHER,
+        env.BB_CLI,
+        env.BB_CLI_DIR ? join2(env.BB_CLI_DIR, "bb") : void 0
+      ]) {
+        if (candidate?.trim() && isAbsolute(candidate.trim()) && executable(candidate.trim()))
+          return candidate.trim();
+      }
+    }
+    const extension = extname2(command);
+    const pathExt = envValue(env, "PATHEXT");
+    const path12 = envValue(env, "PATH") ?? "";
+    const lookupOptions = {
+      cwd,
+      path: path12,
+      pathExt: extension ? `${extension};${pathExt ?? ".EXE;.COM;.CMD;.BAT"}` : pathExt
+    };
+    const found = command === "bb" ? path12.split(delimiter).filter(isAbsolute).map(
+      (directory) => whichCommandSync(join2(directory, command), lookupOptions)
+    ).find(Boolean) : whichCommandSync(command, lookupOptions);
+    return found ? onDiskName(found) : null;
+  }
+  resolve(command, options = {}) {
+    const found = this.lookup(command, options);
+    if (found !== null) return found;
+    const key = `${command}\0${String(options.cwd ?? "")}\0${envValue(options.env ?? this.baseEnv, "PATH") ?? ""}`;
+    const sinceRefresh = Date.now() - this.refreshedAt;
+    if (!(this.misses.has(key) && sinceRefresh < 3e4) && (this.misses.size === 0 || sinceRefresh >= 1e3))
+      void this.refresh();
+    this.misses.add(key);
+    return null;
+  }
+  node(options = {}) {
+    if (executable(this.nodePath)) return this.nodePath;
+    const stableHomebrew = this.runtimePath.replace(
+      /\/Cellar\/([^/]+)\/[^/]+\//u,
+      "/opt/$1/"
+    );
+    const candidates = [
+      stableHomebrew,
+      process.argv0,
+      this.lookup(process.platform === "win32" ? "node.exe" : "node", options)
+    ];
+    for (const candidate of candidates) {
+      if (!candidate || !isAbsolute(candidate) || !executable(candidate))
+        continue;
+      const probe = spawnSync(
+        candidate,
+        [
+          "-p",
+          "JSON.stringify({path:process.execPath,abi:process.versions.modules,electron:!!process.versions.electron})"
+        ],
+        {
+          env: this.environment(options.env),
+          cwd: options.cwd,
+          encoding: "utf8",
+          timeout: PROBE_TIMEOUT_MS,
+          killSignal: "SIGKILL",
+          windowsHide: true
+        }
+      );
+      if (probe.status !== 0) continue;
+      try {
+        const runtime = JSON.parse(probe.stdout.trim());
+        if (typeof runtime !== "object" || runtime === null || !("path" in runtime) || typeof runtime.path !== "string" || !("abi" in runtime) || runtime.abi !== process.versions.modules || !("electron" in runtime) || runtime.electron !== Boolean(process.versions.electron))
+          continue;
+        if (isAbsolute(runtime.path) && executable(runtime.path)) {
+          this.nodePath = runtime.path;
+          return runtime.path;
+        }
+      } catch {
+      }
+    }
+    throw Object.assign(
+      new Error(
+        "The Node runtime was removed and no replacement was found. Reinstall Node or restart bb with an available runtime."
+      ),
+      { code: "ENOENT" }
+    );
+  }
+  bundledNpmCli(command = "npm") {
+    const require2 = createRequire(import.meta.url);
+    return join2(
+      dirname(require2.resolve("npm/package.json")),
+      "bin",
+      `${command}-cli.js`
+    );
+  }
+  npmCli(command = "npm", options = {}) {
+    const bin = `${command}-cli.js`;
+    const runtime = process.versions.electron ? null : this.node(options);
+    const candidates = [];
+    if (runtime !== null)
+      for (const cli of [
+        join2(dirname(runtime), "..", "lib", "node_modules", "npm", "bin", bin),
+        join2(dirname(runtime), "node_modules", "npm", "bin", bin)
+      ])
+        candidates.push({ node: runtime, cli });
+    const installed = this.resolve(command, options);
+    if (installed) {
+      try {
+        const cli = realpathSync(installed);
+        const npmRoot = dirname(dirname(cli));
+        const node = [
+          join2(npmRoot, "..", "..", "..", "bin", "node"),
+          join2(npmRoot, "..", "..", "node.exe"),
+          join2(dirname(installed), "node")
+        ].find(executable);
+        if (basename(cli) === bin && node !== void 0)
+          candidates.push({ node: realpathSync(node), cli });
+      } catch {
+      }
+    }
+    if (runtime !== null) {
+      try {
+        candidates.push({ node: runtime, cli: this.bundledNpmCli(command) });
+      } catch {
+      }
+    }
+    return candidates.find((candidate) => existsSync(candidate.cli)) ?? null;
+  }
+  command(command, args = [], options = {}) {
+    const file = command === this.runtimePath ? this.node(options) : this.resolve(command, options) ?? command;
+    const env = this.environment(options.env);
+    if (/(?:^|[\\/])(?:npm|npx)-cli\.js$/u.test(args[0] ?? "")) {
+      env.PATH = mergePath(dirname(file), env.PATH);
+    }
+    const network = prepareNodeNetworkCommand(args, env);
+    return { command: file, args: network.args, env: network.env };
+  }
+};
+var toolchainKey = /* @__PURE__ */ Symbol.for("@bb/process-utils/host-toolchain");
+var shared = globalThis;
+var hostToolchain = shared[toolchainKey] ??= new HostToolchain();
+
+// ../process-utils/src/host-process.ts
+function observe(child) {
+  child.once("error", (error) => hostToolchain.invalidateFailure(error));
+  child.once("exit", (code) => hostToolchain.invalidateFailure(code));
+  return child;
+}
+function spawnHostProcess(command, args = [], options = {}) {
+  const launch = options.shell ? { command, args: [...args], env: hostToolchain.environment(options.env) } : hostToolchain.command(command, args, options);
+  const spawnOptions = {
+    ...options,
+    env: launch.env,
+    windowsHide: options.windowsHide ?? true
+  };
+  if (process.platform === "win32" && !options.shell && /[\\/]/u.test(command)) {
+    const parsed = parse(launch.command, launch.args, spawnOptions);
+    return observe(
+      parsed.file ? nodeSpawn(parsed.command, parsed.args, parsed.options) : nodeSpawn(launch.command, launch.args, spawnOptions)
+    );
+  }
+  const spawn3 = options.shell ? nodeSpawn : crossSpawn;
+  return observe(spawn3(launch.command, launch.args, spawnOptions));
+}
+function prepareExecFile(command, args, options) {
+  const launch = hostToolchain.command(command, args, options);
+  const parsed = process.platform === "win32" && hostToolchain.resolve(launch.command, {
+    env: launch.env,
+    cwd: options.cwd
+  }) === null ? { command: launch.command, args: launch.args, options } : parse(launch.command, launch.args, { ...options, env: launch.env });
+  return {
+    command: parsed.command,
+    args: parsed.args,
+    options: {
+      ...options,
+      ...parsed.options,
+      env: launch.env,
+      windowsHide: options.windowsHide ?? true
+    }
+  };
+}
+function execHostFileCallback(command, args, options, callback) {
+  const launch = prepareExecFile(command, args, options);
+  return observe(
+    nodeExecFile(
+      launch.command,
+      launch.args,
+      { ...launch.options, encoding: options.encoding ?? "utf8" },
+      callback
+    )
+  );
+}
+function settleExecFile(start) {
+  let resolve5;
+  let reject;
+  const promise = new Promise(
+    (resolvePromise, rejectPromise) => {
+      resolve5 = resolvePromise;
+      reject = rejectPromise;
+    }
+  );
+  const child = start((error, stdout, stderr) => {
+    if (error) reject(Object.assign(error, { stdout, stderr }));
+    else resolve5({ stdout, stderr });
+  });
+  return Object.assign(promise, { child });
+}
+function execHostFile(command, args = [], options = {}) {
+  return settleExecFile(
+    (callback) => execHostFileCallback(command, args, options, callback)
+  );
+}
+
+// ../process-utils/src/spawn.ts
+function spawnPortableProcess(request) {
+  return spawnHostProcess(request.command, request.args, {
+    cwd: request.cwd,
+    detached: request.detached,
+    env: request.env,
+    stdio: request.stdio,
+    windowsHide: true
+  });
+}
+function assertPortablePipedProcess(child) {
+  if (!child.stdin || !child.stdout || !child.stderr) {
+    throw new Error("Portable child process did not attach piped stdio");
+  }
+}
+function spawnPortablePipedProcess(request) {
+  const child = spawnPortableProcess({
+    ...request,
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+  assertPortablePipedProcess(child);
+  return child;
+}
+
+// ../process-utils/src/windows-process-tree.ts
+import path2 from "node:path";
+function hasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+function terminateWindowsProcessTrees(pids) {
+  if (pids.length === 0) return Promise.resolve(true);
+  return new Promise((resolve5) => {
+    let timer;
+    let killer;
+    let settled = false;
+    const finish = (terminated) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve5(terminated);
+    };
+    try {
+      killer = execHostFileCallback(
+        path2.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "taskkill.exe"
+        ),
+        [...pids.flatMap((pid) => ["/pid", String(pid)]), "/T", "/F"],
+        { windowsHide: true },
+        (error) => finish(error === null)
+      );
+      timer = setTimeout(() => {
+        finish(false);
+        try {
+          killer?.kill("SIGKILL");
+        } catch {
+        }
+      }, 2e3);
+    } catch {
+      finish(false);
+    }
+  });
+}
+function waitForRootExit(child) {
+  if (hasExited(child)) return Promise.resolve();
+  return new Promise((resolve5, reject) => {
+    const onExit2 = () => {
+      clearTimeout(timer);
+      resolve5();
+    };
+    const timer = setTimeout(() => {
+      child.off("exit", onExit2);
+      reject(new Error(`Process did not exit after termination: ${child.pid}`));
+    }, 1e3);
+    child.once("exit", onExit2);
+  });
+}
+async function stopWindowsProcessTree(child) {
+  if (child.pid === void 0 || hasExited(child)) {
+    return { treeTermination: "unverified" };
+  }
+  const terminated = await terminateWindowsProcessTrees([child.pid]);
+  if (!hasExited(child)) child.kill("SIGKILL");
+  await waitForRootExit(child);
+  return { treeTermination: terminated ? "confirmed" : "unverified" };
+}
+
+// ../process-utils/src/process-group.ts
+function supportsProcessGroups() {
+  return process.platform !== "win32";
+}
+function killProcessGroup(args) {
+  if (supportsProcessGroups() && args.child.pid !== void 0) {
+    try {
+      process.kill(-args.child.pid, args.signal);
+      return;
+    } catch {
+    }
+  }
+  args.child.kill(args.signal);
+}
+function isProcessGroupAlive(child) {
+  if (!supportsProcessGroups() || child.pid === void 0) {
+    return false;
+  }
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    return !(error instanceof Error && "code" in error && error.code === "ESRCH");
+  }
+}
+function hasChildExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+var PROCESS_GROUP_EXIT_POLL_MS = 100;
+function stopProcessGroupLeaderFirst(args) {
+  const { child, timeoutMs, killGraceMs } = args;
+  if (process.platform === "win32") return stopWindowsProcessTree(child);
+  if (hasChildExited(child) && !isProcessGroupAlive(child)) {
+    return Promise.resolve({ treeTermination: "confirmed" });
+  }
+  return new Promise((resolveStop) => {
+    let settled = false;
+    let hardTimer;
+    let poll;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      child.off("exit", stopSurvivingMembers);
+      clearTimeout(softTimer);
+      if (hardTimer !== void 0) {
+        clearTimeout(hardTimer);
+      }
+      if (poll !== void 0) {
+        clearInterval(poll);
+      }
+      resolveStop({
+        treeTermination: groupGone() ? "confirmed" : "unverified"
+      });
+    };
+    const groupGone = () => hasChildExited(child) && !isProcessGroupAlive(child);
+    const softTimer = setTimeout(() => {
+      if (groupGone()) {
+        finish();
+        return;
+      }
+      killProcessGroup({ child, signal: "SIGKILL" });
+      if (killGraceMs <= 0) {
+        finish();
+        return;
+      }
+      hardTimer = setTimeout(finish, killGraceMs);
+    }, timeoutMs);
+    const stopSurvivingMembers = () => {
+      if (!isProcessGroupAlive(child)) {
+        finish();
+        return;
+      }
+      killProcessGroup({ child, signal: "SIGTERM" });
+      poll = setInterval(() => {
+        if (!isProcessGroupAlive(child)) {
+          finish();
+        }
+      }, PROCESS_GROUP_EXIT_POLL_MS);
+    };
+    if (hasChildExited(child)) {
+      stopSurvivingMembers();
+      return;
+    }
+    child.once("exit", stopSurvivingMembers);
+    child.kill("SIGTERM");
+  });
+}
+
+// ../process-utils/src/managed-process.ts
+function spawnManagedProcess(request) {
+  const child = spawnPortablePipedProcess({
+    ...request,
+    detached: supportsProcessGroups()
+  });
+  return { child, stop: createProcessStop(child) };
+}
+function createProcessStop(child) {
+  let stopping;
+  return function stop({ gracePeriodMs } = { gracePeriodMs: 1e3 }) {
+    stopping ??= (async () => {
+      if (child.pid === void 0) {
+        return { treeTermination: "confirmed" };
+      }
+      const result = await stopProcessGroupLeaderFirst({
+        child,
+        timeoutMs: gracePeriodMs,
+        killGraceMs: 1e3
+      });
+      if (child.exitCode === null && child.signalCode === null) {
+        throw new Error(`Process did not exit after termination: ${child.pid}`);
+      }
+      return result;
+    })();
+    return stopping;
+  };
+}
+function isClosedProcessStdinError(error) {
+  return "code" in error && (error.code === "EPIPE" || error.code === "EOF" || error.code === "ERR_STREAM_DESTROYED");
+}
+
+// ../../node_modules/.pnpm/is-plain-obj@4.1.0/node_modules/is-plain-obj/index.js
+function isPlainObject(value) {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
+}
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/file-url.js
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var safeNormalizeFileUrl = (file, name) => {
+  const fileString = normalizeFileUrl(normalizeDenoExecPath(file));
+  if (typeof fileString !== "string") {
+    throw new TypeError(`${name} must be a string or a file URL: ${fileString}.`);
+  }
+  return fileString;
+};
+var normalizeDenoExecPath = (file) => isDenoExecPath(file) ? file.toString() : file;
+var isDenoExecPath = (file) => typeof file !== "string" && file && Object.getPrototypeOf(file) === String.prototype;
+var normalizeFileUrl = (file) => file instanceof URL ? fileURLToPath2(file) : file;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/parameters.js
+var normalizeParameters = (rawFile, rawArguments = [], rawOptions = {}) => {
+  const filePath = safeNormalizeFileUrl(rawFile, "First argument");
+  const [commandArguments, options] = isPlainObject(rawArguments) ? [[], rawArguments] : [rawArguments, rawOptions];
+  if (!Array.isArray(commandArguments)) {
+    throw new TypeError(`Second argument must be either an array of arguments or an options object: ${commandArguments}`);
+  }
+  if (commandArguments.some((commandArgument) => typeof commandArgument === "object" && commandArgument !== null)) {
+    throw new TypeError(`Second argument must be an array of strings: ${commandArguments}`);
+  }
+  const normalizedArguments = commandArguments.map(String);
+  const nullByteArgument = normalizedArguments.find((normalizedArgument) => normalizedArgument.includes("\0"));
+  if (nullByteArgument !== void 0) {
+    throw new TypeError(`Arguments cannot contain null bytes ("\\0"): ${nullByteArgument}`);
+  }
+  if (!isPlainObject(options)) {
+    throw new TypeError(`Last argument must be an options object: ${options}`);
+  }
+  return [filePath, normalizedArguments, options];
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/template.js
+import { ChildProcess } from "node:child_process";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/utils/uint-array.js
+import { StringDecoder as StringDecoder2 } from "node:string_decoder";
+var { toString: objectToString } = Object.prototype;
+var isArrayBuffer = (value) => objectToString.call(value) === "[object ArrayBuffer]";
+var isUint8Array = (value) => objectToString.call(value) === "[object Uint8Array]";
+var bufferToUint8Array = (buffer) => new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+var textEncoder = new TextEncoder();
+var stringToUint8Array = (string3) => textEncoder.encode(string3);
+var textDecoder = new TextDecoder();
+var uint8ArrayToString = (uint8Array) => textDecoder.decode(uint8Array);
+var joinToString = (uint8ArraysOrStrings, encoding) => {
+  const strings = uint8ArraysToStrings(uint8ArraysOrStrings, encoding);
+  return strings.join("");
+};
+var uint8ArraysToStrings = (uint8ArraysOrStrings, encoding) => {
+  if (encoding === "utf8" && uint8ArraysOrStrings.every((uint8ArrayOrString) => typeof uint8ArrayOrString === "string")) {
+    return uint8ArraysOrStrings;
+  }
+  const decoder = new StringDecoder2(encoding);
+  const strings = uint8ArraysOrStrings.map((uint8ArrayOrString) => typeof uint8ArrayOrString === "string" ? stringToUint8Array(uint8ArrayOrString) : uint8ArrayOrString).map((uint8Array) => decoder.write(uint8Array));
+  const finalString = decoder.end();
+  return finalString === "" ? strings : [...strings, finalString];
+};
+var joinToUint8Array = (uint8ArraysOrStrings) => {
+  if (uint8ArraysOrStrings.length === 1 && isUint8Array(uint8ArraysOrStrings[0])) {
+    return uint8ArraysOrStrings[0];
+  }
+  return concatUint8Arrays(stringsToUint8Arrays(uint8ArraysOrStrings));
+};
+var stringsToUint8Arrays = (uint8ArraysOrStrings) => uint8ArraysOrStrings.map((uint8ArrayOrString) => typeof uint8ArrayOrString === "string" ? stringToUint8Array(uint8ArrayOrString) : uint8ArrayOrString);
+var concatUint8Arrays = (uint8Arrays) => {
+  const result = new Uint8Array(getJoinLength(uint8Arrays));
+  let index = 0;
+  for (const uint8Array of uint8Arrays) {
+    result.set(uint8Array, index);
+    index += uint8Array.length;
+  }
+  return result;
+};
+var getJoinLength = (uint8Arrays) => {
+  let joinLength = 0;
+  for (const uint8Array of uint8Arrays) {
+    joinLength += uint8Array.length;
+  }
+  return joinLength;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/template.js
+var isTemplateString = (templates) => Array.isArray(templates) && Array.isArray(templates.raw);
+var parseTemplates = (templates, expressions) => {
+  let tokens = [];
+  for (const [index, template] of templates.entries()) {
+    tokens = parseTemplate({
+      templates,
+      expressions,
+      tokens,
+      index,
+      template
+    });
+  }
+  if (tokens.length === 0) {
+    throw new TypeError("Template script must not be empty");
+  }
+  const [file, ...commandArguments] = tokens;
+  return [file, commandArguments, {}];
+};
+var parseTemplate = ({ templates, expressions, tokens, index, template }) => {
+  if (template === void 0) {
+    throw new TypeError(`Invalid backslash sequence: ${templates.raw[index]}`);
+  }
+  const { nextTokens, leadingWhitespaces, trailingWhitespaces } = splitByWhitespaces(template, templates.raw[index]);
+  const newTokens = concatTokens(tokens, nextTokens, leadingWhitespaces);
+  if (index === expressions.length) {
+    return newTokens;
+  }
+  const expression = expressions[index];
+  const expressionTokens = Array.isArray(expression) ? expression.map((expression2) => parseExpression(expression2)) : [parseExpression(expression)];
+  return concatTokens(newTokens, expressionTokens, trailingWhitespaces);
+};
+var splitByWhitespaces = (template, rawTemplate) => {
+  if (rawTemplate.length === 0) {
+    return { nextTokens: [], leadingWhitespaces: false, trailingWhitespaces: false };
+  }
+  const nextTokens = [];
+  let templateStart = 0;
+  const leadingWhitespaces = DELIMITERS.has(rawTemplate[0]);
+  for (let templateIndex = 0, rawIndex = 0; templateIndex < template.length; templateIndex += 1, rawIndex += 1) {
+    const rawCharacter = rawTemplate[rawIndex];
+    if (DELIMITERS.has(rawCharacter)) {
+      if (templateStart !== templateIndex) {
+        nextTokens.push(template.slice(templateStart, templateIndex));
+      }
+      templateStart = templateIndex + 1;
+    } else if (rawCharacter === "\\") {
+      const nextRawCharacter = rawTemplate[rawIndex + 1];
+      if (nextRawCharacter === "\n") {
+        templateIndex -= 1;
+        rawIndex += 1;
+      } else if (nextRawCharacter === "u" && rawTemplate[rawIndex + 2] === "{") {
+        rawIndex = rawTemplate.indexOf("}", rawIndex + 3);
+      } else {
+        rawIndex += ESCAPE_LENGTH[nextRawCharacter] ?? 1;
+      }
+    }
+  }
+  const trailingWhitespaces = templateStart === template.length;
+  if (!trailingWhitespaces) {
+    nextTokens.push(template.slice(templateStart));
+  }
+  return { nextTokens, leadingWhitespaces, trailingWhitespaces };
+};
+var DELIMITERS = /* @__PURE__ */ new Set([" ", "	", "\r", "\n"]);
+var ESCAPE_LENGTH = { x: 3, u: 5 };
+var concatTokens = (tokens, nextTokens, isSeparated) => isSeparated || tokens.length === 0 || nextTokens.length === 0 ? [...tokens, ...nextTokens] : [
+  ...tokens.slice(0, -1),
+  `${tokens.at(-1)}${nextTokens[0]}`,
+  ...nextTokens.slice(1)
+];
+var parseExpression = (expression) => {
+  const typeOfExpression = typeof expression;
+  if (typeOfExpression === "string") {
+    return expression;
+  }
+  if (typeOfExpression === "number") {
+    return String(expression);
+  }
+  if (isPlainObject(expression) && ("stdout" in expression || "isMaxBuffer" in expression)) {
+    return getSubprocessResult(expression);
+  }
+  if (expression instanceof ChildProcess || Object.prototype.toString.call(expression) === "[object Promise]") {
+    throw new TypeError("Unexpected subprocess in template expression. Please use ${await subprocess} instead of ${subprocess}.");
+  }
+  throw new TypeError(`Unexpected "${typeOfExpression}" in template expression`);
+};
+var getSubprocessResult = ({ stdout }) => {
+  if (typeof stdout === "string") {
+    return stdout;
+  }
+  if (isUint8Array(stdout)) {
+    return uint8ArrayToString(stdout);
+  }
+  if (stdout === void 0) {
+    throw new TypeError(`Missing result.stdout in template expression. This is probably due to the previous subprocess' "stdout" option.`);
+  }
+  throw new TypeError(`Unexpected "${typeof stdout}" stdout in template expression`);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/main-sync.js
+import { spawnSync as spawnSync2 } from "node:child_process";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/specific.js
+import { debuglog } from "node:util";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/utils/standard-stream.js
+import process3 from "node:process";
+var isStandardStream = (stream) => STANDARD_STREAMS.includes(stream);
+var STANDARD_STREAMS = [process3.stdin, process3.stdout, process3.stderr];
+var STANDARD_STREAMS_ALIASES = ["stdin", "stdout", "stderr"];
+var getStreamName = (fdNumber) => STANDARD_STREAMS_ALIASES[fdNumber] ?? `stdio[${fdNumber}]`;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/specific.js
+var normalizeFdSpecificOptions = (options) => {
+  const optionsCopy = { ...options };
+  for (const optionName of FD_SPECIFIC_OPTIONS) {
+    optionsCopy[optionName] = normalizeFdSpecificOption(options, optionName);
+  }
+  return optionsCopy;
+};
+var normalizeFdSpecificOption = (options, optionName) => {
+  const optionBaseArray = Array.from({ length: getStdioLength(options) + 1 });
+  const optionArray = normalizeFdSpecificValue(options[optionName], optionBaseArray, optionName);
+  return addDefaultValue(optionArray, optionName);
+};
+var getStdioLength = ({ stdio }) => Array.isArray(stdio) ? Math.max(stdio.length, STANDARD_STREAMS_ALIASES.length) : STANDARD_STREAMS_ALIASES.length;
+var normalizeFdSpecificValue = (optionValue, optionArray, optionName) => isPlainObject(optionValue) ? normalizeOptionObject(optionValue, optionArray, optionName) : optionArray.fill(optionValue);
+var normalizeOptionObject = (optionValue, optionArray, optionName) => {
+  for (const fdName of Object.keys(optionValue).sort(compareFdName)) {
+    for (const fdNumber of parseFdName(fdName, optionName, optionArray)) {
+      optionArray[fdNumber] = optionValue[fdName];
+    }
+  }
+  return optionArray;
+};
+var compareFdName = (fdNameA, fdNameB) => getFdNameOrder(fdNameA) < getFdNameOrder(fdNameB) ? 1 : -1;
+var getFdNameOrder = (fdName) => {
+  if (fdName === "stdout" || fdName === "stderr") {
+    return 0;
+  }
+  return fdName === "all" ? 2 : 1;
+};
+var parseFdName = (fdName, optionName, optionArray) => {
+  if (fdName === "ipc") {
+    return [optionArray.length - 1];
+  }
+  const fdNumber = parseFd(fdName);
+  if (fdNumber === void 0 || fdNumber === 0) {
+    throw new TypeError(`"${optionName}.${fdName}" is invalid.
+It must be "${optionName}.stdout", "${optionName}.stderr", "${optionName}.all", "${optionName}.ipc", or "${optionName}.fd3", "${optionName}.fd4" (and so on).`);
+  }
+  if (fdNumber >= optionArray.length) {
+    throw new TypeError(`"${optionName}.${fdName}" is invalid: that file descriptor does not exist.
+Please set the "stdio" option to ensure that file descriptor exists.`);
+  }
+  return fdNumber === "all" ? [1, 2] : [fdNumber];
+};
+var parseFd = (fdName) => {
+  if (fdName === "all") {
+    return fdName;
+  }
+  if (STANDARD_STREAMS_ALIASES.includes(fdName)) {
+    return STANDARD_STREAMS_ALIASES.indexOf(fdName);
+  }
+  const regexpResult = FD_REGEXP.exec(fdName);
+  if (regexpResult !== null) {
+    return Number(regexpResult[1]);
+  }
+};
+var FD_REGEXP = /^fd(\d+)$/;
+var addDefaultValue = (optionArray, optionName) => optionArray.map((optionValue) => optionValue === void 0 ? DEFAULT_OPTIONS[optionName] : optionValue);
+var verboseDefault = debuglog("execa").enabled ? "full" : "none";
+var DEFAULT_OPTIONS = {
+  lines: false,
+  buffer: true,
+  maxBuffer: 1e3 * 1e3 * 100,
+  verbose: verboseDefault,
+  stripFinalNewline: true
+};
+var FD_SPECIFIC_OPTIONS = ["lines", "buffer", "maxBuffer", "verbose", "stripFinalNewline"];
+var getFdSpecificValue = (optionArray, fdNumber) => fdNumber === "ipc" ? optionArray.at(-1) : optionArray[fdNumber];
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/values.js
+var isVerbose = ({ verbose }, fdNumber) => getFdVerbose(verbose, fdNumber) !== "none";
+var isFullVerbose = ({ verbose }, fdNumber) => !["none", "short"].includes(getFdVerbose(verbose, fdNumber));
+var getVerboseFunction = ({ verbose }, fdNumber) => {
+  const fdVerbose = getFdVerbose(verbose, fdNumber);
+  return isVerboseFunction(fdVerbose) ? fdVerbose : void 0;
+};
+var getFdVerbose = (verbose, fdNumber) => fdNumber === void 0 ? getFdGenericVerbose(verbose) : getFdSpecificValue(verbose, fdNumber);
+var getFdGenericVerbose = (verbose) => verbose.find((fdVerbose) => isVerboseFunction(fdVerbose)) ?? VERBOSE_VALUES.findLast((fdVerbose) => verbose.includes(fdVerbose));
+var isVerboseFunction = (fdVerbose) => typeof fdVerbose === "function";
+var VERBOSE_VALUES = ["none", "short", "full"];
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/log.js
+import { inspect } from "node:util";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/escape.js
+import { platform } from "node:process";
+import { stripVTControlCharacters } from "node:util";
+var joinCommand = (filePath, rawArguments) => {
+  const fileAndArguments = [filePath, ...rawArguments];
+  const command = fileAndArguments.join(" ");
+  const escapedCommand = fileAndArguments.map((fileAndArgument) => quoteString(escapeControlCharacters(fileAndArgument))).join(" ");
+  return { command, escapedCommand };
+};
+var escapeLines = (lines) => stripVTControlCharacters(lines).split("\n").map((line) => escapeControlCharacters(line)).join("\n");
+var escapeControlCharacters = (line) => line.replaceAll(SPECIAL_CHAR_REGEXP, (character) => escapeControlCharacter(character));
+var escapeControlCharacter = (character) => {
+  const commonEscape = COMMON_ESCAPES[character];
+  if (commonEscape !== void 0) {
+    return commonEscape;
+  }
+  const codepoint = character.codePointAt(0);
+  const codepointHex = codepoint.toString(16);
+  return codepoint <= ASTRAL_START ? `\\u${codepointHex.padStart(4, "0")}` : `\\U${codepointHex}`;
+};
+var getSpecialCharRegExp = () => {
+  try {
+    return new RegExp("\\p{Separator}|\\p{Other}", "gu");
+  } catch {
+    return /[\s\u0000-\u001F\u007F-\u009F\u00AD]/g;
+  }
+};
+var SPECIAL_CHAR_REGEXP = getSpecialCharRegExp();
+var COMMON_ESCAPES = {
+  " ": " ",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\n": "\\n",
+  "\r": "\\r",
+  "	": "\\t"
+};
+var ASTRAL_START = 65535;
+var quoteString = (escapedArgument) => {
+  if (NO_ESCAPE_REGEXP.test(escapedArgument)) {
+    return escapedArgument;
+  }
+  return platform === "win32" ? `"${escapedArgument.replaceAll('"', '""')}"` : `'${escapedArgument.replaceAll("'", "'\\''")}'`;
+};
+var NO_ESCAPE_REGEXP = /^[\w./-]+$/;
+
+// ../../node_modules/.pnpm/is-unicode-supported@2.1.0/node_modules/is-unicode-supported/index.js
+import process4 from "node:process";
+function isUnicodeSupported() {
+  const { env } = process4;
+  const { TERM, TERM_PROGRAM } = env;
+  if (process4.platform !== "win32") {
+    return TERM !== "linux";
+  }
+  return Boolean(env.WT_SESSION) || Boolean(env.TERMINUS_SUBLIME) || env.ConEmuTask === "{cmd::Cmder}" || TERM_PROGRAM === "Terminus-Sublime" || TERM_PROGRAM === "vscode" || TERM === "xterm-256color" || TERM === "alacritty" || TERM === "rxvt-unicode" || TERM === "rxvt-unicode-256color" || env.TERMINAL_EMULATOR === "JetBrains-JediTerm";
+}
+
+// ../../node_modules/.pnpm/figures@6.1.0/node_modules/figures/index.js
+var common = {
+  circleQuestionMark: "(?)",
+  questionMarkPrefix: "(?)",
+  square: "\u2588",
+  squareDarkShade: "\u2593",
+  squareMediumShade: "\u2592",
+  squareLightShade: "\u2591",
+  squareTop: "\u2580",
+  squareBottom: "\u2584",
+  squareLeft: "\u258C",
+  squareRight: "\u2590",
+  squareCenter: "\u25A0",
+  bullet: "\u25CF",
+  dot: "\u2024",
+  ellipsis: "\u2026",
+  pointerSmall: "\u203A",
+  triangleUp: "\u25B2",
+  triangleUpSmall: "\u25B4",
+  triangleDown: "\u25BC",
+  triangleDownSmall: "\u25BE",
+  triangleLeftSmall: "\u25C2",
+  triangleRightSmall: "\u25B8",
+  home: "\u2302",
+  heart: "\u2665",
+  musicNote: "\u266A",
+  musicNoteBeamed: "\u266B",
+  arrowUp: "\u2191",
+  arrowDown: "\u2193",
+  arrowLeft: "\u2190",
+  arrowRight: "\u2192",
+  arrowLeftRight: "\u2194",
+  arrowUpDown: "\u2195",
+  almostEqual: "\u2248",
+  notEqual: "\u2260",
+  lessOrEqual: "\u2264",
+  greaterOrEqual: "\u2265",
+  identical: "\u2261",
+  infinity: "\u221E",
+  subscriptZero: "\u2080",
+  subscriptOne: "\u2081",
+  subscriptTwo: "\u2082",
+  subscriptThree: "\u2083",
+  subscriptFour: "\u2084",
+  subscriptFive: "\u2085",
+  subscriptSix: "\u2086",
+  subscriptSeven: "\u2087",
+  subscriptEight: "\u2088",
+  subscriptNine: "\u2089",
+  oneHalf: "\xBD",
+  oneThird: "\u2153",
+  oneQuarter: "\xBC",
+  oneFifth: "\u2155",
+  oneSixth: "\u2159",
+  oneEighth: "\u215B",
+  twoThirds: "\u2154",
+  twoFifths: "\u2156",
+  threeQuarters: "\xBE",
+  threeFifths: "\u2157",
+  threeEighths: "\u215C",
+  fourFifths: "\u2158",
+  fiveSixths: "\u215A",
+  fiveEighths: "\u215D",
+  sevenEighths: "\u215E",
+  line: "\u2500",
+  lineBold: "\u2501",
+  lineDouble: "\u2550",
+  lineDashed0: "\u2504",
+  lineDashed1: "\u2505",
+  lineDashed2: "\u2508",
+  lineDashed3: "\u2509",
+  lineDashed4: "\u254C",
+  lineDashed5: "\u254D",
+  lineDashed6: "\u2574",
+  lineDashed7: "\u2576",
+  lineDashed8: "\u2578",
+  lineDashed9: "\u257A",
+  lineDashed10: "\u257C",
+  lineDashed11: "\u257E",
+  lineDashed12: "\u2212",
+  lineDashed13: "\u2013",
+  lineDashed14: "\u2010",
+  lineDashed15: "\u2043",
+  lineVertical: "\u2502",
+  lineVerticalBold: "\u2503",
+  lineVerticalDouble: "\u2551",
+  lineVerticalDashed0: "\u2506",
+  lineVerticalDashed1: "\u2507",
+  lineVerticalDashed2: "\u250A",
+  lineVerticalDashed3: "\u250B",
+  lineVerticalDashed4: "\u254E",
+  lineVerticalDashed5: "\u254F",
+  lineVerticalDashed6: "\u2575",
+  lineVerticalDashed7: "\u2577",
+  lineVerticalDashed8: "\u2579",
+  lineVerticalDashed9: "\u257B",
+  lineVerticalDashed10: "\u257D",
+  lineVerticalDashed11: "\u257F",
+  lineDownLeft: "\u2510",
+  lineDownLeftArc: "\u256E",
+  lineDownBoldLeftBold: "\u2513",
+  lineDownBoldLeft: "\u2512",
+  lineDownLeftBold: "\u2511",
+  lineDownDoubleLeftDouble: "\u2557",
+  lineDownDoubleLeft: "\u2556",
+  lineDownLeftDouble: "\u2555",
+  lineDownRight: "\u250C",
+  lineDownRightArc: "\u256D",
+  lineDownBoldRightBold: "\u250F",
+  lineDownBoldRight: "\u250E",
+  lineDownRightBold: "\u250D",
+  lineDownDoubleRightDouble: "\u2554",
+  lineDownDoubleRight: "\u2553",
+  lineDownRightDouble: "\u2552",
+  lineUpLeft: "\u2518",
+  lineUpLeftArc: "\u256F",
+  lineUpBoldLeftBold: "\u251B",
+  lineUpBoldLeft: "\u251A",
+  lineUpLeftBold: "\u2519",
+  lineUpDoubleLeftDouble: "\u255D",
+  lineUpDoubleLeft: "\u255C",
+  lineUpLeftDouble: "\u255B",
+  lineUpRight: "\u2514",
+  lineUpRightArc: "\u2570",
+  lineUpBoldRightBold: "\u2517",
+  lineUpBoldRight: "\u2516",
+  lineUpRightBold: "\u2515",
+  lineUpDoubleRightDouble: "\u255A",
+  lineUpDoubleRight: "\u2559",
+  lineUpRightDouble: "\u2558",
+  lineUpDownLeft: "\u2524",
+  lineUpBoldDownBoldLeftBold: "\u252B",
+  lineUpBoldDownBoldLeft: "\u2528",
+  lineUpDownLeftBold: "\u2525",
+  lineUpBoldDownLeftBold: "\u2529",
+  lineUpDownBoldLeftBold: "\u252A",
+  lineUpDownBoldLeft: "\u2527",
+  lineUpBoldDownLeft: "\u2526",
+  lineUpDoubleDownDoubleLeftDouble: "\u2563",
+  lineUpDoubleDownDoubleLeft: "\u2562",
+  lineUpDownLeftDouble: "\u2561",
+  lineUpDownRight: "\u251C",
+  lineUpBoldDownBoldRightBold: "\u2523",
+  lineUpBoldDownBoldRight: "\u2520",
+  lineUpDownRightBold: "\u251D",
+  lineUpBoldDownRightBold: "\u2521",
+  lineUpDownBoldRightBold: "\u2522",
+  lineUpDownBoldRight: "\u251F",
+  lineUpBoldDownRight: "\u251E",
+  lineUpDoubleDownDoubleRightDouble: "\u2560",
+  lineUpDoubleDownDoubleRight: "\u255F",
+  lineUpDownRightDouble: "\u255E",
+  lineDownLeftRight: "\u252C",
+  lineDownBoldLeftBoldRightBold: "\u2533",
+  lineDownLeftBoldRightBold: "\u252F",
+  lineDownBoldLeftRight: "\u2530",
+  lineDownBoldLeftBoldRight: "\u2531",
+  lineDownBoldLeftRightBold: "\u2532",
+  lineDownLeftRightBold: "\u252E",
+  lineDownLeftBoldRight: "\u252D",
+  lineDownDoubleLeftDoubleRightDouble: "\u2566",
+  lineDownDoubleLeftRight: "\u2565",
+  lineDownLeftDoubleRightDouble: "\u2564",
+  lineUpLeftRight: "\u2534",
+  lineUpBoldLeftBoldRightBold: "\u253B",
+  lineUpLeftBoldRightBold: "\u2537",
+  lineUpBoldLeftRight: "\u2538",
+  lineUpBoldLeftBoldRight: "\u2539",
+  lineUpBoldLeftRightBold: "\u253A",
+  lineUpLeftRightBold: "\u2536",
+  lineUpLeftBoldRight: "\u2535",
+  lineUpDoubleLeftDoubleRightDouble: "\u2569",
+  lineUpDoubleLeftRight: "\u2568",
+  lineUpLeftDoubleRightDouble: "\u2567",
+  lineUpDownLeftRight: "\u253C",
+  lineUpBoldDownBoldLeftBoldRightBold: "\u254B",
+  lineUpDownBoldLeftBoldRightBold: "\u2548",
+  lineUpBoldDownLeftBoldRightBold: "\u2547",
+  lineUpBoldDownBoldLeftRightBold: "\u254A",
+  lineUpBoldDownBoldLeftBoldRight: "\u2549",
+  lineUpBoldDownLeftRight: "\u2540",
+  lineUpDownBoldLeftRight: "\u2541",
+  lineUpDownLeftBoldRight: "\u253D",
+  lineUpDownLeftRightBold: "\u253E",
+  lineUpBoldDownBoldLeftRight: "\u2542",
+  lineUpDownLeftBoldRightBold: "\u253F",
+  lineUpBoldDownLeftBoldRight: "\u2543",
+  lineUpBoldDownLeftRightBold: "\u2544",
+  lineUpDownBoldLeftBoldRight: "\u2545",
+  lineUpDownBoldLeftRightBold: "\u2546",
+  lineUpDoubleDownDoubleLeftDoubleRightDouble: "\u256C",
+  lineUpDoubleDownDoubleLeftRight: "\u256B",
+  lineUpDownLeftDoubleRightDouble: "\u256A",
+  lineCross: "\u2573",
+  lineBackslash: "\u2572",
+  lineSlash: "\u2571"
+};
+var specialMainSymbols = {
+  tick: "\u2714",
+  info: "\u2139",
+  warning: "\u26A0",
+  cross: "\u2718",
+  squareSmall: "\u25FB",
+  squareSmallFilled: "\u25FC",
+  circle: "\u25EF",
+  circleFilled: "\u25C9",
+  circleDotted: "\u25CC",
+  circleDouble: "\u25CE",
+  circleCircle: "\u24DE",
+  circleCross: "\u24E7",
+  circlePipe: "\u24BE",
+  radioOn: "\u25C9",
+  radioOff: "\u25EF",
+  checkboxOn: "\u2612",
+  checkboxOff: "\u2610",
+  checkboxCircleOn: "\u24E7",
+  checkboxCircleOff: "\u24BE",
+  pointer: "\u276F",
+  triangleUpOutline: "\u25B3",
+  triangleLeft: "\u25C0",
+  triangleRight: "\u25B6",
+  lozenge: "\u25C6",
+  lozengeOutline: "\u25C7",
+  hamburger: "\u2630",
+  smiley: "\u32E1",
+  mustache: "\u0DF4",
+  star: "\u2605",
+  play: "\u25B6",
+  nodejs: "\u2B22",
+  oneSeventh: "\u2150",
+  oneNinth: "\u2151",
+  oneTenth: "\u2152"
+};
+var specialFallbackSymbols = {
+  tick: "\u221A",
+  info: "i",
+  warning: "\u203C",
+  cross: "\xD7",
+  squareSmall: "\u25A1",
+  squareSmallFilled: "\u25A0",
+  circle: "( )",
+  circleFilled: "(*)",
+  circleDotted: "( )",
+  circleDouble: "( )",
+  circleCircle: "(\u25CB)",
+  circleCross: "(\xD7)",
+  circlePipe: "(\u2502)",
+  radioOn: "(*)",
+  radioOff: "( )",
+  checkboxOn: "[\xD7]",
+  checkboxOff: "[ ]",
+  checkboxCircleOn: "(\xD7)",
+  checkboxCircleOff: "( )",
+  pointer: ">",
+  triangleUpOutline: "\u2206",
+  triangleLeft: "\u25C4",
+  triangleRight: "\u25BA",
+  lozenge: "\u2666",
+  lozengeOutline: "\u25CA",
+  hamburger: "\u2261",
+  smiley: "\u263A",
+  mustache: "\u250C\u2500\u2510",
+  star: "\u2736",
+  play: "\u25BA",
+  nodejs: "\u2666",
+  oneSeventh: "1/7",
+  oneNinth: "1/9",
+  oneTenth: "1/10"
+};
+var mainSymbols = { ...common, ...specialMainSymbols };
+var fallbackSymbols = { ...common, ...specialFallbackSymbols };
+var shouldUseMain = isUnicodeSupported();
+var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
+var figures_default = figures;
+var replacements = Object.entries(specialMainSymbols);
+
+// ../../node_modules/.pnpm/yoctocolors@2.2.0/node_modules/yoctocolors/base.js
+import tty from "node:tty";
+var hasColors = tty?.WriteStream?.prototype?.hasColors?.() ?? false;
+var format = (open, close) => {
+  if (!hasColors) {
+    return (input) => input;
+  }
+  const openCode = `\x1B[${open}m`;
+  const closeCode = `\x1B[${close}m`;
+  return (input) => {
+    const string3 = input + "";
+    let index = string3.indexOf(closeCode);
+    if (index === -1) {
+      return openCode + string3 + closeCode;
+    }
+    let result = openCode;
+    let lastIndex = 0;
+    const reopenOnNestedClose = close === 22;
+    const replaceCode = (reopenOnNestedClose ? closeCode : "") + openCode;
+    while (index !== -1) {
+      result += string3.slice(lastIndex, index) + replaceCode;
+      lastIndex = index + closeCode.length;
+      index = string3.indexOf(closeCode, lastIndex);
+    }
+    result += string3.slice(lastIndex) + closeCode;
+    return result;
+  };
+};
+var reset = format(0, 0);
+var bold = format(1, 22);
+var dim = format(2, 22);
+var italic = format(3, 23);
+var underline = format(4, 24);
+var underlineDouble = format("4:2", 24);
+var underlineCurly = format("4:3", 24);
+var underlineDotted = format("4:4", 24);
+var underlineDashed = format("4:5", 24);
+var overline = format(53, 55);
+var inverse = format(7, 27);
+var hidden = format(8, 28);
+var strikethrough = format(9, 29);
+var black = format(30, 39);
+var red = format(31, 39);
+var green = format(32, 39);
+var yellow = format(33, 39);
+var blue = format(34, 39);
+var magenta = format(35, 39);
+var cyan = format(36, 39);
+var white = format(37, 39);
+var gray = format(90, 39);
+var bgBlack = format(40, 49);
+var bgRed = format(41, 49);
+var bgGreen = format(42, 49);
+var bgYellow = format(43, 49);
+var bgBlue = format(44, 49);
+var bgMagenta = format(45, 49);
+var bgCyan = format(46, 49);
+var bgWhite = format(47, 49);
+var bgGray = format(100, 49);
+var redBright = format(91, 39);
+var greenBright = format(92, 39);
+var yellowBright = format(93, 39);
+var blueBright = format(94, 39);
+var magentaBright = format(95, 39);
+var cyanBright = format(96, 39);
+var whiteBright = format(97, 39);
+var bgRedBright = format(101, 49);
+var bgGreenBright = format(102, 49);
+var bgYellowBright = format(103, 49);
+var bgBlueBright = format(104, 49);
+var bgMagentaBright = format(105, 49);
+var bgCyanBright = format(106, 49);
+var bgWhiteBright = format(107, 49);
+var underlineBlack = format("58;5;0", 59);
+var underlineRed = format("58;5;1", 59);
+var underlineGreen = format("58;5;2", 59);
+var underlineYellow = format("58;5;3", 59);
+var underlineBlue = format("58;5;4", 59);
+var underlineMagenta = format("58;5;5", 59);
+var underlineCyan = format("58;5;6", 59);
+var underlineWhite = format("58;5;7", 59);
+var underlineGray = format("58;5;8", 59);
+var underlineRedBright = format("58;5;9", 59);
+var underlineGreenBright = format("58;5;10", 59);
+var underlineYellowBright = format("58;5;11", 59);
+var underlineBlueBright = format("58;5;12", 59);
+var underlineMagentaBright = format("58;5;13", 59);
+var underlineCyanBright = format("58;5;14", 59);
+var underlineWhiteBright = format("58;5;15", 59);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/default.js
+var defaultVerboseFunction = ({
+  type,
+  message,
+  timestamp,
+  piped,
+  commandId,
+  result: { failed = false } = {},
+  options: { reject = true }
+}) => {
+  const timestampString = serializeTimestamp(timestamp);
+  const icon = ICONS[type]({ failed, reject, piped });
+  const color = COLORS[type]({ reject });
+  return `${gray(`[${timestampString}]`)} ${gray(`[${commandId}]`)} ${color(icon)} ${color(message)}`;
+};
+var serializeTimestamp = (timestamp) => `${padField(timestamp.getHours(), 2)}:${padField(timestamp.getMinutes(), 2)}:${padField(timestamp.getSeconds(), 2)}.${padField(timestamp.getMilliseconds(), 3)}`;
+var padField = (field, padding) => String(field).padStart(padding, "0");
+var getFinalIcon = ({ failed, reject }) => {
+  if (!failed) {
+    return figures_default.tick;
+  }
+  return reject ? figures_default.cross : figures_default.warning;
+};
+var ICONS = {
+  command: ({ piped }) => piped ? "|" : "$",
+  output: () => " ",
+  ipc: () => "*",
+  error: getFinalIcon,
+  duration: getFinalIcon
+};
+var identity = (string3) => string3;
+var COLORS = {
+  command: () => bold,
+  output: () => identity,
+  ipc: () => identity,
+  error: ({ reject }) => reject ? redBright : yellowBright,
+  duration: () => gray
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/custom.js
+var applyVerboseOnLines = (printedLines, verboseInfo, fdNumber) => {
+  const verboseFunction = getVerboseFunction(verboseInfo, fdNumber);
+  return printedLines.map(({ verboseLine, verboseObject }) => applyVerboseFunction(verboseLine, verboseObject, verboseFunction)).filter((printedLine) => printedLine !== void 0).map((printedLine) => appendNewline(printedLine)).join("");
+};
+var applyVerboseFunction = (verboseLine, verboseObject, verboseFunction) => {
+  if (verboseFunction === void 0) {
+    return verboseLine;
+  }
+  const printedLine = verboseFunction(verboseLine, verboseObject);
+  if (typeof printedLine === "string") {
+    return printedLine;
+  }
+};
+var appendNewline = (printedLine) => printedLine.endsWith("\n") ? printedLine : `${printedLine}
+`;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/log.js
+var verboseLog = ({ type, verboseMessage, fdNumber, verboseInfo, result }) => {
+  const verboseObject = getVerboseObject({ type, result, verboseInfo });
+  const printedLines = getPrintedLines(verboseMessage, verboseObject);
+  const finalLines = applyVerboseOnLines(printedLines, verboseInfo, fdNumber);
+  if (finalLines !== "") {
+    console.warn(finalLines.slice(0, -1));
+  }
+};
+var getVerboseObject = ({
+  type,
+  result,
+  verboseInfo: { escapedCommand, commandId, rawOptions: { piped = false, ...options } }
+}) => ({
+  type,
+  escapedCommand,
+  commandId: `${commandId}`,
+  timestamp: /* @__PURE__ */ new Date(),
+  piped,
+  result,
+  options
+});
+var getPrintedLines = (verboseMessage, verboseObject) => verboseMessage.split("\n").map((message) => getPrintedLine({ ...verboseObject, message }));
+var getPrintedLine = (verboseObject) => {
+  const verboseLine = defaultVerboseFunction(verboseObject);
+  return { verboseLine, verboseObject };
+};
+var serializeVerboseMessage = (message) => {
+  const messageString = typeof message === "string" ? message : inspect(message);
+  const escapedMessage = escapeLines(messageString);
+  return escapedMessage.replaceAll("	", " ".repeat(TAB_SIZE));
+};
+var TAB_SIZE = 2;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/start.js
+var logCommand = (escapedCommand, verboseInfo) => {
+  if (!isVerbose(verboseInfo)) {
+    return;
+  }
+  verboseLog({
+    type: "command",
+    verboseMessage: escapedCommand,
+    verboseInfo
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/info.js
+var getVerboseInfo = (verbose, escapedCommand, rawOptions) => {
+  validateVerbose(verbose);
+  const commandId = getCommandId(verbose);
+  return {
+    verbose,
+    escapedCommand,
+    commandId,
+    rawOptions
+  };
+};
+var getCommandId = (verbose) => isVerbose({ verbose }) ? COMMAND_ID++ : void 0;
+var COMMAND_ID = 0n;
+var validateVerbose = (verbose) => {
+  for (const fdVerbose of verbose) {
+    if (fdVerbose === false) {
+      throw new TypeError(`The "verbose: false" option was renamed to "verbose: 'none'".`);
+    }
+    if (fdVerbose === true) {
+      throw new TypeError(`The "verbose: true" option was renamed to "verbose: 'short'".`);
+    }
+    if (!VERBOSE_VALUES.includes(fdVerbose) && !isVerboseFunction(fdVerbose)) {
+      const allowedValues = VERBOSE_VALUES.map((allowedValue) => `'${allowedValue}'`).join(", ");
+      throw new TypeError(`The "verbose" option must not be ${fdVerbose}. Allowed values are: ${allowedValues} or a function.`);
+    }
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/duration.js
+import { hrtime } from "node:process";
+var getStartTime = () => hrtime.bigint();
+var getDurationMs = (startTime) => Number(hrtime.bigint() - startTime) / 1e6;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/command.js
+var handleCommand = (filePath, rawArguments, rawOptions) => {
+  const startTime = getStartTime();
+  const { command, escapedCommand } = joinCommand(filePath, rawArguments);
+  const verbose = normalizeFdSpecificOption(rawOptions, "verbose");
+  const verboseInfo = getVerboseInfo(verbose, escapedCommand, { ...rawOptions });
+  logCommand(escapedCommand, verboseInfo);
+  return {
+    command,
+    escapedCommand,
+    startTime,
+    verboseInfo
+  };
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/options.js
+import path7 from "node:path";
+import process7 from "node:process";
+import crossSpawn2 from "cross-spawn";
+
+// ../../node_modules/.pnpm/npm-run-path@6.0.0/node_modules/npm-run-path/index.js
+import process5 from "node:process";
+import path4 from "node:path";
+
+// ../../node_modules/.pnpm/path-key@4.0.0/node_modules/path-key/index.js
+function pathKey(options = {}) {
+  const {
+    env = process.env,
+    platform: platform2 = process.platform
+  } = options;
+  if (platform2 !== "win32") {
+    return "PATH";
+  }
+  return Object.keys(env).reverse().find((key) => key.toUpperCase() === "PATH") || "Path";
+}
+
+// ../../node_modules/.pnpm/unicorn-magic@0.3.0/node_modules/unicorn-magic/node.js
+import { promisify } from "node:util";
+import { execFile as execFileCallback, execFileSync as execFileSyncOriginal } from "node:child_process";
+import path3 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+var execFileOriginal = promisify(execFileCallback);
+function toPath(urlOrPath) {
+  return urlOrPath instanceof URL ? fileURLToPath3(urlOrPath) : urlOrPath;
+}
+function traversePathUp(startPath) {
+  return {
+    *[Symbol.iterator]() {
+      let currentPath = path3.resolve(toPath(startPath));
+      let previousPath;
+      while (previousPath !== currentPath) {
+        yield currentPath;
+        previousPath = currentPath;
+        currentPath = path3.resolve(currentPath, "..");
+      }
+    }
+  };
+}
+var TEN_MEGABYTES_IN_BYTES = 10 * 1024 * 1024;
+
+// ../../node_modules/.pnpm/npm-run-path@6.0.0/node_modules/npm-run-path/index.js
+var npmRunPath = ({
+  cwd = process5.cwd(),
+  path: pathOption = process5.env[pathKey()],
+  preferLocal = true,
+  execPath: execPath2 = process5.execPath,
+  addExecPath = true
+} = {}) => {
+  const cwdPath = path4.resolve(toPath(cwd));
+  const result = [];
+  const pathParts = pathOption.split(path4.delimiter);
+  if (preferLocal) {
+    applyPreferLocal(result, pathParts, cwdPath);
+  }
+  if (addExecPath) {
+    applyExecPath(result, pathParts, execPath2, cwdPath);
+  }
+  return pathOption === "" || pathOption === path4.delimiter ? `${result.join(path4.delimiter)}${pathOption}` : [...result, pathOption].join(path4.delimiter);
+};
+var applyPreferLocal = (result, pathParts, cwdPath) => {
+  for (const directory of traversePathUp(cwdPath)) {
+    const pathPart = path4.join(directory, "node_modules/.bin");
+    if (!pathParts.includes(pathPart)) {
+      result.push(pathPart);
+    }
+  }
+};
+var applyExecPath = (result, pathParts, execPath2, cwdPath) => {
+  const pathPart = path4.resolve(cwdPath, toPath(execPath2), "..");
+  if (!pathParts.includes(pathPart)) {
+    result.push(pathPart);
+  }
+};
+var npmRunPathEnv = ({ env = process5.env, ...options } = {}) => {
+  env = { ...env };
+  const pathName = pathKey({ env });
+  options.path = env[pathName];
+  env[pathName] = npmRunPath(options);
+  return env;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/kill.js
+import { setTimeout as setTimeout2 } from "node:timers/promises";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/final-error.js
+var getFinalError = (originalError, message, isSync) => {
+  const ErrorClass = isSync ? ExecaSyncError : ExecaError;
+  const options = originalError instanceof DiscardedError ? {} : { cause: originalError };
+  return new ErrorClass(message, options);
+};
+var DiscardedError = class extends Error {
+};
+var setErrorName = (ErrorClass, value) => {
+  Object.defineProperty(ErrorClass.prototype, "name", {
+    value,
+    writable: true,
+    enumerable: false,
+    configurable: true
+  });
+  Object.defineProperty(ErrorClass.prototype, execaErrorSymbol, {
+    value: true,
+    writable: false,
+    enumerable: false,
+    configurable: false
+  });
+};
+var isExecaError = (error) => isErrorInstance(error) && execaErrorSymbol in error;
+var execaErrorSymbol = /* @__PURE__ */ Symbol("isExecaError");
+var isErrorInstance = (value) => Object.prototype.toString.call(value) === "[object Error]";
+var ExecaError = class extends Error {
+};
+setErrorName(ExecaError, ExecaError.name);
+var ExecaSyncError = class extends Error {
+};
+setErrorName(ExecaSyncError, ExecaSyncError.name);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/signal.js
+import { constants as constants4 } from "node:os";
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/main.js
+import { constants as constants3 } from "node:os";
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/realtime.js
+var getRealtimeSignals = () => {
+  const length = SIGRTMAX - SIGRTMIN + 1;
+  return Array.from({ length }, getRealtimeSignal);
+};
+var getRealtimeSignal = (value, index) => ({
+  name: `SIGRT${index + 1}`,
+  number: SIGRTMIN + index,
+  action: "terminate",
+  description: "Application-specific signal (realtime)",
+  standard: "posix"
+});
+var SIGRTMIN = 34;
+var SIGRTMAX = 64;
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/signals.js
+import { constants as constants2 } from "node:os";
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/core.js
+var SIGNALS = [
+  {
+    name: "SIGHUP",
+    number: 1,
+    action: "terminate",
+    description: "Terminal closed",
+    standard: "posix"
+  },
+  {
+    name: "SIGINT",
+    number: 2,
+    action: "terminate",
+    description: "User interruption with CTRL-C",
+    standard: "ansi"
+  },
+  {
+    name: "SIGQUIT",
+    number: 3,
+    action: "core",
+    description: "User interruption with CTRL-\\",
+    standard: "posix"
+  },
+  {
+    name: "SIGILL",
+    number: 4,
+    action: "core",
+    description: "Invalid machine instruction",
+    standard: "ansi"
+  },
+  {
+    name: "SIGTRAP",
+    number: 5,
+    action: "core",
+    description: "Debugger breakpoint",
+    standard: "posix"
+  },
+  {
+    name: "SIGABRT",
+    number: 6,
+    action: "core",
+    description: "Aborted",
+    standard: "ansi"
+  },
+  {
+    name: "SIGIOT",
+    number: 6,
+    action: "core",
+    description: "Aborted",
+    standard: "bsd"
+  },
+  {
+    name: "SIGBUS",
+    number: 7,
+    action: "core",
+    description: "Bus error due to misaligned, non-existing address or paging error",
+    standard: "bsd"
+  },
+  {
+    name: "SIGEMT",
+    number: 7,
+    action: "terminate",
+    description: "Command should be emulated but is not implemented",
+    standard: "other"
+  },
+  {
+    name: "SIGFPE",
+    number: 8,
+    action: "core",
+    description: "Floating point arithmetic error",
+    standard: "ansi"
+  },
+  {
+    name: "SIGKILL",
+    number: 9,
+    action: "terminate",
+    description: "Forced termination",
+    standard: "posix",
+    forced: true
+  },
+  {
+    name: "SIGUSR1",
+    number: 10,
+    action: "terminate",
+    description: "Application-specific signal",
+    standard: "posix"
+  },
+  {
+    name: "SIGSEGV",
+    number: 11,
+    action: "core",
+    description: "Segmentation fault",
+    standard: "ansi"
+  },
+  {
+    name: "SIGUSR2",
+    number: 12,
+    action: "terminate",
+    description: "Application-specific signal",
+    standard: "posix"
+  },
+  {
+    name: "SIGPIPE",
+    number: 13,
+    action: "terminate",
+    description: "Broken pipe or socket",
+    standard: "posix"
+  },
+  {
+    name: "SIGALRM",
+    number: 14,
+    action: "terminate",
+    description: "Timeout or timer",
+    standard: "posix"
+  },
+  {
+    name: "SIGTERM",
+    number: 15,
+    action: "terminate",
+    description: "Termination",
+    standard: "ansi"
+  },
+  {
+    name: "SIGSTKFLT",
+    number: 16,
+    action: "terminate",
+    description: "Stack is empty or overflowed",
+    standard: "other"
+  },
+  {
+    name: "SIGCHLD",
+    number: 17,
+    action: "ignore",
+    description: "Child process terminated, paused or unpaused",
+    standard: "posix"
+  },
+  {
+    name: "SIGCLD",
+    number: 17,
+    action: "ignore",
+    description: "Child process terminated, paused or unpaused",
+    standard: "other"
+  },
+  {
+    name: "SIGCONT",
+    number: 18,
+    action: "unpause",
+    description: "Unpaused",
+    standard: "posix",
+    forced: true
+  },
+  {
+    name: "SIGSTOP",
+    number: 19,
+    action: "pause",
+    description: "Paused",
+    standard: "posix",
+    forced: true
+  },
+  {
+    name: "SIGTSTP",
+    number: 20,
+    action: "pause",
+    description: 'Paused using CTRL-Z or "suspend"',
+    standard: "posix"
+  },
+  {
+    name: "SIGTTIN",
+    number: 21,
+    action: "pause",
+    description: "Background process cannot read terminal input",
+    standard: "posix"
+  },
+  {
+    name: "SIGBREAK",
+    number: 21,
+    action: "terminate",
+    description: "User interruption with CTRL-BREAK",
+    standard: "other"
+  },
+  {
+    name: "SIGTTOU",
+    number: 22,
+    action: "pause",
+    description: "Background process cannot write to terminal output",
+    standard: "posix"
+  },
+  {
+    name: "SIGURG",
+    number: 23,
+    action: "ignore",
+    description: "Socket received out-of-band data",
+    standard: "bsd"
+  },
+  {
+    name: "SIGXCPU",
+    number: 24,
+    action: "core",
+    description: "Process timed out",
+    standard: "bsd"
+  },
+  {
+    name: "SIGXFSZ",
+    number: 25,
+    action: "core",
+    description: "File too big",
+    standard: "bsd"
+  },
+  {
+    name: "SIGVTALRM",
+    number: 26,
+    action: "terminate",
+    description: "Timeout or timer",
+    standard: "bsd"
+  },
+  {
+    name: "SIGPROF",
+    number: 27,
+    action: "terminate",
+    description: "Timeout or timer",
+    standard: "bsd"
+  },
+  {
+    name: "SIGWINCH",
+    number: 28,
+    action: "ignore",
+    description: "Terminal window size changed",
+    standard: "bsd"
+  },
+  {
+    name: "SIGIO",
+    number: 29,
+    action: "terminate",
+    description: "I/O is available",
+    standard: "other"
+  },
+  {
+    name: "SIGPOLL",
+    number: 29,
+    action: "terminate",
+    description: "Watched event",
+    standard: "other"
+  },
+  {
+    name: "SIGINFO",
+    number: 29,
+    action: "ignore",
+    description: "Request for process information",
+    standard: "other"
+  },
+  {
+    name: "SIGPWR",
+    number: 30,
+    action: "terminate",
+    description: "Device running out of power",
+    standard: "systemv"
+  },
+  {
+    name: "SIGSYS",
+    number: 31,
+    action: "core",
+    description: "Invalid system call",
+    standard: "other"
+  },
+  {
+    name: "SIGUNUSED",
+    number: 31,
+    action: "terminate",
+    description: "Invalid system call",
+    standard: "other"
+  }
+];
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/signals.js
+var getSignals = () => {
+  const realtimeSignals = getRealtimeSignals();
+  const signals2 = [...SIGNALS, ...realtimeSignals].map(normalizeSignal);
+  return signals2;
+};
+var normalizeSignal = ({
+  name,
+  number: defaultNumber,
+  description,
+  action,
+  forced = false,
+  standard
+}) => {
+  const {
+    signals: { [name]: constantSignal }
+  } = constants2;
+  const supported = constantSignal !== void 0;
+  const number2 = supported ? constantSignal : defaultNumber;
+  return { name, number: number2, description, supported, action, forced, standard };
+};
+
+// ../../node_modules/.pnpm/human-signals@8.0.1/node_modules/human-signals/build/src/main.js
+var getSignalsByName = () => {
+  const signals2 = getSignals();
+  return Object.fromEntries(signals2.map(getSignalByName));
+};
+var getSignalByName = ({
+  name,
+  number: number2,
+  description,
+  supported,
+  action,
+  forced,
+  standard
+}) => [name, { name, number: number2, description, supported, action, forced, standard }];
+var signalsByName = getSignalsByName();
+var getSignalsByNumber = () => {
+  const signals2 = getSignals();
+  const length = SIGRTMAX + 1;
+  const signalsA = Array.from(
+    { length },
+    (value, number2) => getSignalByNumber(number2, signals2)
+  );
+  return Object.assign({}, ...signalsA);
+};
+var getSignalByNumber = (number2, signals2) => {
+  const signal = findSignalByNumber(number2, signals2);
+  if (signal === void 0) {
+    return {};
+  }
+  const { name, description, supported, action, forced, standard } = signal;
+  return {
+    [number2]: {
+      name,
+      number: number2,
+      description,
+      supported,
+      action,
+      forced,
+      standard
+    }
+  };
+};
+var findSignalByNumber = (number2, signals2) => {
+  const signal = signals2.find(({ name }) => constants3.signals[name] === number2);
+  if (signal !== void 0) {
+    return signal;
+  }
+  return signals2.find((signalA) => signalA.number === number2);
+};
+var signalsByNumber = getSignalsByNumber();
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/signal.js
+var normalizeKillSignal = (killSignal) => {
+  const optionName = "option `killSignal`";
+  if (killSignal === 0) {
+    throw new TypeError(`Invalid ${optionName}: 0 cannot be used.`);
+  }
+  return normalizeSignal2(killSignal, optionName);
+};
+var normalizeSignalArgument = (signal) => signal === 0 ? signal : normalizeSignal2(signal, "`subprocess.kill()`'s argument");
+var normalizeSignal2 = (signalNameOrInteger, optionName) => {
+  if (Number.isInteger(signalNameOrInteger)) {
+    return normalizeSignalInteger(signalNameOrInteger, optionName);
+  }
+  if (typeof signalNameOrInteger === "string") {
+    return normalizeSignalName(signalNameOrInteger, optionName);
+  }
+  throw new TypeError(`Invalid ${optionName} ${String(signalNameOrInteger)}: it must be a string or an integer.
+${getAvailableSignals()}`);
+};
+var normalizeSignalInteger = (signalInteger, optionName) => {
+  if (signalsIntegerToName.has(signalInteger)) {
+    return signalsIntegerToName.get(signalInteger);
+  }
+  throw new TypeError(`Invalid ${optionName} ${signalInteger}: this signal integer does not exist.
+${getAvailableSignals()}`);
+};
+var getSignalsIntegerToName = () => new Map(Object.entries(constants4.signals).reverse().map(([signalName, signalInteger]) => [signalInteger, signalName]));
+var signalsIntegerToName = getSignalsIntegerToName();
+var normalizeSignalName = (signalName, optionName) => {
+  if (signalName in constants4.signals) {
+    return signalName;
+  }
+  if (signalName.toUpperCase() in constants4.signals) {
+    throw new TypeError(`Invalid ${optionName} '${signalName}': please rename it to '${signalName.toUpperCase()}'.`);
+  }
+  throw new TypeError(`Invalid ${optionName} '${signalName}': this signal name does not exist.
+${getAvailableSignals()}`);
+};
+var getAvailableSignals = () => `Available signal names: ${getAvailableSignalNames()}.
+Available signal numbers: ${getAvailableSignalIntegers()}.`;
+var getAvailableSignalNames = () => Object.keys(constants4.signals).sort().map((signalName) => `'${signalName}'`).join(", ");
+var getAvailableSignalIntegers = () => [...new Set(Object.values(constants4.signals).sort((signalInteger, signalIntegerTwo) => signalInteger - signalIntegerTwo))].join(", ");
+var getSignalDescription = (signal) => signalsByName[signal].description;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/kill.js
+var normalizeForceKillAfterDelay = (forceKillAfterDelay) => {
+  if (forceKillAfterDelay === false) {
+    return forceKillAfterDelay;
+  }
+  if (forceKillAfterDelay === true) {
+    return DEFAULT_FORCE_KILL_TIMEOUT;
+  }
+  if (!Number.isFinite(forceKillAfterDelay) || forceKillAfterDelay < 0) {
+    throw new TypeError(`Expected the \`forceKillAfterDelay\` option to be a non-negative integer, got \`${forceKillAfterDelay}\` (${typeof forceKillAfterDelay})`);
+  }
+  return forceKillAfterDelay;
+};
+var DEFAULT_FORCE_KILL_TIMEOUT = 1e3 * 5;
+var subprocessKill = ({ kill, options: { forceKillAfterDelay, killSignal }, onInternalError, context, controller }, signalOrError, errorArgument) => {
+  const { signal, error } = parseKillArguments(signalOrError, errorArgument, killSignal);
+  emitKillError(error, onInternalError);
+  const killResult = kill(signal);
+  setKillTimeout({
+    kill,
+    signal,
+    forceKillAfterDelay,
+    killSignal,
+    killResult,
+    context,
+    controller
+  });
+  return killResult;
+};
+var parseKillArguments = (signalOrError, errorArgument, killSignal) => {
+  const [signal = killSignal, error] = isErrorInstance(signalOrError) ? [void 0, signalOrError] : [signalOrError, errorArgument];
+  if (typeof signal !== "string" && !Number.isInteger(signal)) {
+    throw new TypeError(`The first argument must be an error instance or a signal name string/integer: ${String(signal)}`);
+  }
+  if (error !== void 0 && !isErrorInstance(error)) {
+    throw new TypeError(`The second argument is optional. If specified, it must be an error instance: ${error}`);
+  }
+  return { signal: normalizeSignalArgument(signal), error };
+};
+var emitKillError = (error, onInternalError) => {
+  if (error !== void 0) {
+    onInternalError.reject(error);
+  }
+};
+var setKillTimeout = async ({ kill, signal, forceKillAfterDelay, killSignal, killResult, context, controller }) => {
+  if (signal === killSignal && killResult) {
+    killOnTimeout({
+      kill,
+      forceKillAfterDelay,
+      context,
+      controllerSignal: controller.signal
+    });
+  }
+};
+var killOnTimeout = async ({ kill, forceKillAfterDelay, context, controllerSignal }) => {
+  if (forceKillAfterDelay === false) {
+    return;
+  }
+  try {
+    await setTimeout2(forceKillAfterDelay, void 0, { signal: controllerSignal });
+    if (kill("SIGKILL")) {
+      context.isForcefullyTerminated ??= true;
+    }
+  } catch {
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/utils/abort-signal.js
+import { once } from "node:events";
+var onAbortedSignal = async (mainSignal, stopSignal) => {
+  if (!mainSignal.aborted) {
+    await once(mainSignal, "abort", { signal: stopSignal });
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/cancel.js
+var validateCancelSignal = ({ cancelSignal }) => {
+  if (cancelSignal !== void 0 && Object.prototype.toString.call(cancelSignal) !== "[object AbortSignal]") {
+    throw new Error(`The \`cancelSignal\` option must be an AbortSignal: ${String(cancelSignal)}`);
+  }
+};
+var throwOnCancel = ({ subprocess, cancelSignal, gracefulCancel, context, controller }) => cancelSignal === void 0 || gracefulCancel ? [] : [terminateOnCancel(subprocess, cancelSignal, context, controller)];
+var terminateOnCancel = async (subprocess, cancelSignal, context, { signal }) => {
+  await onAbortedSignal(cancelSignal, signal);
+  context.terminationReason ??= "cancel";
+  subprocess.kill();
+  throw cancelSignal.reason;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/graceful.js
+import { scheduler as scheduler2 } from "node:timers/promises";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/send.js
+import { promisify as promisify2 } from "node:util";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/validation.js
+var validateIpcMethod = ({ methodName, isSubprocess, ipc, isConnected: isConnected2 }) => {
+  validateIpcOption(methodName, isSubprocess, ipc);
+  validateConnection(methodName, isSubprocess, isConnected2);
+};
+var validateIpcOption = (methodName, isSubprocess, ipc) => {
+  if (!ipc) {
+    throw new Error(`${getMethodName(methodName, isSubprocess)} can only be used if the \`ipc\` option is \`true\`.`);
+  }
+};
+var validateConnection = (methodName, isSubprocess, isConnected2) => {
+  if (!isConnected2) {
+    throw new Error(`${getMethodName(methodName, isSubprocess)} cannot be used: the ${getOtherProcessName(isSubprocess)} has already exited or disconnected.`);
+  }
+};
+var throwOnEarlyDisconnect = (isSubprocess) => {
+  throw new Error(`${getMethodName("getOneMessage", isSubprocess)} could not complete: the ${getOtherProcessName(isSubprocess)} exited or disconnected.`);
+};
+var throwOnStrictDeadlockError = (isSubprocess) => {
+  throw new Error(`${getMethodName("sendMessage", isSubprocess)} failed: the ${getOtherProcessName(isSubprocess)} is sending a message too, instead of listening to incoming messages.
+This can be fixed by both sending a message and listening to incoming messages at the same time:
+
+const [receivedMessage] = await Promise.all([
+	${getMethodName("getOneMessage", isSubprocess)},
+	${getMethodName("sendMessage", isSubprocess, "message, {strict: true}")},
+]);`);
+};
+var getStrictResponseError = (error, isSubprocess) => new Error(`${getMethodName("sendMessage", isSubprocess)} failed when sending an acknowledgment response to the ${getOtherProcessName(isSubprocess)}.`, { cause: error });
+var throwOnMissingStrict = (isSubprocess) => {
+  throw new Error(`${getMethodName("sendMessage", isSubprocess)} failed: the ${getOtherProcessName(isSubprocess)} is not listening to incoming messages.`);
+};
+var throwOnStrictDisconnect = (isSubprocess) => {
+  throw new Error(`${getMethodName("sendMessage", isSubprocess)} failed: the ${getOtherProcessName(isSubprocess)} exited without listening to incoming messages.`);
+};
+var getAbortDisconnectError = () => new Error(`\`cancelSignal\` aborted: the ${getOtherProcessName(true)} disconnected.`);
+var throwOnMissingParent = () => {
+  throw new Error("`getCancelSignal()` cannot be used without setting the `cancelSignal` subprocess option.");
+};
+var handleEpipeError = ({ error, methodName, isSubprocess }) => {
+  if (error.code === "EPIPE") {
+    throw new Error(`${getMethodName(methodName, isSubprocess)} cannot be used: the ${getOtherProcessName(isSubprocess)} is disconnecting.`, { cause: error });
+  }
+};
+var handleSerializationError = ({ error, methodName, isSubprocess, message }) => {
+  if (isSerializationError(error)) {
+    throw new Error(`${getMethodName(methodName, isSubprocess)}'s argument type is invalid: the message cannot be serialized: ${String(message)}.`, { cause: error });
+  }
+};
+var isSerializationError = ({ code, message }) => SERIALIZATION_ERROR_CODES.has(code) || SERIALIZATION_ERROR_MESSAGES.some((serializationErrorMessage) => message.includes(serializationErrorMessage));
+var SERIALIZATION_ERROR_CODES = /* @__PURE__ */ new Set([
+  // Message is `undefined`
+  "ERR_MISSING_ARGS",
+  // Message is a function, a bigint, a symbol
+  "ERR_INVALID_ARG_TYPE"
+]);
+var SERIALIZATION_ERROR_MESSAGES = [
+  // Message is a promise or a proxy, with `serialization: 'advanced'`
+  "could not be cloned",
+  // Message has cycles, with `serialization: 'json'`
+  "circular structure",
+  // Message has cycles inside toJSON(), with `serialization: 'json'`
+  "call stack size exceeded"
+];
+var getMethodName = (methodName, isSubprocess, parameters = "") => methodName === "cancelSignal" ? "`cancelSignal`'s `controller.abort()`" : `${getNamespaceName(isSubprocess)}${methodName}(${parameters})`;
+var getNamespaceName = (isSubprocess) => isSubprocess ? "" : "subprocess.";
+var getOtherProcessName = (isSubprocess) => isSubprocess ? "parent process" : "subprocess";
+var disconnect = (anyProcess) => {
+  if (anyProcess.connected) {
+    anyProcess.disconnect();
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/utils/deferred.js
+var createDeferred = () => {
+  const methods2 = {};
+  const promise = new Promise((resolve5, reject) => {
+    Object.assign(methods2, { resolve: resolve5, reject });
+  });
+  return Object.assign(promise, methods2);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/fd-options.js
+var getToStream = (destination, to = "stdin") => {
+  const isWritable = true;
+  const { options, fileDescriptors } = SUBPROCESS_OPTIONS.get(destination);
+  const fdNumber = getFdNumber(fileDescriptors, to, isWritable);
+  const destinationStream = destination.stdio[fdNumber];
+  if (destinationStream === null) {
+    throw new TypeError(getInvalidStdioOptionMessage(fdNumber, to, options, isWritable));
+  }
+  return destinationStream;
+};
+var getFromStream = (source, from = "stdout") => {
+  const isWritable = false;
+  const { options, fileDescriptors } = SUBPROCESS_OPTIONS.get(source);
+  const fdNumber = getFdNumber(fileDescriptors, from, isWritable);
+  const sourceStream = fdNumber === "all" ? source.all : source.stdio[fdNumber];
+  if (sourceStream === null || sourceStream === void 0) {
+    throw new TypeError(getInvalidStdioOptionMessage(fdNumber, from, options, isWritable));
+  }
+  return sourceStream;
+};
+var SUBPROCESS_OPTIONS = /* @__PURE__ */ new WeakMap();
+var getFdNumber = (fileDescriptors, fdName, isWritable) => {
+  const fdNumber = parseFdNumber(fdName, isWritable);
+  validateFdNumber(fdNumber, fdName, isWritable, fileDescriptors);
+  return fdNumber;
+};
+var parseFdNumber = (fdName, isWritable) => {
+  const fdNumber = parseFd(fdName);
+  if (fdNumber !== void 0) {
+    return fdNumber;
+  }
+  const { validOptions, defaultValue } = isWritable ? { validOptions: '"stdin"', defaultValue: "stdin" } : { validOptions: '"stdout", "stderr", "all"', defaultValue: "stdout" };
+  throw new TypeError(`"${getOptionName(isWritable)}" must not be "${fdName}".
+It must be ${validOptions} or "fd3", "fd4" (and so on).
+It is optional and defaults to "${defaultValue}".`);
+};
+var validateFdNumber = (fdNumber, fdName, isWritable, fileDescriptors) => {
+  const fileDescriptor = fileDescriptors[getUsedDescriptor(fdNumber)];
+  if (fileDescriptor === void 0) {
+    throw new TypeError(`"${getOptionName(isWritable)}" must not be ${fdName}. That file descriptor does not exist.
+Please set the "stdio" option to ensure that file descriptor exists.`);
+  }
+  if (fileDescriptor.direction === "input" && !isWritable) {
+    throw new TypeError(`"${getOptionName(isWritable)}" must not be ${fdName}. It must be a readable stream, not writable.`);
+  }
+  if (fileDescriptor.direction !== "input" && isWritable) {
+    throw new TypeError(`"${getOptionName(isWritable)}" must not be ${fdName}. It must be a writable stream, not readable.`);
+  }
+};
+var getInvalidStdioOptionMessage = (fdNumber, fdName, options, isWritable) => {
+  if (fdNumber === "all" && !options.all) {
+    return `The "all" option must be true to use "from: 'all'".`;
+  }
+  const { optionName, optionValue } = getInvalidStdioOption(fdNumber, options);
+  return `The "${optionName}: ${serializeOptionValue(optionValue)}" option is incompatible with using "${getOptionName(isWritable)}: ${serializeOptionValue(fdName)}".
+Please set this option with "pipe" instead.`;
+};
+var getInvalidStdioOption = (fdNumber, { stdin, stdout, stderr, stdio }) => {
+  const usedDescriptor = getUsedDescriptor(fdNumber);
+  if (usedDescriptor === 0 && stdin !== void 0) {
+    return { optionName: "stdin", optionValue: stdin };
+  }
+  if (usedDescriptor === 1 && stdout !== void 0) {
+    return { optionName: "stdout", optionValue: stdout };
+  }
+  if (usedDescriptor === 2 && stderr !== void 0) {
+    return { optionName: "stderr", optionValue: stderr };
+  }
+  return { optionName: `stdio[${usedDescriptor}]`, optionValue: stdio[usedDescriptor] };
+};
+var getUsedDescriptor = (fdNumber) => fdNumber === "all" ? 1 : fdNumber;
+var getOptionName = (isWritable) => isWritable ? "to" : "from";
+var serializeOptionValue = (value) => {
+  if (typeof value === "string") {
+    return `'${value}'`;
+  }
+  return typeof value === "number" ? `${value}` : "Stream";
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/strict.js
+import { once as once3 } from "node:events";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/utils/max-listeners.js
+import { addAbortListener } from "node:events";
+var incrementMaxListeners = (eventEmitter, maxListenersIncrement, signal) => {
+  const maxListeners = eventEmitter.getMaxListeners();
+  if (maxListeners === 0 || maxListeners === Number.POSITIVE_INFINITY) {
+    return;
+  }
+  eventEmitter.setMaxListeners(maxListeners + maxListenersIncrement);
+  addAbortListener(signal, () => {
+    eventEmitter.setMaxListeners(eventEmitter.getMaxListeners() - maxListenersIncrement);
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/forward.js
+import { EventEmitter } from "node:events";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/incoming.js
+import { once as once2 } from "node:events";
+import { scheduler } from "node:timers/promises";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/reference.js
+var addReference = (channel, reference) => {
+  if (reference) {
+    addReferenceCount(channel);
+  }
+};
+var addReferenceCount = (channel) => {
+  channel.refCounted();
+};
+var removeReference = (channel, reference) => {
+  if (reference) {
+    removeReferenceCount(channel);
+  }
+};
+var removeReferenceCount = (channel) => {
+  channel.unrefCounted();
+};
+var undoAddedReferences = (channel, isSubprocess) => {
+  if (isSubprocess) {
+    removeReferenceCount(channel);
+    removeReferenceCount(channel);
+  }
+};
+var redoAddedReferences = (channel, isSubprocess) => {
+  if (isSubprocess) {
+    addReferenceCount(channel);
+    addReferenceCount(channel);
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/incoming.js
+var onMessage = async ({ anyProcess, channel, isSubprocess, ipcEmitter }, wrappedMessage) => {
+  if (handleStrictResponse(wrappedMessage) || handleAbort(wrappedMessage)) {
+    return;
+  }
+  if (!INCOMING_MESSAGES.has(anyProcess)) {
+    INCOMING_MESSAGES.set(anyProcess, []);
+  }
+  const incomingMessages = INCOMING_MESSAGES.get(anyProcess);
+  incomingMessages.push(wrappedMessage);
+  if (incomingMessages.length > 1) {
+    return;
+  }
+  while (incomingMessages.length > 0) {
+    await waitForOutgoingMessages(anyProcess, ipcEmitter, wrappedMessage);
+    await scheduler.yield();
+    const message = await handleStrictRequest({
+      wrappedMessage: incomingMessages[0],
+      anyProcess,
+      channel,
+      isSubprocess,
+      ipcEmitter
+    });
+    incomingMessages.shift();
+    ipcEmitter.emit("message", message);
+    ipcEmitter.emit("message:done");
+  }
+};
+var onDisconnect = async ({ anyProcess, channel, isSubprocess, ipcEmitter, boundOnMessage }) => {
+  abortOnDisconnect();
+  const incomingMessages = INCOMING_MESSAGES.get(anyProcess);
+  while (incomingMessages?.length > 0) {
+    await once2(ipcEmitter, "message:done");
+  }
+  anyProcess.removeListener("message", boundOnMessage);
+  redoAddedReferences(channel, isSubprocess);
+  ipcEmitter.connected = false;
+  ipcEmitter.emit("disconnect");
+};
+var INCOMING_MESSAGES = /* @__PURE__ */ new WeakMap();
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/forward.js
+var getIpcEmitter = (anyProcess, channel, isSubprocess) => {
+  if (IPC_EMITTERS.has(anyProcess)) {
+    return IPC_EMITTERS.get(anyProcess);
+  }
+  const ipcEmitter = new EventEmitter();
+  ipcEmitter.connected = true;
+  IPC_EMITTERS.set(anyProcess, ipcEmitter);
+  forwardEvents({
+    ipcEmitter,
+    anyProcess,
+    channel,
+    isSubprocess
+  });
+  return ipcEmitter;
+};
+var IPC_EMITTERS = /* @__PURE__ */ new WeakMap();
+var forwardEvents = ({ ipcEmitter, anyProcess, channel, isSubprocess }) => {
+  const boundOnMessage = onMessage.bind(void 0, {
+    anyProcess,
+    channel,
+    isSubprocess,
+    ipcEmitter
+  });
+  anyProcess.on("message", boundOnMessage);
+  anyProcess.once("disconnect", onDisconnect.bind(void 0, {
+    anyProcess,
+    channel,
+    isSubprocess,
+    ipcEmitter,
+    boundOnMessage
+  }));
+  undoAddedReferences(channel, isSubprocess);
+};
+var isConnected = (anyProcess) => {
+  const ipcEmitter = IPC_EMITTERS.get(anyProcess);
+  return ipcEmitter === void 0 ? anyProcess.channel !== null : ipcEmitter.connected;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/strict.js
+var handleSendStrict = ({ anyProcess, channel, isSubprocess, message, strict }) => {
+  if (!strict) {
+    return message;
+  }
+  const ipcEmitter = getIpcEmitter(anyProcess, channel, isSubprocess);
+  const hasListeners = hasMessageListeners(anyProcess, ipcEmitter);
+  return {
+    id: count++,
+    type: REQUEST_TYPE,
+    message,
+    hasListeners
+  };
+};
+var count = 0n;
+var validateStrictDeadlock = (outgoingMessages, wrappedMessage) => {
+  if (wrappedMessage?.type !== REQUEST_TYPE || wrappedMessage.hasListeners) {
+    return;
+  }
+  for (const { id } of outgoingMessages) {
+    if (id !== void 0) {
+      STRICT_RESPONSES[id].resolve({ isDeadlock: true, hasListeners: false });
+    }
+  }
+};
+var handleStrictRequest = async ({ wrappedMessage, anyProcess, channel, isSubprocess, ipcEmitter }) => {
+  if (wrappedMessage?.type !== REQUEST_TYPE || !anyProcess.connected) {
+    return wrappedMessage;
+  }
+  const { id, message } = wrappedMessage;
+  const response = { id, type: RESPONSE_TYPE, message: hasMessageListeners(anyProcess, ipcEmitter) };
+  try {
+    await sendMessage({
+      anyProcess,
+      channel,
+      isSubprocess,
+      ipc: true
+    }, response);
+  } catch (error) {
+    ipcEmitter.emit("strict:error", error);
+  }
+  return message;
+};
+var handleStrictResponse = (wrappedMessage) => {
+  if (wrappedMessage?.type !== RESPONSE_TYPE) {
+    return false;
+  }
+  const { id, message: hasListeners } = wrappedMessage;
+  STRICT_RESPONSES[id]?.resolve({ isDeadlock: false, hasListeners });
+  return true;
+};
+var waitForStrictResponse = async (wrappedMessage, anyProcess, isSubprocess) => {
+  if (wrappedMessage?.type !== REQUEST_TYPE) {
+    return;
+  }
+  const deferred = createDeferred();
+  STRICT_RESPONSES[wrappedMessage.id] = deferred;
+  const controller = new AbortController();
+  try {
+    const { isDeadlock, hasListeners } = await Promise.race([
+      deferred,
+      throwOnDisconnect(anyProcess, isSubprocess, controller)
+    ]);
+    if (isDeadlock) {
+      throwOnStrictDeadlockError(isSubprocess);
+    }
+    if (!hasListeners) {
+      throwOnMissingStrict(isSubprocess);
+    }
+  } finally {
+    controller.abort();
+    delete STRICT_RESPONSES[wrappedMessage.id];
+  }
+};
+var STRICT_RESPONSES = {};
+var throwOnDisconnect = async (anyProcess, isSubprocess, { signal }) => {
+  incrementMaxListeners(anyProcess, 1, signal);
+  await once3(anyProcess, "disconnect", { signal });
+  throwOnStrictDisconnect(isSubprocess);
+};
+var REQUEST_TYPE = "execa:ipc:request";
+var RESPONSE_TYPE = "execa:ipc:response";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/outgoing.js
+var startSendMessage = (anyProcess, wrappedMessage, strict) => {
+  if (!OUTGOING_MESSAGES.has(anyProcess)) {
+    OUTGOING_MESSAGES.set(anyProcess, /* @__PURE__ */ new Set());
+  }
+  const outgoingMessages = OUTGOING_MESSAGES.get(anyProcess);
+  const onMessageSent = createDeferred();
+  const id = strict ? wrappedMessage.id : void 0;
+  const outgoingMessage = { onMessageSent, id };
+  outgoingMessages.add(outgoingMessage);
+  return { outgoingMessages, outgoingMessage };
+};
+var endSendMessage = ({ outgoingMessages, outgoingMessage }) => {
+  outgoingMessages.delete(outgoingMessage);
+  outgoingMessage.onMessageSent.resolve();
+};
+var waitForOutgoingMessages = async (anyProcess, ipcEmitter, wrappedMessage) => {
+  while (!hasMessageListeners(anyProcess, ipcEmitter) && OUTGOING_MESSAGES.get(anyProcess)?.size > 0) {
+    const outgoingMessages = [...OUTGOING_MESSAGES.get(anyProcess)];
+    validateStrictDeadlock(outgoingMessages, wrappedMessage);
+    await Promise.all(outgoingMessages.map(({ onMessageSent }) => onMessageSent));
+  }
+};
+var OUTGOING_MESSAGES = /* @__PURE__ */ new WeakMap();
+var hasMessageListeners = (anyProcess, ipcEmitter) => ipcEmitter.listenerCount("message") > getMinListenerCount(anyProcess);
+var getMinListenerCount = (anyProcess) => SUBPROCESS_OPTIONS.has(anyProcess) && !getFdSpecificValue(SUBPROCESS_OPTIONS.get(anyProcess).options.buffer, "ipc") ? 1 : 0;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/send.js
+var sendMessage = ({ anyProcess, channel, isSubprocess, ipc }, message, { strict = false } = {}) => {
+  const methodName = "sendMessage";
+  validateIpcMethod({
+    methodName,
+    isSubprocess,
+    ipc,
+    isConnected: anyProcess.connected
+  });
+  return sendMessageAsync({
+    anyProcess,
+    channel,
+    methodName,
+    isSubprocess,
+    message,
+    strict
+  });
+};
+var sendMessageAsync = async ({ anyProcess, channel, methodName, isSubprocess, message, strict }) => {
+  const wrappedMessage = handleSendStrict({
+    anyProcess,
+    channel,
+    isSubprocess,
+    message,
+    strict
+  });
+  const outgoingMessagesState = startSendMessage(anyProcess, wrappedMessage, strict);
+  try {
+    await sendOneMessage({
+      anyProcess,
+      methodName,
+      isSubprocess,
+      wrappedMessage,
+      message
+    });
+  } catch (error) {
+    disconnect(anyProcess);
+    throw error;
+  } finally {
+    endSendMessage(outgoingMessagesState);
+  }
+};
+var sendOneMessage = async ({ anyProcess, methodName, isSubprocess, wrappedMessage, message }) => {
+  const sendMethod = getSendMethod(anyProcess);
+  try {
+    await Promise.all([
+      waitForStrictResponse(wrappedMessage, anyProcess, isSubprocess),
+      sendMethod(wrappedMessage)
+    ]);
+  } catch (error) {
+    handleEpipeError({ error, methodName, isSubprocess });
+    handleSerializationError({
+      error,
+      methodName,
+      isSubprocess,
+      message
+    });
+    throw error;
+  }
+};
+var getSendMethod = (anyProcess) => {
+  if (PROCESS_SEND_METHODS.has(anyProcess)) {
+    return PROCESS_SEND_METHODS.get(anyProcess);
+  }
+  const sendMethod = promisify2(anyProcess.send.bind(anyProcess));
+  PROCESS_SEND_METHODS.set(anyProcess, sendMethod);
+  return sendMethod;
+};
+var PROCESS_SEND_METHODS = /* @__PURE__ */ new WeakMap();
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/graceful.js
+var sendAbort = (subprocess, message) => {
+  const methodName = "cancelSignal";
+  validateConnection(methodName, false, subprocess.connected);
+  return sendOneMessage({
+    anyProcess: subprocess,
+    methodName,
+    isSubprocess: false,
+    wrappedMessage: { type: GRACEFUL_CANCEL_TYPE, message },
+    message
+  });
+};
+var getCancelSignal = async ({ anyProcess, channel, isSubprocess, ipc }) => {
+  await startIpc({
+    anyProcess,
+    channel,
+    isSubprocess,
+    ipc
+  });
+  return cancelController.signal;
+};
+var startIpc = async ({ anyProcess, channel, isSubprocess, ipc }) => {
+  if (cancelListening) {
+    return;
+  }
+  cancelListening = true;
+  if (!ipc) {
+    throwOnMissingParent();
+    return;
+  }
+  if (channel === null) {
+    abortOnDisconnect();
+    return;
+  }
+  getIpcEmitter(anyProcess, channel, isSubprocess);
+  await scheduler2.yield();
+};
+var cancelListening = false;
+var handleAbort = (wrappedMessage) => {
+  if (wrappedMessage?.type !== GRACEFUL_CANCEL_TYPE) {
+    return false;
+  }
+  cancelController.abort(wrappedMessage.message);
+  return true;
+};
+var GRACEFUL_CANCEL_TYPE = "execa:ipc:cancel";
+var abortOnDisconnect = () => {
+  cancelController.abort(getAbortDisconnectError());
+};
+var cancelController = new AbortController();
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/graceful.js
+var validateGracefulCancel = ({ gracefulCancel, cancelSignal, ipc, serialization }) => {
+  if (!gracefulCancel) {
+    return;
+  }
+  if (cancelSignal === void 0) {
+    throw new Error("The `cancelSignal` option must be defined when setting the `gracefulCancel` option.");
+  }
+  if (!ipc) {
+    throw new Error("The `ipc` option cannot be false when setting the `gracefulCancel` option.");
+  }
+  if (serialization === "json") {
+    throw new Error("The `serialization` option cannot be 'json' when setting the `gracefulCancel` option.");
+  }
+};
+var throwOnGracefulCancel = ({
+  subprocess,
+  cancelSignal,
+  gracefulCancel,
+  forceKillAfterDelay,
+  context,
+  controller
+}) => gracefulCancel ? [sendOnAbort({
+  subprocess,
+  cancelSignal,
+  forceKillAfterDelay,
+  context,
+  controller
+})] : [];
+var sendOnAbort = async ({ subprocess, cancelSignal, forceKillAfterDelay, context, controller: { signal } }) => {
+  await onAbortedSignal(cancelSignal, signal);
+  const reason = getReason(cancelSignal);
+  await sendAbort(subprocess, reason);
+  killOnTimeout({
+    kill: subprocess.kill,
+    forceKillAfterDelay,
+    context,
+    controllerSignal: signal
+  });
+  context.terminationReason ??= "gracefulCancel";
+  throw cancelSignal.reason;
+};
+var getReason = ({ reason }) => {
+  if (!(reason instanceof DOMException)) {
+    return reason;
+  }
+  const error = new Error(reason.message);
+  Object.defineProperty(error, "stack", {
+    value: reason.stack,
+    enumerable: false,
+    configurable: true,
+    writable: true
+  });
+  return error;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/timeout.js
+import { setTimeout as setTimeout3 } from "node:timers/promises";
+var validateTimeout = ({ timeout }) => {
+  if (timeout !== void 0 && (!Number.isFinite(timeout) || timeout < 0)) {
+    throw new TypeError(`Expected the \`timeout\` option to be a non-negative integer, got \`${timeout}\` (${typeof timeout})`);
+  }
+};
+var throwOnTimeout = (subprocess, timeout, context, controller) => timeout === 0 || timeout === void 0 ? [] : [killAfterTimeout(subprocess, timeout, context, controller)];
+var killAfterTimeout = async (subprocess, timeout, context, { signal }) => {
+  await setTimeout3(timeout, void 0, { signal });
+  context.terminationReason ??= "timeout";
+  subprocess.kill();
+  throw new DiscardedError();
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/node.js
+import { execPath, execArgv } from "node:process";
+import path5 from "node:path";
+var mapNode = ({ options }) => {
+  if (options.node === false) {
+    throw new TypeError('The "node" option cannot be false with `execaNode()`.');
+  }
+  return { options: { ...options, node: true } };
+};
+var handleNodeOption = (file, commandArguments, {
+  node: shouldHandleNode = false,
+  nodePath = execPath,
+  nodeOptions = execArgv.filter((nodeOption) => !nodeOption.startsWith("--inspect")),
+  cwd,
+  execPath: formerNodePath,
+  ...options
+}) => {
+  if (formerNodePath !== void 0) {
+    throw new TypeError('The "execPath" option has been removed. Please use the "nodePath" option instead.');
+  }
+  const normalizedNodePath = safeNormalizeFileUrl(nodePath, 'The "nodePath" option');
+  const resolvedNodePath = path5.resolve(cwd, normalizedNodePath);
+  const newOptions = {
+    ...options,
+    nodePath: resolvedNodePath,
+    node: shouldHandleNode,
+    cwd
+  };
+  if (!shouldHandleNode) {
+    return [file, commandArguments, newOptions];
+  }
+  if (path5.basename(file, ".exe") === "node") {
+    throw new TypeError('When the "node" option is true, the first argument does not need to be "node".');
+  }
+  return [
+    resolvedNodePath,
+    [...nodeOptions, file, ...commandArguments],
+    { ipc: true, ...newOptions, shell: false }
+  ];
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/ipc-input.js
+import { serialize } from "node:v8";
+var validateIpcInputOption = ({ ipcInput, ipc, serialization }) => {
+  if (ipcInput === void 0) {
+    return;
+  }
+  if (!ipc) {
+    throw new Error("The `ipcInput` option cannot be set unless the `ipc` option is `true`.");
+  }
+  validateIpcInput[serialization](ipcInput);
+};
+var validateAdvancedInput = (ipcInput) => {
+  try {
+    serialize(ipcInput);
+  } catch (error) {
+    throw new Error("The `ipcInput` option is not serializable with a structured clone.", { cause: error });
+  }
+};
+var validateJsonInput = (ipcInput) => {
+  try {
+    JSON.stringify(ipcInput);
+  } catch (error) {
+    throw new Error("The `ipcInput` option is not serializable with JSON.", { cause: error });
+  }
+};
+var validateIpcInput = {
+  advanced: validateAdvancedInput,
+  json: validateJsonInput
+};
+var sendIpcInput = async (subprocess, ipcInput) => {
+  if (ipcInput === void 0) {
+    return;
+  }
+  await subprocess.sendMessage(ipcInput);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/encoding-option.js
+var validateEncoding = ({ encoding }) => {
+  if (ENCODINGS.has(encoding)) {
+    return;
+  }
+  const correctEncoding = getCorrectEncoding(encoding);
+  if (correctEncoding !== void 0) {
+    throw new TypeError(`Invalid option \`encoding: ${serializeEncoding(encoding)}\`.
+Please rename it to ${serializeEncoding(correctEncoding)}.`);
+  }
+  const correctEncodings = [...ENCODINGS].map((correctEncoding2) => serializeEncoding(correctEncoding2)).join(", ");
+  throw new TypeError(`Invalid option \`encoding: ${serializeEncoding(encoding)}\`.
+Please rename it to one of: ${correctEncodings}.`);
+};
+var TEXT_ENCODINGS = /* @__PURE__ */ new Set(["utf8", "utf16le"]);
+var BINARY_ENCODINGS = /* @__PURE__ */ new Set(["buffer", "hex", "base64", "base64url", "latin1", "ascii"]);
+var ENCODINGS = /* @__PURE__ */ new Set([...TEXT_ENCODINGS, ...BINARY_ENCODINGS]);
+var getCorrectEncoding = (encoding) => {
+  if (encoding === null) {
+    return "buffer";
+  }
+  if (typeof encoding !== "string") {
+    return;
+  }
+  const lowerEncoding = encoding.toLowerCase();
+  if (lowerEncoding in ENCODING_ALIASES) {
+    return ENCODING_ALIASES[lowerEncoding];
+  }
+  if (ENCODINGS.has(lowerEncoding)) {
+    return lowerEncoding;
+  }
+};
+var ENCODING_ALIASES = {
+  // eslint-disable-next-line unicorn/text-encoding-identifier-case
+  "utf-8": "utf8",
+  "utf-16le": "utf16le",
+  "ucs-2": "utf16le",
+  ucs2: "utf16le",
+  binary: "latin1"
+};
+var serializeEncoding = (encoding) => typeof encoding === "string" ? `"${encoding}"` : String(encoding);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/cwd.js
+import { statSync as statSync2 } from "node:fs";
+import path6 from "node:path";
+import process6 from "node:process";
+var normalizeCwd = (cwd = getDefaultCwd()) => {
+  const cwdString = safeNormalizeFileUrl(cwd, 'The "cwd" option');
+  return path6.resolve(cwdString);
+};
+var getDefaultCwd = () => {
+  try {
+    return process6.cwd();
+  } catch (error) {
+    error.message = `The current directory does not exist.
+${error.message}`;
+    throw error;
+  }
+};
+var fixCwdError = (originalMessage, cwd) => {
+  if (cwd === getDefaultCwd()) {
+    return originalMessage;
+  }
+  let cwdStat;
+  try {
+    cwdStat = statSync2(cwd);
+  } catch (error) {
+    return `The "cwd" option is invalid: ${cwd}.
+${error.message}
+${originalMessage}`;
+  }
+  if (!cwdStat.isDirectory()) {
+    return `The "cwd" option is not a directory: ${cwd}.
+${originalMessage}`;
+  }
+  return originalMessage;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/options.js
+var normalizeOptions = (filePath, rawArguments, rawOptions) => {
+  rawOptions.cwd = normalizeCwd(rawOptions.cwd);
+  const [processedFile, processedArguments, processedOptions] = handleNodeOption(filePath, rawArguments, rawOptions);
+  const { command: file, args: commandArguments, options: initialOptions } = crossSpawn2._parse(processedFile, processedArguments, processedOptions);
+  const fdOptions = normalizeFdSpecificOptions(initialOptions);
+  const options = addDefaultOptions(fdOptions);
+  validateTimeout(options);
+  validateEncoding(options);
+  validateIpcInputOption(options);
+  validateCancelSignal(options);
+  validateGracefulCancel(options);
+  options.shell = normalizeFileUrl(options.shell);
+  options.env = getEnv(options);
+  options.killSignal = normalizeKillSignal(options.killSignal);
+  options.forceKillAfterDelay = normalizeForceKillAfterDelay(options.forceKillAfterDelay);
+  options.lines = options.lines.map((lines, fdNumber) => lines && !BINARY_ENCODINGS.has(options.encoding) && options.buffer[fdNumber]);
+  if (process7.platform === "win32" && path7.basename(file, ".exe") === "cmd") {
+    commandArguments.unshift("/q");
+  }
+  return { file, commandArguments, options };
+};
+var addDefaultOptions = ({
+  extendEnv = true,
+  preferLocal = false,
+  cwd,
+  localDir: localDirectory = cwd,
+  encoding = "utf8",
+  reject = true,
+  cleanup = true,
+  all = false,
+  windowsHide = true,
+  killSignal = "SIGTERM",
+  forceKillAfterDelay = true,
+  gracefulCancel = false,
+  ipcInput,
+  ipc = ipcInput !== void 0 || gracefulCancel,
+  serialization = "advanced",
+  ...options
+}) => ({
+  ...options,
+  extendEnv,
+  preferLocal,
+  cwd,
+  localDirectory,
+  encoding,
+  reject,
+  cleanup,
+  all,
+  windowsHide,
+  killSignal,
+  forceKillAfterDelay,
+  gracefulCancel,
+  ipcInput,
+  ipc,
+  serialization
+});
+var getEnv = ({ env: envOption, extendEnv, preferLocal, node, localDirectory, nodePath }) => {
+  const env = extendEnv ? { ...process7.env, ...envOption } : envOption;
+  if (preferLocal || node) {
+    return npmRunPathEnv({
+      env,
+      cwd: localDirectory,
+      execPath: nodePath,
+      preferLocal,
+      addExecPath: node
+    });
+  }
+  return env;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/arguments/shell.js
+var concatenateShell = (file, commandArguments, options) => options.shell && commandArguments.length > 0 ? [[file, ...commandArguments].join(" "), [], options] : [file, commandArguments, options];
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/message.js
+import { inspect as inspect2 } from "node:util";
+
+// ../../node_modules/.pnpm/strip-final-newline@4.0.0/node_modules/strip-final-newline/index.js
+function stripFinalNewline(input) {
+  if (typeof input === "string") {
+    return stripFinalNewlineString(input);
+  }
+  if (!(ArrayBuffer.isView(input) && input.BYTES_PER_ELEMENT === 1)) {
+    throw new Error("Input must be a string or a Uint8Array");
+  }
+  return stripFinalNewlineBinary(input);
+}
+var stripFinalNewlineString = (input) => input.at(-1) === LF ? input.slice(0, input.at(-2) === CR ? -2 : -1) : input;
+var stripFinalNewlineBinary = (input) => input.at(-1) === LF_BINARY ? input.subarray(0, input.at(-2) === CR_BINARY ? -2 : -1) : input;
+var LF = "\n";
+var LF_BINARY = LF.codePointAt(0);
+var CR = "\r";
+var CR_BINARY = CR.codePointAt(0);
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/index.js
+import { on } from "node:events";
+import { finished } from "node:stream/promises";
+
+// ../../node_modules/.pnpm/is-stream@4.0.1/node_modules/is-stream/index.js
+function isStream(stream, { checkOpen = true } = {}) {
+  return stream !== null && typeof stream === "object" && (stream.writable || stream.readable || !checkOpen || stream.writable === void 0 && stream.readable === void 0) && typeof stream.pipe === "function";
+}
+function isWritableStream(stream, { checkOpen = true } = {}) {
+  return isStream(stream, { checkOpen }) && (stream.writable || !checkOpen) && typeof stream.write === "function" && typeof stream.end === "function" && typeof stream.writable === "boolean" && typeof stream.writableObjectMode === "boolean" && typeof stream.destroy === "function" && typeof stream.destroyed === "boolean";
+}
+function isReadableStream(stream, { checkOpen = true } = {}) {
+  return isStream(stream, { checkOpen }) && (stream.readable || !checkOpen) && typeof stream.read === "function" && typeof stream.readable === "boolean" && typeof stream.readableObjectMode === "boolean" && typeof stream.destroy === "function" && typeof stream.destroyed === "boolean";
+}
+function isDuplexStream(stream, options) {
+  return isWritableStream(stream, options) && isReadableStream(stream, options);
+}
+
+// ../../node_modules/.pnpm/@sec-ant+readable-stream@0.4.1/node_modules/@sec-ant/readable-stream/dist/ponyfill/asyncIterator.js
+var a = Object.getPrototypeOf(
+  Object.getPrototypeOf(
+    /* istanbul ignore next */
+    async function* () {
+    }
+  ).prototype
+);
+var c = class {
+  #t;
+  #n;
+  #r = false;
+  #e = void 0;
+  constructor(e, t) {
+    this.#t = e, this.#n = t;
+  }
+  next() {
+    const e = () => this.#s();
+    return this.#e = this.#e ? this.#e.then(e, e) : e(), this.#e;
+  }
+  return(e) {
+    const t = () => this.#i(e);
+    return this.#e ? this.#e.then(t, t) : t();
+  }
+  async #s() {
+    if (this.#r)
+      return {
+        done: true,
+        value: void 0
+      };
+    let e;
+    try {
+      e = await this.#t.read();
+    } catch (t) {
+      throw this.#e = void 0, this.#r = true, this.#t.releaseLock(), t;
+    }
+    return e.done && (this.#e = void 0, this.#r = true, this.#t.releaseLock()), e;
+  }
+  async #i(e) {
+    if (this.#r)
+      return {
+        done: true,
+        value: e
+      };
+    if (this.#r = true, !this.#n) {
+      const t = this.#t.cancel(e);
+      return this.#t.releaseLock(), await t, {
+        done: true,
+        value: e
+      };
+    }
+    return this.#t.releaseLock(), {
+      done: true,
+      value: e
+    };
+  }
+};
+var n = /* @__PURE__ */ Symbol();
+function i() {
+  return this[n].next();
+}
+Object.defineProperty(i, "name", { value: "next" });
+function o(r) {
+  return this[n].return(r);
+}
+Object.defineProperty(o, "name", { value: "return" });
+var u = Object.create(a, {
+  next: {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: i
+  },
+  return: {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: o
+  }
+});
+function h({ preventCancel: r = false } = {}) {
+  const e = this.getReader(), t = new c(
+    e,
+    r
+  ), s = Object.create(u);
+  return s[n] = t, s;
+}
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/stream.js
+var getAsyncIterable = (stream) => {
+  if (isReadableStream(stream, { checkOpen: false }) && nodeImports.on !== void 0) {
+    return getStreamIterable(stream);
+  }
+  if (typeof stream?.[Symbol.asyncIterator] === "function") {
+    return stream;
+  }
+  if (toString.call(stream) === "[object ReadableStream]") {
+    return h.call(stream);
+  }
+  throw new TypeError("The first argument must be a Readable, a ReadableStream, or an async iterable.");
+};
+var { toString } = Object.prototype;
+var getStreamIterable = async function* (stream) {
+  const controller = new AbortController();
+  const state = {};
+  handleStreamEnd(stream, controller, state);
+  try {
+    for await (const [chunk] of nodeImports.on(stream, "data", { signal: controller.signal })) {
+      yield chunk;
+    }
+  } catch (error) {
+    if (state.error !== void 0) {
+      throw state.error;
+    } else if (!controller.signal.aborted) {
+      throw error;
+    }
+  } finally {
+    stream.destroy();
+  }
+};
+var handleStreamEnd = async (stream, controller, state) => {
+  try {
+    await nodeImports.finished(stream, {
+      cleanup: true,
+      readable: true,
+      writable: false,
+      error: false
+    });
+  } catch (error) {
+    state.error = error;
+  } finally {
+    controller.abort();
+  }
+};
+var nodeImports = {};
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/contents.js
+var getStreamContents = async (stream, { init, convertChunk, getSize, truncateChunk, addChunk, getFinalChunk, finalize }, { maxBuffer = Number.POSITIVE_INFINITY } = {}) => {
+  const asyncIterable = getAsyncIterable(stream);
+  const state = init();
+  state.length = 0;
+  try {
+    for await (const chunk of asyncIterable) {
+      const chunkType = getChunkType(chunk);
+      const convertedChunk = convertChunk[chunkType](chunk, state);
+      appendChunk({
+        convertedChunk,
+        state,
+        getSize,
+        truncateChunk,
+        addChunk,
+        maxBuffer
+      });
+    }
+    appendFinalChunk({
+      state,
+      convertChunk,
+      getSize,
+      truncateChunk,
+      addChunk,
+      getFinalChunk,
+      maxBuffer
+    });
+    return finalize(state);
+  } catch (error) {
+    const normalizedError = typeof error === "object" && error !== null ? error : new Error(error);
+    normalizedError.bufferedData = finalize(state);
+    throw normalizedError;
+  }
+};
+var appendFinalChunk = ({ state, getSize, truncateChunk, addChunk, getFinalChunk, maxBuffer }) => {
+  const convertedChunk = getFinalChunk(state);
+  if (convertedChunk !== void 0) {
+    appendChunk({
+      convertedChunk,
+      state,
+      getSize,
+      truncateChunk,
+      addChunk,
+      maxBuffer
+    });
+  }
+};
+var appendChunk = ({ convertedChunk, state, getSize, truncateChunk, addChunk, maxBuffer }) => {
+  const chunkSize = getSize(convertedChunk);
+  const newLength = state.length + chunkSize;
+  if (newLength <= maxBuffer) {
+    addNewChunk(convertedChunk, state, addChunk, newLength);
+    return;
+  }
+  const truncatedChunk = truncateChunk(convertedChunk, maxBuffer - state.length);
+  if (truncatedChunk !== void 0) {
+    addNewChunk(truncatedChunk, state, addChunk, maxBuffer);
+  }
+  throw new MaxBufferError();
+};
+var addNewChunk = (convertedChunk, state, addChunk, newLength) => {
+  state.contents = addChunk(convertedChunk, state, newLength);
+  state.length = newLength;
+};
+var getChunkType = (chunk) => {
+  const typeOfChunk = typeof chunk;
+  if (typeOfChunk === "string") {
+    return "string";
+  }
+  if (typeOfChunk !== "object" || chunk === null) {
+    return "others";
+  }
+  if (globalThis.Buffer?.isBuffer(chunk)) {
+    return "buffer";
+  }
+  const prototypeName = objectToString2.call(chunk);
+  if (prototypeName === "[object ArrayBuffer]") {
+    return "arrayBuffer";
+  }
+  if (prototypeName === "[object DataView]") {
+    return "dataView";
+  }
+  if (Number.isInteger(chunk.byteLength) && Number.isInteger(chunk.byteOffset) && objectToString2.call(chunk.buffer) === "[object ArrayBuffer]") {
+    return "typedArray";
+  }
+  return "others";
+};
+var { toString: objectToString2 } = Object.prototype;
+var MaxBufferError = class extends Error {
+  name = "MaxBufferError";
+  constructor() {
+    super("maxBuffer exceeded");
+  }
+};
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/utils.js
+var identity2 = (value) => value;
+var noop = () => void 0;
+var getContentsProperty = ({ contents }) => contents;
+var throwObjectStream = (chunk) => {
+  throw new Error(`Streams in object mode are not supported: ${String(chunk)}`);
+};
+var getLengthProperty = (convertedChunk) => convertedChunk.length;
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/array.js
+async function getStreamAsArray(stream, options) {
+  return getStreamContents(stream, arrayMethods, options);
+}
+var initArray = () => ({ contents: [] });
+var increment = () => 1;
+var addArrayChunk = (convertedChunk, { contents }) => {
+  contents.push(convertedChunk);
+  return contents;
+};
+var arrayMethods = {
+  init: initArray,
+  convertChunk: {
+    string: identity2,
+    buffer: identity2,
+    arrayBuffer: identity2,
+    dataView: identity2,
+    typedArray: identity2,
+    others: identity2
+  },
+  getSize: increment,
+  truncateChunk: noop,
+  addChunk: addArrayChunk,
+  getFinalChunk: noop,
+  finalize: getContentsProperty
+};
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/array-buffer.js
+async function getStreamAsArrayBuffer(stream, options) {
+  return getStreamContents(stream, arrayBufferMethods, options);
+}
+var initArrayBuffer = () => ({ contents: new ArrayBuffer(0) });
+var useTextEncoder = (chunk) => textEncoder2.encode(chunk);
+var textEncoder2 = new TextEncoder();
+var useUint8Array = (chunk) => new Uint8Array(chunk);
+var useUint8ArrayWithOffset = (chunk) => new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+var truncateArrayBufferChunk = (convertedChunk, chunkSize) => convertedChunk.slice(0, chunkSize);
+var addArrayBufferChunk = (convertedChunk, { contents, length: previousLength }, length) => {
+  const newContents = hasArrayBufferResize() ? resizeArrayBuffer(contents, length) : resizeArrayBufferSlow(contents, length);
+  new Uint8Array(newContents).set(convertedChunk, previousLength);
+  return newContents;
+};
+var resizeArrayBufferSlow = (contents, length) => {
+  if (length <= contents.byteLength) {
+    return contents;
+  }
+  const arrayBuffer = new ArrayBuffer(getNewContentsLength(length));
+  new Uint8Array(arrayBuffer).set(new Uint8Array(contents), 0);
+  return arrayBuffer;
+};
+var resizeArrayBuffer = (contents, length) => {
+  if (length <= contents.maxByteLength) {
+    contents.resize(length);
+    return contents;
+  }
+  const arrayBuffer = new ArrayBuffer(length, { maxByteLength: getNewContentsLength(length) });
+  new Uint8Array(arrayBuffer).set(new Uint8Array(contents), 0);
+  return arrayBuffer;
+};
+var getNewContentsLength = (length) => SCALE_FACTOR ** Math.ceil(Math.log(length) / Math.log(SCALE_FACTOR));
+var SCALE_FACTOR = 2;
+var finalizeArrayBuffer = ({ contents, length }) => hasArrayBufferResize() ? contents : contents.slice(0, length);
+var hasArrayBufferResize = () => "resize" in ArrayBuffer.prototype;
+var arrayBufferMethods = {
+  init: initArrayBuffer,
+  convertChunk: {
+    string: useTextEncoder,
+    buffer: useUint8Array,
+    arrayBuffer: useUint8Array,
+    dataView: useUint8ArrayWithOffset,
+    typedArray: useUint8ArrayWithOffset,
+    others: throwObjectStream
+  },
+  getSize: getLengthProperty,
+  truncateChunk: truncateArrayBufferChunk,
+  addChunk: addArrayBufferChunk,
+  getFinalChunk: noop,
+  finalize: finalizeArrayBuffer
+};
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/string.js
+async function getStreamAsString(stream, options) {
+  return getStreamContents(stream, stringMethods, options);
+}
+var initString = () => ({ contents: "", textDecoder: new TextDecoder() });
+var useTextDecoder = (chunk, { textDecoder: textDecoder2 }) => textDecoder2.decode(chunk, { stream: true });
+var addStringChunk = (convertedChunk, { contents }) => contents + convertedChunk;
+var truncateStringChunk = (convertedChunk, chunkSize) => convertedChunk.slice(0, chunkSize);
+var getFinalStringChunk = ({ textDecoder: textDecoder2 }) => {
+  const finalChunk = textDecoder2.decode();
+  return finalChunk === "" ? void 0 : finalChunk;
+};
+var stringMethods = {
+  init: initString,
+  convertChunk: {
+    string: identity2,
+    buffer: useTextDecoder,
+    arrayBuffer: useTextDecoder,
+    dataView: useTextDecoder,
+    typedArray: useTextDecoder,
+    others: throwObjectStream
+  },
+  getSize: getLengthProperty,
+  truncateChunk: truncateStringChunk,
+  addChunk: addStringChunk,
+  getFinalChunk: getFinalStringChunk,
+  finalize: getContentsProperty
+};
+
+// ../../node_modules/.pnpm/get-stream@9.0.1/node_modules/get-stream/source/index.js
+Object.assign(nodeImports, { on, finished });
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/max-buffer.js
+var handleMaxBuffer = ({ error, stream, readableObjectMode, lines, encoding, fdNumber }) => {
+  if (!(error instanceof MaxBufferError)) {
+    throw error;
+  }
+  if (fdNumber === "all") {
+    return error;
+  }
+  const unit = getMaxBufferUnit(readableObjectMode, lines, encoding);
+  error.maxBufferInfo = { fdNumber, unit };
+  stream.destroy();
+  throw error;
+};
+var getMaxBufferUnit = (readableObjectMode, lines, encoding) => {
+  if (readableObjectMode) {
+    return "objects";
+  }
+  if (lines) {
+    return "lines";
+  }
+  if (encoding === "buffer") {
+    return "bytes";
+  }
+  return "characters";
+};
+var checkIpcMaxBuffer = (subprocess, ipcOutput, maxBuffer) => {
+  if (ipcOutput.length !== maxBuffer) {
+    return;
+  }
+  const error = new MaxBufferError();
+  error.maxBufferInfo = { fdNumber: "ipc" };
+  throw error;
+};
+var getMaxBufferMessage = (error, maxBuffer) => {
+  const { streamName, threshold, unit } = getMaxBufferInfo(error, maxBuffer);
+  return `Command's ${streamName} was larger than ${threshold} ${unit}`;
+};
+var getMaxBufferInfo = (error, maxBuffer) => {
+  if (error?.maxBufferInfo === void 0) {
+    return { streamName: "output", threshold: maxBuffer[1], unit: "bytes" };
+  }
+  const { maxBufferInfo: { fdNumber, unit } } = error;
+  delete error.maxBufferInfo;
+  const threshold = getFdSpecificValue(maxBuffer, fdNumber);
+  if (fdNumber === "ipc") {
+    return { streamName: "IPC output", threshold, unit: "messages" };
+  }
+  return { streamName: getStreamName(fdNumber), threshold, unit };
+};
+var isMaxBufferSync = (resultError, output, maxBuffer) => resultError?.code === "ENOBUFS" && output !== null && output.some((result) => result !== null && result.length > getMaxBufferSync(maxBuffer));
+var truncateMaxBufferSync = (result, isMaxBuffer, maxBuffer) => {
+  if (!isMaxBuffer) {
+    return result;
+  }
+  const maxBufferValue = getMaxBufferSync(maxBuffer);
+  return result.length > maxBufferValue ? result.slice(0, maxBufferValue) : result;
+};
+var getMaxBufferSync = ([, stdoutMaxBuffer]) => stdoutMaxBuffer;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/message.js
+var createMessages = ({
+  stdio,
+  all,
+  ipcOutput,
+  originalError,
+  signal,
+  signalDescription,
+  exitCode,
+  escapedCommand,
+  timedOut,
+  isCanceled,
+  isGracefullyCanceled,
+  isMaxBuffer,
+  isForcefullyTerminated,
+  forceKillAfterDelay,
+  killSignal,
+  maxBuffer,
+  timeout,
+  cwd
+}) => {
+  const errorCode2 = originalError?.code;
+  const prefix = getErrorPrefix({
+    originalError,
+    timedOut,
+    timeout,
+    isMaxBuffer,
+    maxBuffer,
+    errorCode: errorCode2,
+    signal,
+    signalDescription,
+    exitCode,
+    isCanceled,
+    isGracefullyCanceled,
+    isForcefullyTerminated,
+    forceKillAfterDelay,
+    killSignal
+  });
+  const originalMessage = getOriginalMessage(originalError, cwd);
+  const suffix = originalMessage === void 0 ? "" : `
+${originalMessage}`;
+  const shortMessage = `${prefix}: ${escapedCommand}${suffix}`;
+  const messageStdio = all === void 0 ? [stdio[2], stdio[1]] : [all];
+  const message = [
+    shortMessage,
+    ...messageStdio,
+    ...stdio.slice(3),
+    ipcOutput.map((ipcMessage) => serializeIpcMessage(ipcMessage)).join("\n")
+  ].map((messagePart) => escapeLines(stripFinalNewline(serializeMessagePart(messagePart)))).filter(Boolean).join("\n\n");
+  return { originalMessage, shortMessage, message };
+};
+var getErrorPrefix = ({
+  originalError,
+  timedOut,
+  timeout,
+  isMaxBuffer,
+  maxBuffer,
+  errorCode: errorCode2,
+  signal,
+  signalDescription,
+  exitCode,
+  isCanceled,
+  isGracefullyCanceled,
+  isForcefullyTerminated,
+  forceKillAfterDelay,
+  killSignal
+}) => {
+  const forcefulSuffix = getForcefulSuffix(isForcefullyTerminated, forceKillAfterDelay);
+  if (timedOut) {
+    return `Command timed out after ${timeout} milliseconds${forcefulSuffix}`;
+  }
+  if (isGracefullyCanceled) {
+    if (signal === void 0) {
+      return `Command was gracefully canceled with exit code ${exitCode}`;
+    }
+    return isForcefullyTerminated ? `Command was gracefully canceled${forcefulSuffix}` : `Command was gracefully canceled with ${signal} (${signalDescription})`;
+  }
+  if (isCanceled) {
+    return `Command was canceled${forcefulSuffix}`;
+  }
+  if (isMaxBuffer) {
+    return `${getMaxBufferMessage(originalError, maxBuffer)}${forcefulSuffix}`;
+  }
+  if (errorCode2 !== void 0) {
+    return `Command failed with ${errorCode2}${forcefulSuffix}`;
+  }
+  if (isForcefullyTerminated) {
+    return `Command was killed with ${killSignal} (${getSignalDescription(killSignal)})${forcefulSuffix}`;
+  }
+  if (signal !== void 0) {
+    return `Command was killed with ${signal} (${signalDescription})`;
+  }
+  if (exitCode !== void 0) {
+    return `Command failed with exit code ${exitCode}`;
+  }
+  return "Command failed";
+};
+var getForcefulSuffix = (isForcefullyTerminated, forceKillAfterDelay) => isForcefullyTerminated ? ` and was forcefully terminated after ${forceKillAfterDelay} milliseconds` : "";
+var getOriginalMessage = (originalError, cwd) => {
+  if (originalError instanceof DiscardedError) {
+    return;
+  }
+  const originalMessage = isExecaError(originalError) ? originalError.originalMessage : String(originalError?.message ?? originalError);
+  const escapedOriginalMessage = escapeLines(fixCwdError(originalMessage, cwd));
+  return escapedOriginalMessage === "" ? void 0 : escapedOriginalMessage;
+};
+var serializeIpcMessage = (ipcMessage) => typeof ipcMessage === "string" ? ipcMessage : inspect2(ipcMessage);
+var serializeMessagePart = (messagePart) => Array.isArray(messagePart) ? messagePart.map((messageItem) => stripFinalNewline(serializeMessageItem(messageItem))).filter(Boolean).join("\n") : serializeMessageItem(messagePart);
+var serializeMessageItem = (messageItem) => {
+  if (typeof messageItem === "string") {
+    return messageItem;
+  }
+  if (isUint8Array(messageItem)) {
+    return uint8ArrayToString(messageItem);
+  }
+  return "";
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/result.js
+var makeSuccessResult = ({
+  command,
+  escapedCommand,
+  stdio,
+  all,
+  ipcOutput,
+  options: { cwd },
+  startTime
+}) => omitUndefinedProperties({
+  command,
+  escapedCommand,
+  cwd,
+  durationMs: getDurationMs(startTime),
+  failed: false,
+  timedOut: false,
+  isCanceled: false,
+  isGracefullyCanceled: false,
+  isTerminated: false,
+  isMaxBuffer: false,
+  isForcefullyTerminated: false,
+  exitCode: 0,
+  stdout: stdio[1],
+  stderr: stdio[2],
+  all,
+  stdio,
+  ipcOutput,
+  pipedFrom: []
+});
+var makeEarlyError = ({
+  error,
+  command,
+  escapedCommand,
+  fileDescriptors,
+  options,
+  startTime,
+  isSync
+}) => makeError({
+  error,
+  command,
+  escapedCommand,
+  startTime,
+  timedOut: false,
+  isCanceled: false,
+  isGracefullyCanceled: false,
+  isMaxBuffer: false,
+  isForcefullyTerminated: false,
+  stdio: Array.from({ length: fileDescriptors.length }),
+  ipcOutput: [],
+  options,
+  isSync
+});
+var makeError = ({
+  error: originalError,
+  command,
+  escapedCommand,
+  startTime,
+  timedOut,
+  isCanceled,
+  isGracefullyCanceled,
+  isMaxBuffer,
+  isForcefullyTerminated,
+  exitCode: rawExitCode,
+  signal: rawSignal,
+  stdio,
+  all,
+  ipcOutput,
+  options: {
+    timeoutDuration,
+    timeout = timeoutDuration,
+    forceKillAfterDelay,
+    killSignal,
+    cwd,
+    maxBuffer
+  },
+  isSync
+}) => {
+  const { exitCode, signal, signalDescription } = normalizeExitPayload(rawExitCode, rawSignal);
+  const { originalMessage, shortMessage, message } = createMessages({
+    stdio,
+    all,
+    ipcOutput,
+    originalError,
+    signal,
+    signalDescription,
+    exitCode,
+    escapedCommand,
+    timedOut,
+    isCanceled,
+    isGracefullyCanceled,
+    isMaxBuffer,
+    isForcefullyTerminated,
+    forceKillAfterDelay,
+    killSignal,
+    maxBuffer,
+    timeout,
+    cwd
+  });
+  const error = getFinalError(originalError, message, isSync);
+  Object.assign(error, getErrorProperties({
+    error,
+    command,
+    escapedCommand,
+    startTime,
+    timedOut,
+    isCanceled,
+    isGracefullyCanceled,
+    isMaxBuffer,
+    isForcefullyTerminated,
+    exitCode,
+    signal,
+    signalDescription,
+    stdio,
+    all,
+    ipcOutput,
+    cwd,
+    originalMessage,
+    shortMessage
+  }));
+  return error;
+};
+var getErrorProperties = ({
+  error,
+  command,
+  escapedCommand,
+  startTime,
+  timedOut,
+  isCanceled,
+  isGracefullyCanceled,
+  isMaxBuffer,
+  isForcefullyTerminated,
+  exitCode,
+  signal,
+  signalDescription,
+  stdio,
+  all,
+  ipcOutput,
+  cwd,
+  originalMessage,
+  shortMessage
+}) => omitUndefinedProperties({
+  shortMessage,
+  originalMessage,
+  command,
+  escapedCommand,
+  cwd,
+  durationMs: getDurationMs(startTime),
+  failed: true,
+  timedOut,
+  isCanceled,
+  isGracefullyCanceled,
+  isTerminated: signal !== void 0,
+  isMaxBuffer,
+  isForcefullyTerminated,
+  exitCode,
+  signal,
+  signalDescription,
+  code: error.cause?.code,
+  stdout: stdio[1],
+  stderr: stdio[2],
+  all,
+  stdio,
+  ipcOutput,
+  pipedFrom: []
+});
+var omitUndefinedProperties = (result) => Object.fromEntries(Object.entries(result).filter(([, value]) => value !== void 0));
+var normalizeExitPayload = (rawExitCode, rawSignal) => {
+  const exitCode = rawExitCode === null ? void 0 : rawExitCode;
+  const signal = rawSignal === null ? void 0 : rawSignal;
+  const signalDescription = signal === void 0 ? void 0 : getSignalDescription(rawSignal);
+  return { exitCode, signal, signalDescription };
+};
+
+// ../../node_modules/.pnpm/parse-ms@4.0.0/node_modules/parse-ms/index.js
+var toZeroIfInfinity = (value) => Number.isFinite(value) ? value : 0;
+function parseNumber(milliseconds) {
+  return {
+    days: Math.trunc(milliseconds / 864e5),
+    hours: Math.trunc(milliseconds / 36e5 % 24),
+    minutes: Math.trunc(milliseconds / 6e4 % 60),
+    seconds: Math.trunc(milliseconds / 1e3 % 60),
+    milliseconds: Math.trunc(milliseconds % 1e3),
+    microseconds: Math.trunc(toZeroIfInfinity(milliseconds * 1e3) % 1e3),
+    nanoseconds: Math.trunc(toZeroIfInfinity(milliseconds * 1e6) % 1e3)
+  };
+}
+function parseBigint(milliseconds) {
+  return {
+    days: milliseconds / 86400000n,
+    hours: milliseconds / 3600000n % 24n,
+    minutes: milliseconds / 60000n % 60n,
+    seconds: milliseconds / 1000n % 60n,
+    milliseconds: milliseconds % 1000n,
+    microseconds: 0n,
+    nanoseconds: 0n
+  };
+}
+function parseMilliseconds(milliseconds) {
+  switch (typeof milliseconds) {
+    case "number": {
+      if (Number.isFinite(milliseconds)) {
+        return parseNumber(milliseconds);
+      }
+      break;
+    }
+    case "bigint": {
+      return parseBigint(milliseconds);
+    }
+  }
+  throw new TypeError("Expected a finite number or bigint");
+}
+
+// ../../node_modules/.pnpm/pretty-ms@9.3.1/node_modules/pretty-ms/index.js
+var isZero = (value) => value === 0 || value === 0n;
+var pluralize = (word, count2) => count2 === 1 || count2 === 1n ? word : `${word}s`;
+var SECOND_ROUNDING_EPSILON = 1e-7;
+var ONE_DAY_IN_MILLISECONDS = 24n * 60n * 60n * 1000n;
+function prettyMilliseconds(milliseconds, options) {
+  const isBigInt = typeof milliseconds === "bigint";
+  if (!isBigInt && !Number.isFinite(milliseconds)) {
+    throw new TypeError("Expected a finite number or bigint");
+  }
+  options = { ...options };
+  const sign = milliseconds < 0 ? "-" : "";
+  milliseconds = milliseconds < 0 ? -milliseconds : milliseconds;
+  if (options.colonNotation) {
+    options.compact = false;
+    options.formatSubMilliseconds = false;
+    options.separateMilliseconds = false;
+    options.verbose = false;
+  }
+  if (options.compact) {
+    options.unitCount = 1;
+    options.secondsDecimalDigits = 0;
+    options.millisecondsDecimalDigits = 0;
+  }
+  let result = [];
+  const floorDecimals = (value, decimalDigits) => {
+    const flooredInterimValue = Math.floor(value * 10 ** decimalDigits + SECOND_ROUNDING_EPSILON);
+    const flooredValue = Math.round(flooredInterimValue) / 10 ** decimalDigits;
+    return flooredValue.toFixed(decimalDigits);
+  };
+  const add = (value, long, short, valueString) => {
+    if ((result.length === 0 || !options.colonNotation) && isZero(value) && !(options.colonNotation && short === "m")) {
+      return;
+    }
+    valueString ??= String(value);
+    if (options.colonNotation) {
+      const wholeDigits = valueString.includes(".") ? valueString.split(".")[0].length : valueString.length;
+      const minLength = result.length > 0 ? 2 : 1;
+      valueString = "0".repeat(Math.max(0, minLength - wholeDigits)) + valueString;
+    } else {
+      valueString += options.verbose ? " " + pluralize(long, value) : short;
+    }
+    result.push(valueString);
+  };
+  const parsed = parseMilliseconds(milliseconds);
+  const days = BigInt(parsed.days);
+  if (options.hideYearAndDays) {
+    add(BigInt(days) * 24n + BigInt(parsed.hours), "hour", "h");
+  } else {
+    if (options.hideYear) {
+      add(days, "day", "d");
+    } else {
+      add(days / 365n, "year", "y");
+      add(days % 365n, "day", "d");
+    }
+    add(Number(parsed.hours), "hour", "h");
+  }
+  add(Number(parsed.minutes), "minute", "m");
+  if (!options.hideSeconds) {
+    if (options.separateMilliseconds || options.formatSubMilliseconds || !options.colonNotation && milliseconds < 1e3 && !options.subSecondsAsDecimals) {
+      const seconds = Number(parsed.seconds);
+      const milliseconds2 = Number(parsed.milliseconds);
+      const microseconds = Number(parsed.microseconds);
+      const nanoseconds = Number(parsed.nanoseconds);
+      add(seconds, "second", "s");
+      if (options.formatSubMilliseconds) {
+        add(milliseconds2, "millisecond", "ms");
+        add(microseconds, "microsecond", "\xB5s");
+        add(nanoseconds, "nanosecond", "ns");
+      } else {
+        const millisecondsAndBelow = milliseconds2 + microseconds / 1e3 + nanoseconds / 1e6;
+        const millisecondsDecimalDigits = typeof options.millisecondsDecimalDigits === "number" ? options.millisecondsDecimalDigits : 0;
+        const roundedMilliseconds = millisecondsAndBelow >= 1 ? Math.round(millisecondsAndBelow) : Math.ceil(millisecondsAndBelow);
+        const maximumMilliseconds = 1e3 - 10 ** -millisecondsDecimalDigits;
+        const millisecondsString = millisecondsDecimalDigits ? Math.min(millisecondsAndBelow, maximumMilliseconds).toFixed(millisecondsDecimalDigits) : Math.min(roundedMilliseconds, maximumMilliseconds);
+        add(
+          Number.parseFloat(millisecondsString),
+          "millisecond",
+          "ms",
+          millisecondsString
+        );
+      }
+    } else {
+      const seconds = (isBigInt ? Number(milliseconds % ONE_DAY_IN_MILLISECONDS) : milliseconds) / 1e3 % 60;
+      const secondsDecimalDigits = typeof options.secondsDecimalDigits === "number" ? options.secondsDecimalDigits : 1;
+      const secondsFixed = floorDecimals(seconds, secondsDecimalDigits);
+      const secondsString = options.keepDecimalsOnWholeSeconds ? secondsFixed : secondsFixed.replace(/\.0+$/, "");
+      add(Number.parseFloat(secondsString), "second", "s", secondsString);
+    }
+  }
+  if (result.length === 0) {
+    return sign + "0" + (options.verbose ? " milliseconds" : "ms");
+  }
+  const separator = options.colonNotation ? ":" : " ";
+  if (typeof options.unitCount === "number") {
+    result = result.slice(0, Math.max(options.unitCount, 1));
+  }
+  return sign + result.join(separator);
+}
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/error.js
+var logError = (result, verboseInfo) => {
+  if (result.failed) {
+    verboseLog({
+      type: "error",
+      verboseMessage: result.shortMessage,
+      verboseInfo,
+      result
+    });
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/complete.js
+var logResult = (result, verboseInfo) => {
+  if (!isVerbose(verboseInfo)) {
+    return;
+  }
+  logError(result, verboseInfo);
+  logDuration(result, verboseInfo);
+};
+var logDuration = (result, verboseInfo) => {
+  const verboseMessage = `(done in ${prettyMilliseconds(result.durationMs)})`;
+  verboseLog({
+    type: "duration",
+    verboseMessage,
+    verboseInfo,
+    result
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/reject.js
+var handleResult = (result, verboseInfo, { reject }) => {
+  logResult(result, verboseInfo);
+  if (result.failed && reject) {
+    throw result;
+  }
+  return result;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/handle-sync.js
+import { readFileSync as readFileSync2 } from "node:fs";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/type.js
+var getStdioItemType = (value, optionName) => {
+  if (isAsyncGenerator(value)) {
+    return "asyncGenerator";
+  }
+  if (isSyncGenerator(value)) {
+    return "generator";
+  }
+  if (isUrl(value)) {
+    return "fileUrl";
+  }
+  if (isFilePathObject(value)) {
+    return "filePath";
+  }
+  if (isWebStream(value)) {
+    return "webStream";
+  }
+  if (isStream(value, { checkOpen: false })) {
+    return "native";
+  }
+  if (isUint8Array(value)) {
+    return "uint8Array";
+  }
+  if (isAsyncIterableObject(value)) {
+    return "asyncIterable";
+  }
+  if (isIterableObject(value)) {
+    return "iterable";
+  }
+  if (isTransformStream(value)) {
+    return getTransformStreamType({ transform: value }, optionName);
+  }
+  if (isTransformOptions(value)) {
+    return getTransformObjectType(value, optionName);
+  }
+  return "native";
+};
+var getTransformObjectType = (value, optionName) => {
+  if (isDuplexStream(value.transform, { checkOpen: false })) {
+    return getDuplexType(value, optionName);
+  }
+  if (isTransformStream(value.transform)) {
+    return getTransformStreamType(value, optionName);
+  }
+  return getGeneratorObjectType(value, optionName);
+};
+var getDuplexType = (value, optionName) => {
+  validateNonGeneratorType(value, optionName, "Duplex stream");
+  return "duplex";
+};
+var getTransformStreamType = (value, optionName) => {
+  validateNonGeneratorType(value, optionName, "web TransformStream");
+  return "webTransform";
+};
+var validateNonGeneratorType = ({ final, binary, objectMode }, optionName, typeName) => {
+  checkUndefinedOption(final, `${optionName}.final`, typeName);
+  checkUndefinedOption(binary, `${optionName}.binary`, typeName);
+  checkBooleanOption(objectMode, `${optionName}.objectMode`);
+};
+var checkUndefinedOption = (value, optionName, typeName) => {
+  if (value !== void 0) {
+    throw new TypeError(`The \`${optionName}\` option can only be defined when using a generator, not a ${typeName}.`);
+  }
+};
+var getGeneratorObjectType = ({ transform, final, binary, objectMode }, optionName) => {
+  if (transform !== void 0 && !isGenerator(transform)) {
+    throw new TypeError(`The \`${optionName}.transform\` option must be a generator, a Duplex stream or a web TransformStream.`);
+  }
+  if (isDuplexStream(final, { checkOpen: false })) {
+    throw new TypeError(`The \`${optionName}.final\` option must not be a Duplex stream.`);
+  }
+  if (isTransformStream(final)) {
+    throw new TypeError(`The \`${optionName}.final\` option must not be a web TransformStream.`);
+  }
+  if (final !== void 0 && !isGenerator(final)) {
+    throw new TypeError(`The \`${optionName}.final\` option must be a generator.`);
+  }
+  checkBooleanOption(binary, `${optionName}.binary`);
+  checkBooleanOption(objectMode, `${optionName}.objectMode`);
+  return isAsyncGenerator(transform) || isAsyncGenerator(final) ? "asyncGenerator" : "generator";
+};
+var checkBooleanOption = (value, optionName) => {
+  if (value !== void 0 && typeof value !== "boolean") {
+    throw new TypeError(`The \`${optionName}\` option must use a boolean.`);
+  }
+};
+var isGenerator = (value) => isAsyncGenerator(value) || isSyncGenerator(value);
+var isAsyncGenerator = (value) => Object.prototype.toString.call(value) === "[object AsyncGeneratorFunction]";
+var isSyncGenerator = (value) => Object.prototype.toString.call(value) === "[object GeneratorFunction]";
+var isTransformOptions = (value) => isPlainObject(value) && (value.transform !== void 0 || value.final !== void 0);
+var isUrl = (value) => Object.prototype.toString.call(value) === "[object URL]";
+var isRegularUrl = (value) => isUrl(value) && value.protocol !== "file:";
+var isFilePathObject = (value) => isPlainObject(value) && Object.keys(value).length > 0 && Object.keys(value).every((key) => FILE_PATH_KEYS.has(key)) && isFilePathString(value.file);
+var FILE_PATH_KEYS = /* @__PURE__ */ new Set(["file", "append"]);
+var isFilePathString = (file) => typeof file === "string";
+var isUnknownStdioString = (type, value) => type === "native" && typeof value === "string" && !KNOWN_STDIO_STRINGS.has(value);
+var KNOWN_STDIO_STRINGS = /* @__PURE__ */ new Set(["ipc", "ignore", "inherit", "overlapped", "pipe"]);
+var isReadableStream2 = (value) => Object.prototype.toString.call(value) === "[object ReadableStream]";
+var isWritableStream2 = (value) => Object.prototype.toString.call(value) === "[object WritableStream]";
+var isWebStream = (value) => isReadableStream2(value) || isWritableStream2(value);
+var isTransformStream = (value) => isReadableStream2(value?.readable) && isWritableStream2(value?.writable);
+var isAsyncIterableObject = (value) => isObject(value) && typeof value[Symbol.asyncIterator] === "function";
+var isIterableObject = (value) => isObject(value) && typeof value[Symbol.iterator] === "function";
+var isObject = (value) => typeof value === "object" && value !== null;
+var TRANSFORM_TYPES = /* @__PURE__ */ new Set(["generator", "asyncGenerator", "duplex", "webTransform"]);
+var FILE_TYPES = /* @__PURE__ */ new Set(["fileUrl", "filePath", "fileNumber"]);
+var SPECIAL_DUPLICATE_TYPES_SYNC = /* @__PURE__ */ new Set(["fileUrl", "filePath"]);
+var SPECIAL_DUPLICATE_TYPES = /* @__PURE__ */ new Set([...SPECIAL_DUPLICATE_TYPES_SYNC, "webStream", "nodeStream"]);
+var FORBID_DUPLICATE_TYPES = /* @__PURE__ */ new Set(["webTransform", "duplex"]);
+var TYPE_TO_MESSAGE = {
+  generator: "a generator",
+  asyncGenerator: "an async generator",
+  fileUrl: "a file URL",
+  filePath: "a file path string",
+  fileNumber: "a file descriptor number",
+  webStream: "a web stream",
+  nodeStream: "a Node.js stream",
+  webTransform: "a web TransformStream",
+  duplex: "a Duplex stream",
+  native: "any value",
+  iterable: "an iterable",
+  asyncIterable: "an async iterable",
+  string: "a string",
+  uint8Array: "a Uint8Array"
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/object-mode.js
+var getTransformObjectModes = (objectMode, index, newTransforms, direction) => direction === "output" ? getOutputObjectModes(objectMode, index, newTransforms) : getInputObjectModes(objectMode, index, newTransforms);
+var getOutputObjectModes = (objectMode, index, newTransforms) => {
+  const writableObjectMode = index !== 0 && newTransforms[index - 1].value.readableObjectMode;
+  const readableObjectMode = objectMode ?? writableObjectMode;
+  return { writableObjectMode, readableObjectMode };
+};
+var getInputObjectModes = (objectMode, index, newTransforms) => {
+  const writableObjectMode = index === 0 ? objectMode === true : newTransforms[index - 1].value.readableObjectMode;
+  const readableObjectMode = index !== newTransforms.length - 1 && (objectMode ?? writableObjectMode);
+  return { writableObjectMode, readableObjectMode };
+};
+var getFdObjectMode = (stdioItems, direction) => {
+  const lastTransform = stdioItems.findLast(({ type }) => TRANSFORM_TYPES.has(type));
+  if (lastTransform === void 0) {
+    return false;
+  }
+  return direction === "input" ? lastTransform.value.writableObjectMode : lastTransform.value.readableObjectMode;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/normalize.js
+var normalizeTransforms = (stdioItems, optionName, direction, options) => [
+  ...stdioItems.filter(({ type }) => !TRANSFORM_TYPES.has(type)),
+  ...getTransforms(stdioItems, optionName, direction, options)
+];
+var getTransforms = (stdioItems, optionName, direction, { encoding }) => {
+  const transforms = stdioItems.filter(({ type }) => TRANSFORM_TYPES.has(type));
+  const newTransforms = Array.from({ length: transforms.length });
+  for (const [index, stdioItem] of Object.entries(transforms)) {
+    newTransforms[index] = normalizeTransform({
+      stdioItem,
+      index: Number(index),
+      newTransforms,
+      optionName,
+      direction,
+      encoding
+    });
+  }
+  return sortTransforms(newTransforms, direction);
+};
+var normalizeTransform = ({ stdioItem, stdioItem: { type }, index, newTransforms, optionName, direction, encoding }) => {
+  if (type === "duplex") {
+    return normalizeDuplex({ stdioItem, optionName });
+  }
+  if (type === "webTransform") {
+    return normalizeTransformStream({
+      stdioItem,
+      index,
+      newTransforms,
+      direction
+    });
+  }
+  return normalizeGenerator({
+    stdioItem,
+    index,
+    newTransforms,
+    direction,
+    encoding
+  });
+};
+var normalizeDuplex = ({
+  stdioItem,
+  stdioItem: {
+    value: {
+      transform,
+      transform: { writableObjectMode, readableObjectMode },
+      objectMode = readableObjectMode
+    }
+  },
+  optionName
+}) => {
+  if (objectMode && !readableObjectMode) {
+    throw new TypeError(`The \`${optionName}.objectMode\` option can only be \`true\` if \`new Duplex({objectMode: true})\` is used.`);
+  }
+  if (!objectMode && readableObjectMode) {
+    throw new TypeError(`The \`${optionName}.objectMode\` option cannot be \`false\` if \`new Duplex({objectMode: true})\` is used.`);
+  }
+  return {
+    ...stdioItem,
+    value: { transform, writableObjectMode, readableObjectMode }
+  };
+};
+var normalizeTransformStream = ({ stdioItem, stdioItem: { value }, index, newTransforms, direction }) => {
+  const { transform, objectMode } = isPlainObject(value) ? value : { transform: value };
+  const { writableObjectMode, readableObjectMode } = getTransformObjectModes(objectMode, index, newTransforms, direction);
+  return {
+    ...stdioItem,
+    value: { transform, writableObjectMode, readableObjectMode }
+  };
+};
+var normalizeGenerator = ({ stdioItem, stdioItem: { value }, index, newTransforms, direction, encoding }) => {
+  const {
+    transform,
+    final,
+    binary: binaryOption = false,
+    preserveNewlines = false,
+    objectMode
+  } = isPlainObject(value) ? value : { transform: value };
+  const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
+  const { writableObjectMode, readableObjectMode } = getTransformObjectModes(objectMode, index, newTransforms, direction);
+  return {
+    ...stdioItem,
+    value: {
+      transform,
+      final,
+      binary,
+      preserveNewlines,
+      writableObjectMode,
+      readableObjectMode
+    }
+  };
+};
+var sortTransforms = (newTransforms, direction) => direction === "input" ? newTransforms.reverse() : newTransforms;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/direction.js
+import process8 from "node:process";
+var getStreamDirection = (stdioItems, fdNumber, optionName) => {
+  const directions = stdioItems.map((stdioItem) => getStdioItemDirection(stdioItem, fdNumber));
+  if (directions.includes("input") && directions.includes("output")) {
+    throw new TypeError(`The \`${optionName}\` option must not be an array of both readable and writable values.`);
+  }
+  return directions.find(Boolean) ?? DEFAULT_DIRECTION;
+};
+var getStdioItemDirection = ({ type, value }, fdNumber) => KNOWN_DIRECTIONS[fdNumber] ?? guessStreamDirection[type](value);
+var KNOWN_DIRECTIONS = ["input", "output", "output"];
+var anyDirection = () => void 0;
+var alwaysInput = () => "input";
+var guessStreamDirection = {
+  generator: anyDirection,
+  asyncGenerator: anyDirection,
+  fileUrl: anyDirection,
+  filePath: anyDirection,
+  iterable: alwaysInput,
+  asyncIterable: alwaysInput,
+  uint8Array: alwaysInput,
+  webStream: (value) => isWritableStream2(value) ? "output" : "input",
+  nodeStream(value) {
+    if (!isReadableStream(value, { checkOpen: false })) {
+      return "output";
+    }
+    return isWritableStream(value, { checkOpen: false }) ? void 0 : "input";
+  },
+  webTransform: anyDirection,
+  duplex: anyDirection,
+  native(value) {
+    const standardStreamDirection = getStandardStreamDirection(value);
+    if (standardStreamDirection !== void 0) {
+      return standardStreamDirection;
+    }
+    if (isStream(value, { checkOpen: false })) {
+      return guessStreamDirection.nodeStream(value);
+    }
+  }
+};
+var getStandardStreamDirection = (value) => {
+  if ([0, process8.stdin].includes(value)) {
+    return "input";
+  }
+  if ([1, 2, process8.stdout, process8.stderr].includes(value)) {
+    return "output";
+  }
+};
+var DEFAULT_DIRECTION = "output";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/array.js
+var normalizeIpcStdioArray = (stdioArray, ipc) => ipc && !stdioArray.includes("ipc") ? [...stdioArray, "ipc"] : stdioArray;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/stdio-option.js
+var normalizeStdioOption = ({ stdio, ipc, buffer, ...options }, verboseInfo, isSync) => {
+  const stdioArray = getStdioArray(stdio, options).map((stdioOption, fdNumber) => addDefaultValue2(stdioOption, fdNumber));
+  return isSync ? normalizeStdioSync(stdioArray, buffer, verboseInfo) : normalizeIpcStdioArray(stdioArray, ipc);
+};
+var getStdioArray = (stdio, options) => {
+  if (stdio === void 0) {
+    return STANDARD_STREAMS_ALIASES.map((alias) => options[alias]);
+  }
+  if (hasAlias(options)) {
+    throw new Error(`It's not possible to provide \`stdio\` in combination with one of ${STANDARD_STREAMS_ALIASES.map((alias) => `\`${alias}\``).join(", ")}`);
+  }
+  if (typeof stdio === "string") {
+    return [stdio, stdio, stdio];
+  }
+  if (!Array.isArray(stdio)) {
+    throw new TypeError(`Expected \`stdio\` to be of type \`string\` or \`Array\`, got \`${typeof stdio}\``);
+  }
+  const length = Math.max(stdio.length, STANDARD_STREAMS_ALIASES.length);
+  return Array.from({ length }, (_, fdNumber) => stdio[fdNumber]);
+};
+var hasAlias = (options) => STANDARD_STREAMS_ALIASES.some((alias) => options[alias] !== void 0);
+var addDefaultValue2 = (stdioOption, fdNumber) => {
+  if (Array.isArray(stdioOption)) {
+    return stdioOption.map((item) => addDefaultValue2(item, fdNumber));
+  }
+  if (stdioOption === null || stdioOption === void 0) {
+    return fdNumber >= STANDARD_STREAMS_ALIASES.length ? "ignore" : "pipe";
+  }
+  return stdioOption;
+};
+var normalizeStdioSync = (stdioArray, buffer, verboseInfo) => stdioArray.map((stdioOption, fdNumber) => !buffer[fdNumber] && fdNumber !== 0 && !isFullVerbose(verboseInfo, fdNumber) && isOutputPipeOnly(stdioOption) ? "ignore" : stdioOption);
+var isOutputPipeOnly = (stdioOption) => stdioOption === "pipe" || Array.isArray(stdioOption) && stdioOption.every((item) => item === "pipe");
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/native.js
+import { readFileSync } from "node:fs";
+import tty2 from "node:tty";
+var handleNativeStream = ({ stdioItem, stdioItem: { type }, isStdioArray, fdNumber, direction, isSync }) => {
+  if (!isStdioArray || type !== "native") {
+    return stdioItem;
+  }
+  return isSync ? handleNativeStreamSync({ stdioItem, fdNumber, direction }) : handleNativeStreamAsync({ stdioItem, fdNumber });
+};
+var handleNativeStreamSync = ({ stdioItem, stdioItem: { value, optionName }, fdNumber, direction }) => {
+  const targetFd = getTargetFd({
+    value,
+    optionName,
+    fdNumber,
+    direction
+  });
+  if (targetFd !== void 0) {
+    return targetFd;
+  }
+  if (isStream(value, { checkOpen: false })) {
+    throw new TypeError(`The \`${optionName}: Stream\` option cannot both be an array and include a stream with synchronous methods.`);
+  }
+  return stdioItem;
+};
+var getTargetFd = ({ value, optionName, fdNumber, direction }) => {
+  const targetFdNumber = getTargetFdNumber(value, fdNumber);
+  if (targetFdNumber === void 0) {
+    return;
+  }
+  if (direction === "output") {
+    return { type: "fileNumber", value: targetFdNumber, optionName };
+  }
+  if (tty2.isatty(targetFdNumber)) {
+    throw new TypeError(`The \`${optionName}: ${serializeOptionValue(value)}\` option is invalid: it cannot be a TTY with synchronous methods.`);
+  }
+  return { type: "uint8Array", value: bufferToUint8Array(readFileSync(targetFdNumber)), optionName };
+};
+var getTargetFdNumber = (value, fdNumber) => {
+  if (value === "inherit") {
+    return fdNumber;
+  }
+  if (typeof value === "number") {
+    return value;
+  }
+  const standardStreamIndex = STANDARD_STREAMS.indexOf(value);
+  if (standardStreamIndex !== -1) {
+    return standardStreamIndex;
+  }
+};
+var handleNativeStreamAsync = ({ stdioItem, stdioItem: { value, optionName }, fdNumber }) => {
+  if (value === "inherit") {
+    return { type: "nodeStream", value: getStandardStream(fdNumber, value, optionName), optionName };
+  }
+  if (typeof value === "number") {
+    return { type: "nodeStream", value: getStandardStream(value, value, optionName), optionName };
+  }
+  if (isStream(value, { checkOpen: false })) {
+    return { type: "nodeStream", value, optionName };
+  }
+  return stdioItem;
+};
+var getStandardStream = (fdNumber, value, optionName) => {
+  const standardStream = STANDARD_STREAMS[fdNumber];
+  if (standardStream === void 0) {
+    throw new TypeError(`The \`${optionName}: ${value}\` option is invalid: no such standard stream.`);
+  }
+  return standardStream;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/input-option.js
+var handleInputOptions = ({ input, inputFile }, fdNumber) => fdNumber === 0 ? [
+  ...handleInputOption(input),
+  ...handleInputFileOption(inputFile)
+] : [];
+var handleInputOption = (input) => input === void 0 ? [] : [{
+  type: getInputType(input),
+  value: input,
+  optionName: "input"
+}];
+var getInputType = (input) => {
+  if (isReadableStream(input, { checkOpen: false })) {
+    return "nodeStream";
+  }
+  if (typeof input === "string") {
+    return "string";
+  }
+  if (isUint8Array(input)) {
+    return "uint8Array";
+  }
+  throw new Error("The `input` option must be a string, a Uint8Array or a Node.js Readable stream.");
+};
+var handleInputFileOption = (inputFile) => inputFile === void 0 ? [] : [{
+  ...getInputFileType(inputFile),
+  optionName: "inputFile"
+}];
+var getInputFileType = (inputFile) => {
+  if (isUrl(inputFile)) {
+    return { type: "fileUrl", value: inputFile };
+  }
+  if (isFilePathString(inputFile)) {
+    return { type: "filePath", value: { file: inputFile } };
+  }
+  throw new Error("The `inputFile` option must be a file path string or a file URL.");
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/duplicate.js
+var filterDuplicates = (stdioItems) => stdioItems.filter((stdioItemOne, indexOne) => stdioItems.every((stdioItemTwo, indexTwo) => stdioItemOne.value !== stdioItemTwo.value || indexOne >= indexTwo || stdioItemOne.type === "generator" || stdioItemOne.type === "asyncGenerator"));
+var getDuplicateStream = ({ stdioItem: { type, value, optionName }, direction, fileDescriptors, isSync }) => {
+  const otherStdioItems = getOtherStdioItems(fileDescriptors, type);
+  if (otherStdioItems.length === 0) {
+    return;
+  }
+  if (isSync) {
+    validateDuplicateStreamSync({
+      otherStdioItems,
+      type,
+      value,
+      optionName,
+      direction
+    });
+    return;
+  }
+  if (SPECIAL_DUPLICATE_TYPES.has(type)) {
+    return getDuplicateStreamInstance({
+      otherStdioItems,
+      type,
+      value,
+      optionName,
+      direction
+    });
+  }
+  if (FORBID_DUPLICATE_TYPES.has(type)) {
+    validateDuplicateTransform({
+      otherStdioItems,
+      type,
+      value,
+      optionName
+    });
+  }
+};
+var getOtherStdioItems = (fileDescriptors, type) => fileDescriptors.flatMap(({ direction, stdioItems }) => stdioItems.filter((stdioItem) => stdioItem.type === type).map(((stdioItem) => ({ ...stdioItem, direction }))));
+var validateDuplicateStreamSync = ({ otherStdioItems, type, value, optionName, direction }) => {
+  if (SPECIAL_DUPLICATE_TYPES_SYNC.has(type)) {
+    getDuplicateStreamInstance({
+      otherStdioItems,
+      type,
+      value,
+      optionName,
+      direction
+    });
+  }
+};
+var getDuplicateStreamInstance = ({ otherStdioItems, type, value, optionName, direction }) => {
+  const duplicateStdioItems = otherStdioItems.filter((stdioItem) => hasSameValue(stdioItem, value));
+  if (duplicateStdioItems.length === 0) {
+    return;
+  }
+  const differentStdioItem = duplicateStdioItems.find((stdioItem) => stdioItem.direction !== direction);
+  throwOnDuplicateStream(differentStdioItem, optionName, type);
+  return direction === "output" ? duplicateStdioItems[0].stream : void 0;
+};
+var hasSameValue = ({ type, value }, secondValue) => {
+  if (type === "filePath") {
+    return value.file === secondValue.file;
+  }
+  if (type === "fileUrl") {
+    return value.href === secondValue.href;
+  }
+  return value === secondValue;
+};
+var validateDuplicateTransform = ({ otherStdioItems, type, value, optionName }) => {
+  const duplicateStdioItem = otherStdioItems.find(({ value: { transform } }) => transform === value.transform);
+  throwOnDuplicateStream(duplicateStdioItem, optionName, type);
+};
+var throwOnDuplicateStream = (stdioItem, optionName, type) => {
+  if (stdioItem !== void 0) {
+    throw new TypeError(`The \`${stdioItem.optionName}\` and \`${optionName}\` options must not target ${TYPE_TO_MESSAGE[type]} that is the same.`);
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/handle.js
+var handleStdio = (addProperties3, options, verboseInfo, isSync) => {
+  const stdio = normalizeStdioOption(options, verboseInfo, isSync);
+  const initialFileDescriptors = stdio.map((stdioOption, fdNumber) => getFileDescriptor({
+    stdioOption,
+    fdNumber,
+    options,
+    isSync
+  }));
+  const fileDescriptors = getFinalFileDescriptors({
+    initialFileDescriptors,
+    addProperties: addProperties3,
+    options,
+    isSync
+  });
+  options.stdio = fileDescriptors.map(({ stdioItems }) => forwardStdio(stdioItems));
+  return fileDescriptors;
+};
+var getFileDescriptor = ({ stdioOption, fdNumber, options, isSync }) => {
+  const optionName = getStreamName(fdNumber);
+  const { stdioItems: initialStdioItems, isStdioArray } = initializeStdioItems({
+    stdioOption,
+    fdNumber,
+    options,
+    optionName
+  });
+  const direction = getStreamDirection(initialStdioItems, fdNumber, optionName);
+  const stdioItems = initialStdioItems.map((stdioItem) => handleNativeStream({
+    stdioItem,
+    isStdioArray,
+    fdNumber,
+    direction,
+    isSync
+  }));
+  const normalizedStdioItems = normalizeTransforms(stdioItems, optionName, direction, options);
+  const objectMode = getFdObjectMode(normalizedStdioItems, direction);
+  validateFileObjectMode(normalizedStdioItems, objectMode);
+  return { direction, objectMode, stdioItems: normalizedStdioItems };
+};
+var initializeStdioItems = ({ stdioOption, fdNumber, options, optionName }) => {
+  const values = Array.isArray(stdioOption) ? stdioOption : [stdioOption];
+  const initialStdioItems = [
+    ...values.map((value) => initializeStdioItem(value, optionName)),
+    ...handleInputOptions(options, fdNumber)
+  ];
+  const stdioItems = filterDuplicates(initialStdioItems);
+  const isStdioArray = stdioItems.length > 1;
+  validateStdioArray(stdioItems, isStdioArray, optionName);
+  validateStreams(stdioItems);
+  return { stdioItems, isStdioArray };
+};
+var initializeStdioItem = (value, optionName) => ({
+  type: getStdioItemType(value, optionName),
+  value,
+  optionName
+});
+var validateStdioArray = (stdioItems, isStdioArray, optionName) => {
+  if (stdioItems.length === 0) {
+    throw new TypeError(`The \`${optionName}\` option must not be an empty array.`);
+  }
+  if (!isStdioArray) {
+    return;
+  }
+  for (const { value, optionName: optionName2 } of stdioItems) {
+    if (INVALID_STDIO_ARRAY_OPTIONS.has(value)) {
+      throw new Error(`The \`${optionName2}\` option must not include \`${value}\`.`);
+    }
+  }
+};
+var INVALID_STDIO_ARRAY_OPTIONS = /* @__PURE__ */ new Set(["ignore", "ipc"]);
+var validateStreams = (stdioItems) => {
+  for (const stdioItem of stdioItems) {
+    validateFileStdio(stdioItem);
+  }
+};
+var validateFileStdio = ({ type, value, optionName }) => {
+  if (isRegularUrl(value)) {
+    throw new TypeError(`The \`${optionName}: URL\` option must use the \`file:\` scheme.
+For example, you can use the \`pathToFileURL()\` method of the \`url\` core module.`);
+  }
+  if (isUnknownStdioString(type, value)) {
+    throw new TypeError(`The \`${optionName}: { file: '...' }\` option must be used instead of \`${optionName}: '...'\`.`);
+  }
+};
+var validateFileObjectMode = (stdioItems, objectMode) => {
+  if (!objectMode) {
+    return;
+  }
+  const fileStdioItem = stdioItems.find(({ type }) => FILE_TYPES.has(type));
+  if (fileStdioItem !== void 0) {
+    throw new TypeError(`The \`${fileStdioItem.optionName}\` option cannot use both files and transforms in objectMode.`);
+  }
+};
+var getFinalFileDescriptors = ({ initialFileDescriptors, addProperties: addProperties3, options, isSync }) => {
+  const fileDescriptors = [];
+  try {
+    for (const fileDescriptor of initialFileDescriptors) {
+      fileDescriptors.push(getFinalFileDescriptor({
+        fileDescriptor,
+        fileDescriptors,
+        addProperties: addProperties3,
+        options,
+        isSync
+      }));
+    }
+    return fileDescriptors;
+  } catch (error) {
+    cleanupCustomStreams(fileDescriptors);
+    throw error;
+  }
+};
+var getFinalFileDescriptor = ({
+  fileDescriptor: { direction, objectMode, stdioItems },
+  fileDescriptors,
+  addProperties: addProperties3,
+  options,
+  isSync
+}) => {
+  const finalStdioItems = stdioItems.map((stdioItem) => addStreamProperties({
+    stdioItem,
+    addProperties: addProperties3,
+    direction,
+    options,
+    fileDescriptors,
+    isSync
+  }));
+  return { direction, objectMode, stdioItems: finalStdioItems };
+};
+var addStreamProperties = ({ stdioItem, addProperties: addProperties3, direction, options, fileDescriptors, isSync }) => {
+  const duplicateStream = getDuplicateStream({
+    stdioItem,
+    direction,
+    fileDescriptors,
+    isSync
+  });
+  if (duplicateStream !== void 0) {
+    return { ...stdioItem, stream: duplicateStream };
+  }
+  return {
+    ...stdioItem,
+    ...addProperties3[direction][stdioItem.type](stdioItem, options)
+  };
+};
+var cleanupCustomStreams = (fileDescriptors) => {
+  for (const { stdioItems } of fileDescriptors) {
+    for (const { stream } of stdioItems) {
+      if (stream !== void 0 && !isStandardStream(stream)) {
+        stream.destroy();
+      }
+    }
+  }
+};
+var forwardStdio = (stdioItems) => {
+  if (stdioItems.length > 1) {
+    return stdioItems.some(({ value: value2 }) => value2 === "overlapped") ? "overlapped" : "pipe";
+  }
+  const [{ type, value }] = stdioItems;
+  return type === "native" ? value : "pipe";
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/handle-sync.js
+var handleStdioSync = (options, verboseInfo) => handleStdio(addPropertiesSync, options, verboseInfo, true);
+var forbiddenIfSync = ({ type, optionName }) => {
+  throwInvalidSyncValue(optionName, TYPE_TO_MESSAGE[type]);
+};
+var forbiddenNativeIfSync = ({ optionName, value }) => {
+  if (value === "ipc" || value === "overlapped") {
+    throwInvalidSyncValue(optionName, `"${value}"`);
+  }
+  return {};
+};
+var throwInvalidSyncValue = (optionName, value) => {
+  throw new TypeError(`The \`${optionName}\` option cannot be ${value} with synchronous methods.`);
+};
+var addProperties = {
+  generator() {
+  },
+  asyncGenerator: forbiddenIfSync,
+  webStream: forbiddenIfSync,
+  nodeStream: forbiddenIfSync,
+  webTransform: forbiddenIfSync,
+  duplex: forbiddenIfSync,
+  asyncIterable: forbiddenIfSync,
+  native: forbiddenNativeIfSync
+};
+var addPropertiesSync = {
+  input: {
+    ...addProperties,
+    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync2(value))] }),
+    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync2(file))] }),
+    fileNumber: forbiddenIfSync,
+    iterable: ({ value }) => ({ contents: [...value] }),
+    string: ({ value }) => ({ contents: [value] }),
+    uint8Array: ({ value }) => ({ contents: [value] })
+  },
+  output: {
+    ...addProperties,
+    fileUrl: ({ value }) => ({ path: value }),
+    filePath: ({ value: { file, append } }) => ({ path: file, append }),
+    fileNumber: ({ value }) => ({ path: value }),
+    iterable: forbiddenIfSync,
+    string: forbiddenIfSync,
+    uint8Array: forbiddenIfSync
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/strip-newline.js
+var stripNewline = (value, { stripFinalNewline: stripFinalNewline2 }, fdNumber) => getStripFinalNewline(stripFinalNewline2, fdNumber) && value !== void 0 && !Array.isArray(value) ? stripFinalNewline(value) : value;
+var getStripFinalNewline = (stripFinalNewline2, fdNumber) => fdNumber === "all" ? stripFinalNewline2[1] || stripFinalNewline2[2] : stripFinalNewline2[fdNumber];
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/generator.js
+import { Transform, getDefaultHighWaterMark } from "node:stream";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/split.js
+var getSplitLinesGenerator = (binary, preserveNewlines, skipped, state) => binary || skipped ? void 0 : initializeSplitLines(preserveNewlines, state);
+var splitLinesSync = (chunk, preserveNewlines, objectMode) => objectMode ? chunk.flatMap((item) => splitLinesItemSync(item, preserveNewlines)) : splitLinesItemSync(chunk, preserveNewlines);
+var splitLinesItemSync = (chunk, preserveNewlines) => {
+  const { transform, final } = initializeSplitLines(preserveNewlines, {});
+  return [...transform(chunk), ...final()];
+};
+var initializeSplitLines = (preserveNewlines, state) => {
+  state.previousChunks = "";
+  return {
+    transform: splitGenerator.bind(void 0, state, preserveNewlines),
+    final: linesFinal.bind(void 0, state)
+  };
+};
+var splitGenerator = function* (state, preserveNewlines, chunk) {
+  if (typeof chunk !== "string") {
+    yield chunk;
+    return;
+  }
+  let { previousChunks } = state;
+  let start = -1;
+  for (let end = 0; end < chunk.length; end += 1) {
+    if (chunk[end] === "\n") {
+      const newlineLength = getNewlineLength(chunk, end, preserveNewlines, state);
+      let line = chunk.slice(start + 1, end + 1 - newlineLength);
+      if (previousChunks.length > 0) {
+        line = concatString(previousChunks, line);
+        previousChunks = "";
+      }
+      yield line;
+      start = end;
+    }
+  }
+  if (start !== chunk.length - 1) {
+    previousChunks = concatString(previousChunks, chunk.slice(start + 1));
+  }
+  state.previousChunks = previousChunks;
+};
+var getNewlineLength = (chunk, end, preserveNewlines, state) => {
+  if (preserveNewlines) {
+    return 0;
+  }
+  state.isWindowsNewline = end !== 0 && chunk[end - 1] === "\r";
+  return state.isWindowsNewline ? 2 : 1;
+};
+var linesFinal = function* ({ previousChunks }) {
+  if (previousChunks.length > 0) {
+    yield previousChunks;
+  }
+};
+var getAppendNewlineGenerator = ({ binary, preserveNewlines, readableObjectMode, state }) => binary || preserveNewlines || readableObjectMode ? void 0 : { transform: appendNewlineGenerator.bind(void 0, state) };
+var appendNewlineGenerator = function* ({ isWindowsNewline = false }, chunk) {
+  const { unixNewline, windowsNewline, LF: LF2, concatBytes } = typeof chunk === "string" ? linesStringInfo : linesUint8ArrayInfo;
+  if (chunk.at(-1) === LF2) {
+    yield chunk;
+    return;
+  }
+  const newline = isWindowsNewline ? windowsNewline : unixNewline;
+  yield concatBytes(chunk, newline);
+};
+var concatString = (firstChunk, secondChunk) => `${firstChunk}${secondChunk}`;
+var linesStringInfo = {
+  windowsNewline: "\r\n",
+  unixNewline: "\n",
+  LF: "\n",
+  concatBytes: concatString
+};
+var concatUint8Array = (firstChunk, secondChunk) => {
+  const chunk = new Uint8Array(firstChunk.length + secondChunk.length);
+  chunk.set(firstChunk, 0);
+  chunk.set(secondChunk, firstChunk.length);
+  return chunk;
+};
+var linesUint8ArrayInfo = {
+  windowsNewline: new Uint8Array([13, 10]),
+  unixNewline: new Uint8Array([10]),
+  LF: 10,
+  concatBytes: concatUint8Array
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/validate.js
+import { Buffer as Buffer2 } from "node:buffer";
+var getValidateTransformInput = (writableObjectMode, optionName) => writableObjectMode ? void 0 : validateStringTransformInput.bind(void 0, optionName);
+var validateStringTransformInput = function* (optionName, chunk) {
+  if (typeof chunk !== "string" && !isUint8Array(chunk) && !Buffer2.isBuffer(chunk)) {
+    throw new TypeError(`The \`${optionName}\` option's transform must use "objectMode: true" to receive as input: ${typeof chunk}.`);
+  }
+  yield chunk;
+};
+var getValidateTransformReturn = (readableObjectMode, optionName) => readableObjectMode ? validateObjectTransformReturn.bind(void 0, optionName) : validateStringTransformReturn.bind(void 0, optionName);
+var validateObjectTransformReturn = function* (optionName, chunk) {
+  validateEmptyReturn(optionName, chunk);
+  yield chunk;
+};
+var validateStringTransformReturn = function* (optionName, chunk) {
+  validateEmptyReturn(optionName, chunk);
+  if (typeof chunk !== "string" && !isUint8Array(chunk)) {
+    throw new TypeError(`The \`${optionName}\` option's function must yield a string or an Uint8Array, not ${typeof chunk}.`);
+  }
+  yield chunk;
+};
+var validateEmptyReturn = (optionName, chunk) => {
+  if (chunk === null || chunk === void 0) {
+    throw new TypeError(`The \`${optionName}\` option's function must not call \`yield ${chunk}\`.
+Instead, \`yield\` should either be called with a value, or not be called at all. For example:
+  if (condition) { yield value; }`);
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/encoding-transform.js
+import { Buffer as Buffer3 } from "node:buffer";
+import { StringDecoder as StringDecoder3 } from "node:string_decoder";
+var getEncodingTransformGenerator = (binary, encoding, skipped) => {
+  if (skipped) {
+    return;
+  }
+  if (binary) {
+    return { transform: encodingUint8ArrayGenerator.bind(void 0, new TextEncoder()) };
+  }
+  const stringDecoder = new StringDecoder3(encoding);
+  return {
+    transform: encodingStringGenerator.bind(void 0, stringDecoder),
+    final: encodingStringFinal.bind(void 0, stringDecoder)
+  };
+};
+var encodingUint8ArrayGenerator = function* (textEncoder3, chunk) {
+  if (Buffer3.isBuffer(chunk)) {
+    yield bufferToUint8Array(chunk);
+  } else if (typeof chunk === "string") {
+    yield textEncoder3.encode(chunk);
+  } else {
+    yield chunk;
+  }
+};
+var encodingStringGenerator = function* (stringDecoder, chunk) {
+  yield isUint8Array(chunk) ? stringDecoder.write(chunk) : chunk;
+};
+var encodingStringFinal = function* (stringDecoder) {
+  const lastChunk = stringDecoder.end();
+  if (lastChunk !== "") {
+    yield lastChunk;
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/run-async.js
+import { callbackify } from "node:util";
+var pushChunks = callbackify(async (getChunks, state, getChunksArguments, transformStream) => {
+  state.currentIterable = getChunks(...getChunksArguments);
+  try {
+    for await (const chunk of state.currentIterable) {
+      transformStream.push(chunk);
+    }
+  } finally {
+    delete state.currentIterable;
+  }
+});
+var transformChunk = async function* (chunk, generators, index) {
+  if (index === generators.length) {
+    yield chunk;
+    return;
+  }
+  const { transform = identityGenerator } = generators[index];
+  for await (const transformedChunk of transform(chunk)) {
+    yield* transformChunk(transformedChunk, generators, index + 1);
+  }
+};
+var finalChunks = async function* (generators) {
+  for (const [index, { final }] of Object.entries(generators)) {
+    yield* generatorFinalChunks(final, Number(index), generators);
+  }
+};
+var generatorFinalChunks = async function* (final, index, generators) {
+  if (final === void 0) {
+    return;
+  }
+  for await (const finalChunk of final()) {
+    yield* transformChunk(finalChunk, generators, index + 1);
+  }
+};
+var destroyTransform = callbackify(async ({ currentIterable }, error) => {
+  if (currentIterable !== void 0) {
+    await (error ? currentIterable.throw(error) : currentIterable.return());
+    return;
+  }
+  if (error) {
+    throw error;
+  }
+});
+var identityGenerator = function* (chunk) {
+  yield chunk;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/run-sync.js
+var pushChunksSync = (getChunksSync, getChunksArguments, transformStream, done) => {
+  try {
+    for (const chunk of getChunksSync(...getChunksArguments)) {
+      transformStream.push(chunk);
+    }
+    done();
+  } catch (error) {
+    done(error);
+  }
+};
+var runTransformSync = (generators, chunks) => [
+  ...chunks.flatMap((chunk) => [...transformChunkSync(chunk, generators, 0)]),
+  ...finalChunksSync(generators)
+];
+var transformChunkSync = function* (chunk, generators, index) {
+  if (index === generators.length) {
+    yield chunk;
+    return;
+  }
+  const { transform = identityGenerator2 } = generators[index];
+  for (const transformedChunk of transform(chunk)) {
+    yield* transformChunkSync(transformedChunk, generators, index + 1);
+  }
+};
+var finalChunksSync = function* (generators) {
+  for (const [index, { final }] of Object.entries(generators)) {
+    yield* generatorFinalChunksSync(final, Number(index), generators);
+  }
+};
+var generatorFinalChunksSync = function* (final, index, generators) {
+  if (final === void 0) {
+    return;
+  }
+  for (const finalChunk of final()) {
+    yield* transformChunkSync(finalChunk, generators, index + 1);
+  }
+};
+var identityGenerator2 = function* (chunk) {
+  yield chunk;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/transform/generator.js
+var generatorToStream = ({
+  value,
+  value: { transform, final, writableObjectMode, readableObjectMode },
+  optionName
+}, { encoding }) => {
+  const state = {};
+  const generators = addInternalGenerators(value, encoding, optionName);
+  const transformAsync = isAsyncGenerator(transform);
+  const finalAsync = isAsyncGenerator(final);
+  const transformMethod = transformAsync ? pushChunks.bind(void 0, transformChunk, state) : pushChunksSync.bind(void 0, transformChunkSync);
+  const finalMethod = transformAsync || finalAsync ? pushChunks.bind(void 0, finalChunks, state) : pushChunksSync.bind(void 0, finalChunksSync);
+  const destroyMethod = transformAsync || finalAsync ? destroyTransform.bind(void 0, state) : void 0;
+  const stream = new Transform({
+    writableObjectMode,
+    writableHighWaterMark: getDefaultHighWaterMark(writableObjectMode),
+    readableObjectMode,
+    readableHighWaterMark: getDefaultHighWaterMark(readableObjectMode),
+    transform(chunk, encoding2, done) {
+      transformMethod([chunk, generators, 0], this, done);
+    },
+    flush(done) {
+      finalMethod([generators], this, done);
+    },
+    destroy: destroyMethod
+  });
+  return { stream };
+};
+var runGeneratorsSync = (chunks, stdioItems, encoding, isInput) => {
+  const generators = stdioItems.filter(({ type }) => type === "generator");
+  const reversedGenerators = isInput ? generators.reverse() : generators;
+  for (const { value, optionName } of reversedGenerators) {
+    const generators2 = addInternalGenerators(value, encoding, optionName);
+    chunks = runTransformSync(generators2, chunks);
+  }
+  return chunks;
+};
+var addInternalGenerators = ({ transform, final, binary, writableObjectMode, readableObjectMode, preserveNewlines }, encoding, optionName) => {
+  const state = {};
+  return [
+    { transform: getValidateTransformInput(writableObjectMode, optionName) },
+    getEncodingTransformGenerator(binary, encoding, writableObjectMode),
+    getSplitLinesGenerator(binary, preserveNewlines, writableObjectMode, state),
+    { transform, final },
+    { transform: getValidateTransformReturn(readableObjectMode, optionName) },
+    getAppendNewlineGenerator({
+      binary,
+      preserveNewlines,
+      readableObjectMode,
+      state
+    })
+  ].filter(Boolean);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/input-sync.js
+var addInputOptionsSync = (fileDescriptors, options) => {
+  for (const fdNumber of getInputFdNumbers(fileDescriptors)) {
+    addInputOptionSync(fileDescriptors, fdNumber, options);
+  }
+};
+var getInputFdNumbers = (fileDescriptors) => new Set(Object.entries(fileDescriptors).filter(([, { direction }]) => direction === "input").map(([fdNumber]) => Number(fdNumber)));
+var addInputOptionSync = (fileDescriptors, fdNumber, options) => {
+  const { stdioItems } = fileDescriptors[fdNumber];
+  const allStdioItems = stdioItems.filter(({ contents }) => contents !== void 0);
+  if (allStdioItems.length === 0) {
+    return;
+  }
+  if (fdNumber !== 0) {
+    const [{ type, optionName }] = allStdioItems;
+    throw new TypeError(`Only the \`stdin\` option, not \`${optionName}\`, can be ${TYPE_TO_MESSAGE[type]} with synchronous methods.`);
+  }
+  const allContents = allStdioItems.map(({ contents }) => contents);
+  const transformedContents = allContents.map((contents) => applySingleInputGeneratorsSync(contents, stdioItems));
+  options.input = joinToUint8Array(transformedContents);
+};
+var applySingleInputGeneratorsSync = (contents, stdioItems) => {
+  const newContents = runGeneratorsSync(contents, stdioItems, "utf8", true);
+  validateSerializable(newContents);
+  return joinToUint8Array(newContents);
+};
+var validateSerializable = (newContents) => {
+  const invalidItem = newContents.find((item) => typeof item !== "string" && !isUint8Array(item));
+  if (invalidItem !== void 0) {
+    throw new TypeError(`The \`stdin\` option is invalid: when passing objects as input, a transform must be used to serialize them to strings or Uint8Arrays: ${invalidItem}.`);
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/output-sync.js
+import { writeFileSync, appendFileSync } from "node:fs";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/output.js
+var shouldLogOutput = ({ stdioItems, encoding, verboseInfo, fdNumber }) => fdNumber !== "all" && isFullVerbose(verboseInfo, fdNumber) && !BINARY_ENCODINGS.has(encoding) && fdUsesVerbose(fdNumber) && (stdioItems.some(({ type, value }) => type === "native" && PIPED_STDIO_VALUES.has(value)) || stdioItems.every(({ type }) => TRANSFORM_TYPES.has(type)));
+var fdUsesVerbose = (fdNumber) => fdNumber === 1 || fdNumber === 2;
+var PIPED_STDIO_VALUES = /* @__PURE__ */ new Set(["pipe", "overlapped"]);
+var logLines = async (linesIterable, stream, fdNumber, verboseInfo) => {
+  for await (const line of linesIterable) {
+    if (!isPipingStream(stream)) {
+      logLine(line, fdNumber, verboseInfo);
+    }
+  }
+};
+var logLinesSync = (linesArray, fdNumber, verboseInfo) => {
+  for (const line of linesArray) {
+    logLine(line, fdNumber, verboseInfo);
+  }
+};
+var isPipingStream = (stream) => stream._readableState.pipes.length > 0;
+var logLine = (line, fdNumber, verboseInfo) => {
+  const verboseMessage = serializeVerboseMessage(line);
+  verboseLog({
+    type: "output",
+    verboseMessage,
+    fdNumber,
+    verboseInfo
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/output-sync.js
+var transformOutputSync = ({ fileDescriptors, syncResult: { output }, options, isMaxBuffer, verboseInfo }) => {
+  if (output === null) {
+    return { output: Array.from({ length: 3 }) };
+  }
+  const state = {};
+  const outputFiles = /* @__PURE__ */ new Set([]);
+  const transformedOutput = output.map((result, fdNumber) => transformOutputResultSync({
+    result,
+    fileDescriptors,
+    fdNumber,
+    state,
+    outputFiles,
+    isMaxBuffer,
+    verboseInfo
+  }, options));
+  return { output: transformedOutput, ...state };
+};
+var transformOutputResultSync = ({ result, fileDescriptors, fdNumber, state, outputFiles, isMaxBuffer, verboseInfo }, { buffer, encoding, lines, stripFinalNewline: stripFinalNewline2, maxBuffer }) => {
+  if (result === null) {
+    return;
+  }
+  const truncatedResult = truncateMaxBufferSync(result, isMaxBuffer, maxBuffer);
+  const uint8ArrayResult = bufferToUint8Array(truncatedResult);
+  const { stdioItems, objectMode } = fileDescriptors[fdNumber];
+  const chunks = runOutputGeneratorsSync([uint8ArrayResult], stdioItems, encoding, state);
+  const { serializedResult, finalResult = serializedResult } = serializeChunks({
+    chunks,
+    objectMode,
+    encoding,
+    lines,
+    stripFinalNewline: stripFinalNewline2,
+    fdNumber
+  });
+  logOutputSync({
+    serializedResult,
+    fdNumber,
+    state,
+    verboseInfo,
+    encoding,
+    stdioItems,
+    objectMode
+  });
+  const returnedResult = buffer[fdNumber] ? finalResult : void 0;
+  try {
+    if (state.error === void 0) {
+      writeToFiles(serializedResult, stdioItems, outputFiles);
+    }
+    return returnedResult;
+  } catch (error) {
+    state.error = error;
+    return returnedResult;
+  }
+};
+var runOutputGeneratorsSync = (chunks, stdioItems, encoding, state) => {
+  try {
+    return runGeneratorsSync(chunks, stdioItems, encoding, false);
+  } catch (error) {
+    state.error = error;
+    return chunks;
+  }
+};
+var serializeChunks = ({ chunks, objectMode, encoding, lines, stripFinalNewline: stripFinalNewline2, fdNumber }) => {
+  if (objectMode) {
+    return { serializedResult: chunks };
+  }
+  if (encoding === "buffer") {
+    return { serializedResult: joinToUint8Array(chunks) };
+  }
+  const serializedResult = joinToString(chunks, encoding);
+  if (lines[fdNumber]) {
+    return { serializedResult, finalResult: splitLinesSync(serializedResult, !stripFinalNewline2[fdNumber], objectMode) };
+  }
+  return { serializedResult };
+};
+var logOutputSync = ({ serializedResult, fdNumber, state, verboseInfo, encoding, stdioItems, objectMode }) => {
+  if (!shouldLogOutput({
+    stdioItems,
+    encoding,
+    verboseInfo,
+    fdNumber
+  })) {
+    return;
+  }
+  const linesArray = splitLinesSync(serializedResult, false, objectMode);
+  try {
+    logLinesSync(linesArray, fdNumber, verboseInfo);
+  } catch (error) {
+    state.error ??= error;
+  }
+};
+var writeToFiles = (serializedResult, stdioItems, outputFiles) => {
+  for (const { path: path12, append } of stdioItems.filter(({ type }) => FILE_TYPES.has(type))) {
+    const pathString = typeof path12 === "string" ? path12 : path12.toString();
+    if (append || outputFiles.has(pathString)) {
+      appendFileSync(path12, serializedResult);
+    } else {
+      outputFiles.add(pathString);
+      writeFileSync(path12, serializedResult);
+    }
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/all-sync.js
+var getAllSync = ([, stdout, stderr], options) => {
+  if (!options.all) {
+    return;
+  }
+  if (stdout === void 0) {
+    return stderr;
+  }
+  if (stderr === void 0) {
+    return stdout;
+  }
+  if (Array.isArray(stdout)) {
+    return Array.isArray(stderr) ? [...stdout, ...stderr] : [...stdout, stripNewline(stderr, options, "all")];
+  }
+  if (Array.isArray(stderr)) {
+    return [stripNewline(stdout, options, "all"), ...stderr];
+  }
+  if (isUint8Array(stdout) && isUint8Array(stderr)) {
+    return concatUint8Arrays([stdout, stderr]);
+  }
+  return `${stdout}${stderr}`;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/exit-async.js
+import { once as once4 } from "node:events";
+var waitForExit = async (subprocess, context) => {
+  const [exitCode, signal] = await waitForExitOrError(subprocess);
+  context.isForcefullyTerminated ??= false;
+  return [exitCode, signal];
+};
+var waitForExitOrError = async (subprocess) => {
+  const [spawnPayload, exitPayload] = await Promise.allSettled([
+    once4(subprocess, "spawn"),
+    once4(subprocess, "exit")
+  ]);
+  if (spawnPayload.status === "rejected") {
+    return [];
+  }
+  return exitPayload.status === "rejected" ? waitForSubprocessExit(subprocess) : exitPayload.value;
+};
+var waitForSubprocessExit = async (subprocess) => {
+  try {
+    return await once4(subprocess, "exit");
+  } catch {
+    return waitForSubprocessExit(subprocess);
+  }
+};
+var waitForSuccessfulExit = async (exitPromise) => {
+  const [exitCode, signal] = await exitPromise;
+  if (!isSubprocessErrorExit(exitCode, signal) && isFailedExit(exitCode, signal)) {
+    throw new DiscardedError();
+  }
+  return [exitCode, signal];
+};
+var isSubprocessErrorExit = (exitCode, signal) => exitCode === void 0 && signal === void 0;
+var isFailedExit = (exitCode, signal) => exitCode !== 0 || signal !== null;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/exit-sync.js
+var getExitResultSync = ({ error, status: exitCode, signal, output }, { maxBuffer }) => {
+  const resultError = getResultError(error, exitCode, signal);
+  const timedOut = resultError?.code === "ETIMEDOUT";
+  const isMaxBuffer = isMaxBufferSync(resultError, output, maxBuffer);
+  return {
+    resultError,
+    exitCode,
+    signal,
+    timedOut,
+    isMaxBuffer
+  };
+};
+var getResultError = (error, exitCode, signal) => {
+  if (error !== void 0) {
+    return error;
+  }
+  return isFailedExit(exitCode, signal) ? new DiscardedError() : void 0;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/main-sync.js
+var execaCoreSync = (rawFile, rawArguments, rawOptions) => {
+  const { file, commandArguments, command, escapedCommand, startTime, verboseInfo, options, fileDescriptors } = handleSyncArguments(rawFile, rawArguments, rawOptions);
+  const result = spawnSubprocessSync({
+    file,
+    commandArguments,
+    options,
+    command,
+    escapedCommand,
+    verboseInfo,
+    fileDescriptors,
+    startTime
+  });
+  return handleResult(result, verboseInfo, options);
+};
+var handleSyncArguments = (rawFile, rawArguments, rawOptions) => {
+  const { command, escapedCommand, startTime, verboseInfo } = handleCommand(rawFile, rawArguments, rawOptions);
+  const syncOptions = normalizeSyncOptions(rawOptions);
+  const { file, commandArguments, options } = normalizeOptions(rawFile, rawArguments, syncOptions);
+  validateSyncOptions(options);
+  const fileDescriptors = handleStdioSync(options, verboseInfo);
+  return {
+    file,
+    commandArguments,
+    command,
+    escapedCommand,
+    startTime,
+    verboseInfo,
+    options,
+    fileDescriptors
+  };
+};
+var normalizeSyncOptions = (options) => options.node && !options.ipc ? { ...options, ipc: false } : options;
+var validateSyncOptions = ({ ipc, ipcInput, detached, cancelSignal }) => {
+  if (ipcInput) {
+    throwInvalidSyncOption("ipcInput");
+  }
+  if (ipc) {
+    throwInvalidSyncOption("ipc: true");
+  }
+  if (detached) {
+    throwInvalidSyncOption("detached: true");
+  }
+  if (cancelSignal) {
+    throwInvalidSyncOption("cancelSignal");
+  }
+};
+var throwInvalidSyncOption = (value) => {
+  throw new TypeError(`The "${value}" option cannot be used with synchronous methods.`);
+};
+var spawnSubprocessSync = ({ file, commandArguments, options, command, escapedCommand, verboseInfo, fileDescriptors, startTime }) => {
+  const syncResult = runSubprocessSync({
+    file,
+    commandArguments,
+    options,
+    command,
+    escapedCommand,
+    fileDescriptors,
+    startTime
+  });
+  if (syncResult.failed) {
+    return syncResult;
+  }
+  const { resultError, exitCode, signal, timedOut, isMaxBuffer } = getExitResultSync(syncResult, options);
+  const { output, error = resultError } = transformOutputSync({
+    fileDescriptors,
+    syncResult,
+    options,
+    isMaxBuffer,
+    verboseInfo
+  });
+  const stdio = output.map((stdioOutput, fdNumber) => stripNewline(stdioOutput, options, fdNumber));
+  const all = stripNewline(getAllSync(output, options), options, "all");
+  return getSyncResult({
+    error,
+    exitCode,
+    signal,
+    timedOut,
+    isMaxBuffer,
+    stdio,
+    all,
+    options,
+    command,
+    escapedCommand,
+    startTime
+  });
+};
+var runSubprocessSync = ({ file, commandArguments, options, command, escapedCommand, fileDescriptors, startTime }) => {
+  try {
+    addInputOptionsSync(fileDescriptors, options);
+    const normalizedOptions = normalizeSpawnSyncOptions(options);
+    return spawnSync2(...concatenateShell(file, commandArguments, normalizedOptions));
+  } catch (error) {
+    return makeEarlyError({
+      error,
+      command,
+      escapedCommand,
+      fileDescriptors,
+      options,
+      startTime,
+      isSync: true
+    });
+  }
+};
+var normalizeSpawnSyncOptions = ({ encoding, maxBuffer, ...options }) => ({ ...options, encoding: "buffer", maxBuffer: getMaxBufferSync(maxBuffer) });
+var getSyncResult = ({ error, exitCode, signal, timedOut, isMaxBuffer, stdio, all, options, command, escapedCommand, startTime }) => error === void 0 ? makeSuccessResult({
+  command,
+  escapedCommand,
+  stdio,
+  all,
+  ipcOutput: [],
+  options,
+  startTime
+}) : makeError({
+  error,
+  command,
+  escapedCommand,
+  timedOut,
+  isCanceled: false,
+  isGracefullyCanceled: false,
+  isMaxBuffer,
+  isForcefullyTerminated: false,
+  exitCode,
+  signal,
+  stdio,
+  all,
+  ipcOutput: [],
+  options,
+  startTime,
+  isSync: true
+});
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/main-async.js
+import { setMaxListeners } from "node:events";
+import { spawn as spawn2 } from "node:child_process";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/methods.js
+import process9 from "node:process";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/get-one.js
+import { once as once5, on as on2 } from "node:events";
+var getOneMessage = ({ anyProcess, channel, isSubprocess, ipc }, { reference = true, filter } = {}) => {
+  validateIpcMethod({
+    methodName: "getOneMessage",
+    isSubprocess,
+    ipc,
+    isConnected: isConnected(anyProcess)
+  });
+  return getOneMessageAsync({
+    anyProcess,
+    channel,
+    isSubprocess,
+    filter,
+    reference
+  });
+};
+var getOneMessageAsync = async ({ anyProcess, channel, isSubprocess, filter, reference }) => {
+  addReference(channel, reference);
+  const ipcEmitter = getIpcEmitter(anyProcess, channel, isSubprocess);
+  const controller = new AbortController();
+  try {
+    return await Promise.race([
+      getMessage(ipcEmitter, filter, controller),
+      throwOnDisconnect2(ipcEmitter, isSubprocess, controller),
+      throwOnStrictError(ipcEmitter, isSubprocess, controller)
+    ]);
+  } catch (error) {
+    disconnect(anyProcess);
+    throw error;
+  } finally {
+    controller.abort();
+    removeReference(channel, reference);
+  }
+};
+var getMessage = async (ipcEmitter, filter, { signal }) => {
+  if (filter === void 0) {
+    const [message] = await once5(ipcEmitter, "message", { signal });
+    return message;
+  }
+  for await (const [message] of on2(ipcEmitter, "message", { signal })) {
+    if (filter(message)) {
+      return message;
+    }
+  }
+};
+var throwOnDisconnect2 = async (ipcEmitter, isSubprocess, { signal }) => {
+  await once5(ipcEmitter, "disconnect", { signal });
+  throwOnEarlyDisconnect(isSubprocess);
+};
+var throwOnStrictError = async (ipcEmitter, isSubprocess, { signal }) => {
+  const [error] = await once5(ipcEmitter, "strict:error", { signal });
+  throw getStrictResponseError(error, isSubprocess);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/get-each.js
+import { once as once6, on as on3 } from "node:events";
+var getEachMessage = ({ anyProcess, channel, isSubprocess, ipc }, { reference = true } = {}) => loopOnMessages({
+  anyProcess,
+  channel,
+  isSubprocess,
+  ipc,
+  shouldAwait: !isSubprocess,
+  reference
+});
+var loopOnMessages = ({ anyProcess, channel, isSubprocess, ipc, shouldAwait, reference }) => {
+  validateIpcMethod({
+    methodName: "getEachMessage",
+    isSubprocess,
+    ipc,
+    isConnected: isConnected(anyProcess)
+  });
+  addReference(channel, reference);
+  const ipcEmitter = getIpcEmitter(anyProcess, channel, isSubprocess);
+  const controller = new AbortController();
+  const state = {};
+  stopOnDisconnect(anyProcess, ipcEmitter, controller);
+  abortOnStrictError({
+    ipcEmitter,
+    isSubprocess,
+    controller,
+    state
+  });
+  return iterateOnMessages({
+    anyProcess,
+    channel,
+    ipcEmitter,
+    isSubprocess,
+    shouldAwait,
+    controller,
+    state,
+    reference
+  });
+};
+var stopOnDisconnect = async (anyProcess, ipcEmitter, controller) => {
+  try {
+    await once6(ipcEmitter, "disconnect", { signal: controller.signal });
+    controller.abort();
+  } catch {
+  }
+};
+var abortOnStrictError = async ({ ipcEmitter, isSubprocess, controller, state }) => {
+  try {
+    const [error] = await once6(ipcEmitter, "strict:error", { signal: controller.signal });
+    state.error = getStrictResponseError(error, isSubprocess);
+    controller.abort();
+  } catch {
+  }
+};
+var iterateOnMessages = async function* ({ anyProcess, channel, ipcEmitter, isSubprocess, shouldAwait, controller, state, reference }) {
+  try {
+    for await (const [message] of on3(ipcEmitter, "message", { signal: controller.signal })) {
+      throwIfStrictError(state);
+      yield message;
+    }
+  } catch {
+    throwIfStrictError(state);
+  } finally {
+    controller.abort();
+    removeReference(channel, reference);
+    if (!isSubprocess) {
+      disconnect(anyProcess);
+    }
+    if (shouldAwait) {
+      await anyProcess;
+    }
+  }
+};
+var throwIfStrictError = ({ error }) => {
+  if (error) {
+    throw error;
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/methods.js
+var addIpcMethods = (subprocess, { ipc }) => {
+  Object.assign(subprocess, getIpcMethods(subprocess, false, ipc));
+};
+var getIpcExport = () => {
+  const anyProcess = process9;
+  const isSubprocess = true;
+  const ipc = process9.channel !== void 0;
+  return {
+    ...getIpcMethods(anyProcess, isSubprocess, ipc),
+    getCancelSignal: getCancelSignal.bind(void 0, {
+      anyProcess,
+      channel: anyProcess.channel,
+      isSubprocess,
+      ipc
+    })
+  };
+};
+var getIpcMethods = (anyProcess, isSubprocess, ipc) => ({
+  sendMessage: sendMessage.bind(void 0, {
+    anyProcess,
+    channel: anyProcess.channel,
+    isSubprocess,
+    ipc
+  }),
+  getOneMessage: getOneMessage.bind(void 0, {
+    anyProcess,
+    channel: anyProcess.channel,
+    isSubprocess,
+    ipc
+  }),
+  getEachMessage: getEachMessage.bind(void 0, {
+    anyProcess,
+    channel: anyProcess.channel,
+    isSubprocess,
+    ipc
+  })
+});
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/return/early-error.js
+import { ChildProcess as ChildProcess2 } from "node:child_process";
+import {
+  PassThrough,
+  Readable,
+  Writable,
+  Duplex
+} from "node:stream";
+var handleEarlyError = ({ error, command, escapedCommand, fileDescriptors, options, startTime, verboseInfo }) => {
+  cleanupCustomStreams(fileDescriptors);
+  const subprocess = new ChildProcess2();
+  createDummyStreams(subprocess, fileDescriptors);
+  Object.assign(subprocess, { readable, writable, duplex });
+  const earlyError = makeEarlyError({
+    error,
+    command,
+    escapedCommand,
+    fileDescriptors,
+    options,
+    startTime,
+    isSync: false
+  });
+  const promise = handleDummyPromise(earlyError, verboseInfo, options);
+  return { subprocess, promise };
+};
+var createDummyStreams = (subprocess, fileDescriptors) => {
+  const stdin = createDummyStream();
+  const stdout = createDummyStream();
+  const stderr = createDummyStream();
+  const extraStdio = Array.from({ length: fileDescriptors.length - 3 }, createDummyStream);
+  const all = createDummyStream();
+  const stdio = [stdin, stdout, stderr, ...extraStdio];
+  Object.assign(subprocess, {
+    stdin,
+    stdout,
+    stderr,
+    all,
+    stdio
+  });
+};
+var createDummyStream = () => {
+  const stream = new PassThrough();
+  stream.end();
+  return stream;
+};
+var readable = () => new Readable({ read() {
+} });
+var writable = () => new Writable({ write() {
+} });
+var duplex = () => new Duplex({ read() {
+}, write() {
+} });
+var handleDummyPromise = async (error, verboseInfo, options) => handleResult(error, verboseInfo, options);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/stdio/handle-async.js
+import { createReadStream, createWriteStream } from "node:fs";
+import { Buffer as Buffer4 } from "node:buffer";
+import { Readable as Readable2, Writable as Writable2, Duplex as Duplex2 } from "node:stream";
+var handleStdioAsync = (options, verboseInfo) => handleStdio(addPropertiesAsync, options, verboseInfo, false);
+var forbiddenIfAsync = ({ type, optionName }) => {
+  throw new TypeError(`The \`${optionName}\` option cannot be ${TYPE_TO_MESSAGE[type]}.`);
+};
+var addProperties2 = {
+  fileNumber: forbiddenIfAsync,
+  generator: generatorToStream,
+  asyncGenerator: generatorToStream,
+  nodeStream: ({ value }) => ({ stream: value }),
+  webTransform({ value: { transform, writableObjectMode, readableObjectMode } }) {
+    const objectMode = writableObjectMode || readableObjectMode;
+    const stream = Duplex2.fromWeb(transform, { objectMode });
+    return { stream };
+  },
+  duplex: ({ value: { transform } }) => ({ stream: transform }),
+  native() {
+  }
+};
+var addPropertiesAsync = {
+  input: {
+    ...addProperties2,
+    fileUrl: ({ value }) => ({ stream: createReadStream(value) }),
+    filePath: ({ value: { file } }) => ({ stream: createReadStream(file) }),
+    webStream: ({ value }) => ({ stream: Readable2.fromWeb(value) }),
+    iterable: ({ value }) => ({ stream: Readable2.from(value) }),
+    asyncIterable: ({ value }) => ({ stream: Readable2.from(value) }),
+    string: ({ value }) => ({ stream: Readable2.from(value) }),
+    uint8Array: ({ value }) => ({ stream: Readable2.from(Buffer4.from(value)) })
+  },
+  output: {
+    ...addProperties2,
+    fileUrl: ({ value }) => ({ stream: createWriteStream(value) }),
+    filePath: ({ value: { file, append } }) => ({ stream: createWriteStream(file, append ? { flags: "a" } : {}) }),
+    webStream: ({ value }) => ({ stream: Writable2.fromWeb(value) }),
+    iterable: forbiddenIfAsync,
+    asyncIterable: forbiddenIfAsync,
+    string: forbiddenIfAsync,
+    uint8Array: forbiddenIfAsync
+  }
+};
+
+// ../../node_modules/.pnpm/@sindresorhus+merge-streams@4.0.0/node_modules/@sindresorhus/merge-streams/index.js
+import { on as on4, once as once7 } from "node:events";
+import { PassThrough as PassThroughStream, getDefaultHighWaterMark as getDefaultHighWaterMark2 } from "node:stream";
+import { finished as finished2 } from "node:stream/promises";
+function mergeStreams(streams) {
+  if (!Array.isArray(streams)) {
+    throw new TypeError(`Expected an array, got \`${typeof streams}\`.`);
+  }
+  for (const stream of streams) {
+    validateStream(stream);
+  }
+  const objectMode = streams.some(({ readableObjectMode }) => readableObjectMode);
+  const highWaterMark = getHighWaterMark(streams, objectMode);
+  const passThroughStream = new MergedStream({
+    objectMode,
+    writableHighWaterMark: highWaterMark,
+    readableHighWaterMark: highWaterMark
+  });
+  for (const stream of streams) {
+    passThroughStream.add(stream);
+  }
+  return passThroughStream;
+}
+var getHighWaterMark = (streams, objectMode) => {
+  if (streams.length === 0) {
+    return getDefaultHighWaterMark2(objectMode);
+  }
+  const highWaterMarks = streams.filter(({ readableObjectMode }) => readableObjectMode === objectMode).map(({ readableHighWaterMark }) => readableHighWaterMark);
+  return Math.max(...highWaterMarks);
+};
+var MergedStream = class extends PassThroughStream {
+  #streams = /* @__PURE__ */ new Set([]);
+  #ended = /* @__PURE__ */ new Set([]);
+  #aborted = /* @__PURE__ */ new Set([]);
+  #onFinished;
+  #unpipeEvent = /* @__PURE__ */ Symbol("unpipe");
+  #streamPromises = /* @__PURE__ */ new WeakMap();
+  add(stream) {
+    validateStream(stream);
+    if (this.#streams.has(stream)) {
+      return;
+    }
+    this.#streams.add(stream);
+    this.#onFinished ??= onMergedStreamFinished(this, this.#streams, this.#unpipeEvent);
+    const streamPromise = endWhenStreamsDone({
+      passThroughStream: this,
+      stream,
+      streams: this.#streams,
+      ended: this.#ended,
+      aborted: this.#aborted,
+      onFinished: this.#onFinished,
+      unpipeEvent: this.#unpipeEvent
+    });
+    this.#streamPromises.set(stream, streamPromise);
+    stream.pipe(this, { end: false });
+  }
+  async remove(stream) {
+    validateStream(stream);
+    if (!this.#streams.has(stream)) {
+      return false;
+    }
+    const streamPromise = this.#streamPromises.get(stream);
+    if (streamPromise === void 0) {
+      return false;
+    }
+    this.#streamPromises.delete(stream);
+    stream.unpipe(this);
+    await streamPromise;
+    return true;
+  }
+};
+var onMergedStreamFinished = async (passThroughStream, streams, unpipeEvent) => {
+  updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_COUNT);
+  const controller = new AbortController();
+  try {
+    await Promise.race([
+      onMergedStreamEnd(passThroughStream, controller),
+      onInputStreamsUnpipe(passThroughStream, streams, unpipeEvent, controller)
+    ]);
+  } finally {
+    controller.abort();
+    updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_COUNT);
+  }
+};
+var onMergedStreamEnd = async (passThroughStream, { signal }) => {
+  try {
+    await finished2(passThroughStream, { signal, cleanup: true });
+  } catch (error) {
+    errorOrAbortStream(passThroughStream, error);
+    throw error;
+  }
+};
+var onInputStreamsUnpipe = async (passThroughStream, streams, unpipeEvent, { signal }) => {
+  for await (const [unpipedStream] of on4(passThroughStream, "unpipe", { signal })) {
+    if (streams.has(unpipedStream)) {
+      unpipedStream.emit(unpipeEvent);
+    }
+  }
+};
+var validateStream = (stream) => {
+  if (typeof stream?.pipe !== "function") {
+    throw new TypeError(`Expected a readable stream, got: \`${typeof stream}\`.`);
+  }
+};
+var endWhenStreamsDone = async ({ passThroughStream, stream, streams, ended, aborted: aborted2, onFinished, unpipeEvent }) => {
+  updateMaxListeners(passThroughStream, PASSTHROUGH_LISTENERS_PER_STREAM);
+  const controller = new AbortController();
+  try {
+    await Promise.race([
+      afterMergedStreamFinished(onFinished, stream, controller),
+      onInputStreamEnd({
+        passThroughStream,
+        stream,
+        streams,
+        ended,
+        aborted: aborted2,
+        controller
+      }),
+      onInputStreamUnpipe({
+        stream,
+        streams,
+        ended,
+        aborted: aborted2,
+        unpipeEvent,
+        controller
+      })
+    ]);
+  } finally {
+    controller.abort();
+    updateMaxListeners(passThroughStream, -PASSTHROUGH_LISTENERS_PER_STREAM);
+  }
+  if (streams.size > 0 && streams.size === ended.size + aborted2.size) {
+    if (ended.size === 0 && aborted2.size > 0) {
+      abortStream(passThroughStream);
+    } else {
+      endStream(passThroughStream);
+    }
+  }
+};
+var afterMergedStreamFinished = async (onFinished, stream, { signal }) => {
+  try {
+    await onFinished;
+    if (!signal.aborted) {
+      abortStream(stream);
+    }
+  } catch (error) {
+    if (!signal.aborted) {
+      errorOrAbortStream(stream, error);
+    }
+  }
+};
+var onInputStreamEnd = async ({ passThroughStream, stream, streams, ended, aborted: aborted2, controller: { signal } }) => {
+  try {
+    await finished2(stream, {
+      signal,
+      cleanup: true,
+      readable: true,
+      writable: false
+    });
+    if (streams.has(stream)) {
+      ended.add(stream);
+    }
+  } catch (error) {
+    if (signal.aborted || !streams.has(stream)) {
+      return;
+    }
+    if (isAbortError(error)) {
+      aborted2.add(stream);
+    } else {
+      errorStream(passThroughStream, error);
+    }
+  }
+};
+var onInputStreamUnpipe = async ({ stream, streams, ended, aborted: aborted2, unpipeEvent, controller: { signal } }) => {
+  await once7(stream, unpipeEvent, { signal });
+  if (!stream.readable) {
+    return once7(signal, "abort", { signal });
+  }
+  streams.delete(stream);
+  ended.delete(stream);
+  aborted2.delete(stream);
+};
+var endStream = (stream) => {
+  if (stream.writable) {
+    stream.end();
+  }
+};
+var errorOrAbortStream = (stream, error) => {
+  if (isAbortError(error)) {
+    abortStream(stream);
+  } else {
+    errorStream(stream, error);
+  }
+};
+var isAbortError = (error) => error?.code === "ERR_STREAM_PREMATURE_CLOSE";
+var abortStream = (stream) => {
+  if (stream.readable || stream.writable) {
+    stream.destroy();
+  }
+};
+var errorStream = (stream, error) => {
+  if (!stream.destroyed) {
+    stream.once("error", noop2);
+    stream.destroy(error);
+  }
+};
+var noop2 = () => {
+};
+var updateMaxListeners = (passThroughStream, increment2) => {
+  const maxListeners = passThroughStream.getMaxListeners();
+  if (maxListeners !== 0 && maxListeners !== Number.POSITIVE_INFINITY) {
+    passThroughStream.setMaxListeners(maxListeners + increment2);
+  }
+};
+var PASSTHROUGH_LISTENERS_COUNT = 2;
+var PASSTHROUGH_LISTENERS_PER_STREAM = 1;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/pipeline.js
+import { finished as finished3 } from "node:stream/promises";
+var pipeStreams = (source, destination) => {
+  source.pipe(destination);
+  onSourceFinish(source, destination);
+  onDestinationFinish(source, destination);
+};
+var onSourceFinish = async (source, destination) => {
+  if (isStandardStream(source) || isStandardStream(destination)) {
+    return;
+  }
+  try {
+    await finished3(source, { cleanup: true, readable: true, writable: false });
+  } catch {
+  }
+  endDestinationStream(destination);
+};
+var endDestinationStream = (destination) => {
+  if (destination.writable) {
+    destination.end();
+  }
+};
+var onDestinationFinish = async (source, destination) => {
+  if (isStandardStream(source) || isStandardStream(destination)) {
+    return;
+  }
+  try {
+    await finished3(destination, { cleanup: true, readable: false, writable: true });
+  } catch {
+  }
+  abortSourceStream(source);
+};
+var abortSourceStream = (source) => {
+  if (source.readable) {
+    source.destroy();
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/output-async.js
+var pipeOutputAsync = (subprocess, fileDescriptors, controller) => {
+  const pipeGroups = /* @__PURE__ */ new Map();
+  for (const [fdNumber, { stdioItems, direction }] of Object.entries(fileDescriptors)) {
+    for (const { stream } of stdioItems.filter(({ type }) => TRANSFORM_TYPES.has(type))) {
+      pipeTransform(subprocess, stream, direction, fdNumber);
+    }
+    for (const { stream } of stdioItems.filter(({ type }) => !TRANSFORM_TYPES.has(type))) {
+      pipeStdioItem({
+        subprocess,
+        stream,
+        direction,
+        fdNumber,
+        pipeGroups,
+        controller
+      });
+    }
+  }
+  for (const [outputStream, inputStreams] of pipeGroups.entries()) {
+    const inputStream = inputStreams.length === 1 ? inputStreams[0] : mergeStreams(inputStreams);
+    pipeStreams(inputStream, outputStream);
+  }
+};
+var pipeTransform = (subprocess, stream, direction, fdNumber) => {
+  if (direction === "output") {
+    pipeStreams(subprocess.stdio[fdNumber], stream);
+  } else {
+    pipeStreams(stream, subprocess.stdio[fdNumber]);
+  }
+  const streamProperty = SUBPROCESS_STREAM_PROPERTIES[fdNumber];
+  if (streamProperty !== void 0) {
+    subprocess[streamProperty] = stream;
+  }
+  subprocess.stdio[fdNumber] = stream;
+};
+var SUBPROCESS_STREAM_PROPERTIES = ["stdin", "stdout", "stderr"];
+var pipeStdioItem = ({ subprocess, stream, direction, fdNumber, pipeGroups, controller }) => {
+  if (stream === void 0) {
+    return;
+  }
+  setStandardStreamMaxListeners(stream, controller);
+  const [inputStream, outputStream] = direction === "output" ? [stream, subprocess.stdio[fdNumber]] : [subprocess.stdio[fdNumber], stream];
+  const outputStreams = pipeGroups.get(inputStream) ?? [];
+  pipeGroups.set(inputStream, [...outputStreams, outputStream]);
+};
+var setStandardStreamMaxListeners = (stream, { signal }) => {
+  if (isStandardStream(stream)) {
+    incrementMaxListeners(stream, MAX_LISTENERS_INCREMENT, signal);
+  }
+};
+var MAX_LISTENERS_INCREMENT = 2;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/cleanup.js
+import { addAbortListener as addAbortListener2 } from "node:events";
+
+// ../../node_modules/.pnpm/signal-exit@4.1.0/node_modules/signal-exit/dist/mjs/signals.js
+var signals = [];
+signals.push("SIGHUP", "SIGINT", "SIGTERM");
+if (process.platform !== "win32") {
+  signals.push(
+    "SIGALRM",
+    "SIGABRT",
+    "SIGVTALRM",
+    "SIGXCPU",
+    "SIGXFSZ",
+    "SIGUSR2",
+    "SIGTRAP",
+    "SIGSYS",
+    "SIGQUIT",
+    "SIGIOT"
+    // should detect profiler and enable/disable accordingly.
+    // see #21
+    // 'SIGPROF'
+  );
+}
+if (process.platform === "linux") {
+  signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
+}
+
+// ../../node_modules/.pnpm/signal-exit@4.1.0/node_modules/signal-exit/dist/mjs/index.js
+var processOk = (process11) => !!process11 && typeof process11 === "object" && typeof process11.removeListener === "function" && typeof process11.emit === "function" && typeof process11.reallyExit === "function" && typeof process11.listeners === "function" && typeof process11.kill === "function" && typeof process11.pid === "number" && typeof process11.on === "function";
+var kExitEmitter = /* @__PURE__ */ Symbol.for("signal-exit emitter");
+var global = globalThis;
+var ObjectDefineProperty = Object.defineProperty.bind(Object);
+var Emitter = class {
+  emitted = {
+    afterExit: false,
+    exit: false
+  };
+  listeners = {
+    afterExit: [],
+    exit: []
+  };
+  count = 0;
+  id = Math.random();
+  constructor() {
+    if (global[kExitEmitter]) {
+      return global[kExitEmitter];
+    }
+    ObjectDefineProperty(global, kExitEmitter, {
+      value: this,
+      writable: false,
+      enumerable: false,
+      configurable: false
+    });
+  }
+  on(ev, fn) {
+    this.listeners[ev].push(fn);
+  }
+  removeListener(ev, fn) {
+    const list = this.listeners[ev];
+    const i2 = list.indexOf(fn);
+    if (i2 === -1) {
+      return;
+    }
+    if (i2 === 0 && list.length === 1) {
+      list.length = 0;
+    } else {
+      list.splice(i2, 1);
+    }
+  }
+  emit(ev, code, signal) {
+    if (this.emitted[ev]) {
+      return false;
+    }
+    this.emitted[ev] = true;
+    let ret = false;
+    for (const fn of this.listeners[ev]) {
+      ret = fn(code, signal) === true || ret;
+    }
+    if (ev === "exit") {
+      ret = this.emit("afterExit", code, signal) || ret;
+    }
+    return ret;
+  }
+};
+var SignalExitBase = class {
+};
+var signalExitWrap = (handler) => {
+  return {
+    onExit(cb, opts) {
+      return handler.onExit(cb, opts);
+    },
+    load() {
+      return handler.load();
+    },
+    unload() {
+      return handler.unload();
+    }
+  };
+};
+var SignalExitFallback = class extends SignalExitBase {
+  onExit() {
+    return () => {
+    };
+  }
+  load() {
+  }
+  unload() {
+  }
+};
+var SignalExit = class extends SignalExitBase {
+  // "SIGHUP" throws an `ENOSYS` error on Windows,
+  // so use a supported signal instead
+  /* c8 ignore start */
+  #hupSig = process10.platform === "win32" ? "SIGINT" : "SIGHUP";
+  /* c8 ignore stop */
+  #emitter = new Emitter();
+  #process;
+  #originalProcessEmit;
+  #originalProcessReallyExit;
+  #sigListeners = {};
+  #loaded = false;
+  constructor(process11) {
+    super();
+    this.#process = process11;
+    this.#sigListeners = {};
+    for (const sig of signals) {
+      this.#sigListeners[sig] = () => {
+        const listeners = this.#process.listeners(sig);
+        let { count: count2 } = this.#emitter;
+        const p = process11;
+        if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
+          count2 += p.__signal_exit_emitter__.count;
+        }
+        if (listeners.length === count2) {
+          this.unload();
+          const ret = this.#emitter.emit("exit", null, sig);
+          const s = sig === "SIGHUP" ? this.#hupSig : sig;
+          if (!ret)
+            process11.kill(process11.pid, s);
+        }
+      };
+    }
+    this.#originalProcessReallyExit = process11.reallyExit;
+    this.#originalProcessEmit = process11.emit;
+  }
+  onExit(cb, opts) {
+    if (!processOk(this.#process)) {
+      return () => {
+      };
+    }
+    if (this.#loaded === false) {
+      this.load();
+    }
+    const ev = opts?.alwaysLast ? "afterExit" : "exit";
+    this.#emitter.on(ev, cb);
+    return () => {
+      this.#emitter.removeListener(ev, cb);
+      if (this.#emitter.listeners["exit"].length === 0 && this.#emitter.listeners["afterExit"].length === 0) {
+        this.unload();
+      }
+    };
+  }
+  load() {
+    if (this.#loaded) {
+      return;
+    }
+    this.#loaded = true;
+    this.#emitter.count += 1;
+    for (const sig of signals) {
+      try {
+        const fn = this.#sigListeners[sig];
+        if (fn)
+          this.#process.on(sig, fn);
+      } catch (_) {
+      }
+    }
+    this.#process.emit = (ev, ...a2) => {
+      return this.#processEmit(ev, ...a2);
+    };
+    this.#process.reallyExit = (code) => {
+      return this.#processReallyExit(code);
+    };
+  }
+  unload() {
+    if (!this.#loaded) {
+      return;
+    }
+    this.#loaded = false;
+    signals.forEach((sig) => {
+      const listener = this.#sigListeners[sig];
+      if (!listener) {
+        throw new Error("Listener not defined for signal: " + sig);
+      }
+      try {
+        this.#process.removeListener(sig, listener);
+      } catch (_) {
+      }
+    });
+    this.#process.emit = this.#originalProcessEmit;
+    this.#process.reallyExit = this.#originalProcessReallyExit;
+    this.#emitter.count -= 1;
+  }
+  #processReallyExit(code) {
+    if (!processOk(this.#process)) {
+      return 0;
+    }
+    this.#process.exitCode = code || 0;
+    this.#emitter.emit("exit", this.#process.exitCode, null);
+    return this.#originalProcessReallyExit.call(this.#process, this.#process.exitCode);
+  }
+  #processEmit(ev, ...args) {
+    const og = this.#originalProcessEmit;
+    if (ev === "exit" && processOk(this.#process)) {
+      if (typeof args[0] === "number") {
+        this.#process.exitCode = args[0];
+      }
+      const ret = og.call(this.#process, ev, ...args);
+      this.#emitter.emit("exit", this.#process.exitCode, null);
+      return ret;
+    } else {
+      return og.call(this.#process, ev, ...args);
+    }
+  }
+};
+var process10 = globalThis.process;
+var {
+  /**
+   * Called when the process is exiting, whether via signal, explicit
+   * exit, or running out of stuff to do.
+   *
+   * If the global process object is not suitable for instrumentation,
+   * then this will be a no-op.
+   *
+   * Returns a function that may be used to unload signal-exit.
+   */
+  onExit,
+  /**
+   * Load the listeners.  Likely you never need to call this, unless
+   * doing a rather deep integration with signal-exit functionality.
+   * Mostly exposed for the benefit of testing.
+   *
+   * @internal
+   */
+  load,
+  /**
+   * Unload the listeners.  Likely you never need to call this, unless
+   * doing a rather deep integration with signal-exit functionality.
+   * Mostly exposed for the benefit of testing.
+   *
+   * @internal
+   */
+  unload
+} = signalExitWrap(processOk(process10) ? new SignalExit(process10) : new SignalExitFallback());
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/terminate/cleanup.js
+var cleanupOnExit = (subprocess, { cleanup, detached }, { signal }) => {
+  if (!cleanup || detached) {
+    return;
+  }
+  const removeExitHandler = onExit(() => {
+    subprocess.kill();
+  });
+  addAbortListener2(signal, () => {
+    removeExitHandler();
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/pipe-arguments.js
+var normalizePipeArguments = ({ source, sourcePromise, boundOptions, createNested }, ...pipeArguments) => {
+  const startTime = getStartTime();
+  const {
+    destination,
+    destinationStream,
+    destinationError,
+    from,
+    unpipeSignal
+  } = getDestinationStream(boundOptions, createNested, pipeArguments);
+  const { sourceStream, sourceError } = getSourceStream(source, from);
+  const { options: sourceOptions, fileDescriptors } = SUBPROCESS_OPTIONS.get(source);
+  return {
+    sourcePromise,
+    sourceStream,
+    sourceOptions,
+    sourceError,
+    destination,
+    destinationStream,
+    destinationError,
+    unpipeSignal,
+    fileDescriptors,
+    startTime
+  };
+};
+var getDestinationStream = (boundOptions, createNested, pipeArguments) => {
+  try {
+    const {
+      destination,
+      pipeOptions: { from, to, unpipeSignal } = {}
+    } = getDestination(boundOptions, createNested, ...pipeArguments);
+    const destinationStream = getToStream(destination, to);
+    return {
+      destination,
+      destinationStream,
+      from,
+      unpipeSignal
+    };
+  } catch (error) {
+    return { destinationError: error };
+  }
+};
+var getDestination = (boundOptions, createNested, firstArgument, ...pipeArguments) => {
+  if (Array.isArray(firstArgument)) {
+    const destination = createNested(mapDestinationArguments, boundOptions)(firstArgument, ...pipeArguments);
+    return { destination, pipeOptions: boundOptions };
+  }
+  if (typeof firstArgument === "string" || firstArgument instanceof URL || isDenoExecPath(firstArgument)) {
+    if (Object.keys(boundOptions).length > 0) {
+      throw new TypeError('Please use .pipe("file", ..., options) or .pipe(execa("file", ..., options)) instead of .pipe(options)("file", ...).');
+    }
+    const [rawFile, rawArguments, rawOptions] = normalizeParameters(firstArgument, ...pipeArguments);
+    const destination = createNested(mapDestinationArguments)(rawFile, rawArguments, rawOptions);
+    return { destination, pipeOptions: rawOptions };
+  }
+  if (SUBPROCESS_OPTIONS.has(firstArgument)) {
+    if (Object.keys(boundOptions).length > 0) {
+      throw new TypeError("Please use .pipe(options)`command` or .pipe($(options)`command`) instead of .pipe(options)($`command`).");
+    }
+    return { destination: firstArgument, pipeOptions: pipeArguments[0] };
+  }
+  throw new TypeError(`The first argument must be a template string, an options object, or an Execa subprocess: ${firstArgument}`);
+};
+var mapDestinationArguments = ({ options }) => ({ options: { ...options, stdin: "pipe", piped: true } });
+var getSourceStream = (source, from) => {
+  try {
+    const sourceStream = getFromStream(source, from);
+    return { sourceStream };
+  } catch (error) {
+    return { sourceError: error };
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/throw.js
+var handlePipeArgumentsError = ({
+  sourceStream,
+  sourceError,
+  destinationStream,
+  destinationError,
+  fileDescriptors,
+  sourceOptions,
+  startTime
+}) => {
+  const error = getPipeArgumentsError({
+    sourceStream,
+    sourceError,
+    destinationStream,
+    destinationError
+  });
+  if (error !== void 0) {
+    throw createNonCommandError({
+      error,
+      fileDescriptors,
+      sourceOptions,
+      startTime
+    });
+  }
+};
+var getPipeArgumentsError = ({ sourceStream, sourceError, destinationStream, destinationError }) => {
+  if (sourceError !== void 0 && destinationError !== void 0) {
+    return destinationError;
+  }
+  if (destinationError !== void 0) {
+    abortSourceStream(sourceStream);
+    return destinationError;
+  }
+  if (sourceError !== void 0) {
+    endDestinationStream(destinationStream);
+    return sourceError;
+  }
+};
+var createNonCommandError = ({ error, fileDescriptors, sourceOptions, startTime }) => makeEarlyError({
+  error,
+  command: PIPE_COMMAND_MESSAGE,
+  escapedCommand: PIPE_COMMAND_MESSAGE,
+  fileDescriptors,
+  options: sourceOptions,
+  startTime,
+  isSync: false
+});
+var PIPE_COMMAND_MESSAGE = "source.pipe(destination)";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/sequence.js
+var waitForBothSubprocesses = async (subprocessPromises) => {
+  const [
+    { status: sourceStatus, reason: sourceReason, value: sourceResult = sourceReason },
+    { status: destinationStatus, reason: destinationReason, value: destinationResult = destinationReason }
+  ] = await subprocessPromises;
+  if (!destinationResult.pipedFrom.includes(sourceResult)) {
+    destinationResult.pipedFrom.push(sourceResult);
+  }
+  if (destinationStatus === "rejected") {
+    throw destinationResult;
+  }
+  if (sourceStatus === "rejected") {
+    throw sourceResult;
+  }
+  return destinationResult;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/streaming.js
+import { finished as finished4 } from "node:stream/promises";
+var pipeSubprocessStream = (sourceStream, destinationStream, maxListenersController) => {
+  const mergedStream = MERGED_STREAMS.has(destinationStream) ? pipeMoreSubprocessStream(sourceStream, destinationStream) : pipeFirstSubprocessStream(sourceStream, destinationStream);
+  incrementMaxListeners(sourceStream, SOURCE_LISTENERS_PER_PIPE, maxListenersController.signal);
+  incrementMaxListeners(destinationStream, DESTINATION_LISTENERS_PER_PIPE, maxListenersController.signal);
+  cleanupMergedStreamsMap(destinationStream);
+  return mergedStream;
+};
+var pipeFirstSubprocessStream = (sourceStream, destinationStream) => {
+  const mergedStream = mergeStreams([sourceStream]);
+  pipeStreams(mergedStream, destinationStream);
+  MERGED_STREAMS.set(destinationStream, mergedStream);
+  return mergedStream;
+};
+var pipeMoreSubprocessStream = (sourceStream, destinationStream) => {
+  const mergedStream = MERGED_STREAMS.get(destinationStream);
+  mergedStream.add(sourceStream);
+  return mergedStream;
+};
+var cleanupMergedStreamsMap = async (destinationStream) => {
+  try {
+    await finished4(destinationStream, { cleanup: true, readable: false, writable: true });
+  } catch {
+  }
+  MERGED_STREAMS.delete(destinationStream);
+};
+var MERGED_STREAMS = /* @__PURE__ */ new WeakMap();
+var SOURCE_LISTENERS_PER_PIPE = 2;
+var DESTINATION_LISTENERS_PER_PIPE = 1;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/abort.js
+import { aborted } from "node:util";
+var unpipeOnAbort = (unpipeSignal, unpipeContext) => unpipeSignal === void 0 ? [] : [unpipeOnSignalAbort(unpipeSignal, unpipeContext)];
+var unpipeOnSignalAbort = async (unpipeSignal, { sourceStream, mergedStream, fileDescriptors, sourceOptions, startTime }) => {
+  await aborted(unpipeSignal, sourceStream);
+  await mergedStream.remove(sourceStream);
+  const error = new Error("Pipe canceled by `unpipeSignal` option.");
+  throw createNonCommandError({
+    error,
+    fileDescriptors,
+    sourceOptions,
+    startTime
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/pipe/setup.js
+var pipeToSubprocess = (sourceInfo, ...pipeArguments) => {
+  if (isPlainObject(pipeArguments[0])) {
+    return pipeToSubprocess.bind(void 0, {
+      ...sourceInfo,
+      boundOptions: { ...sourceInfo.boundOptions, ...pipeArguments[0] }
+    });
+  }
+  const { destination, ...normalizedInfo } = normalizePipeArguments(sourceInfo, ...pipeArguments);
+  const promise = handlePipePromise({ ...normalizedInfo, destination });
+  promise.pipe = pipeToSubprocess.bind(void 0, {
+    ...sourceInfo,
+    source: destination,
+    sourcePromise: promise,
+    boundOptions: {}
+  });
+  return promise;
+};
+var handlePipePromise = async ({
+  sourcePromise,
+  sourceStream,
+  sourceOptions,
+  sourceError,
+  destination,
+  destinationStream,
+  destinationError,
+  unpipeSignal,
+  fileDescriptors,
+  startTime
+}) => {
+  const subprocessPromises = getSubprocessPromises(sourcePromise, destination);
+  handlePipeArgumentsError({
+    sourceStream,
+    sourceError,
+    destinationStream,
+    destinationError,
+    fileDescriptors,
+    sourceOptions,
+    startTime
+  });
+  const maxListenersController = new AbortController();
+  try {
+    const mergedStream = pipeSubprocessStream(sourceStream, destinationStream, maxListenersController);
+    return await Promise.race([
+      waitForBothSubprocesses(subprocessPromises),
+      ...unpipeOnAbort(unpipeSignal, {
+        sourceStream,
+        mergedStream,
+        sourceOptions,
+        fileDescriptors,
+        startTime
+      })
+    ]);
+  } finally {
+    maxListenersController.abort();
+  }
+};
+var getSubprocessPromises = (sourcePromise, destination) => Promise.allSettled([sourcePromise, destination]);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/contents.js
+import { setImmediate } from "node:timers/promises";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/iterate.js
+import { on as on5 } from "node:events";
+import { getDefaultHighWaterMark as getDefaultHighWaterMark3 } from "node:stream";
+var iterateOnSubprocessStream = ({ subprocessStdout, subprocess, binary, shouldEncode, encoding, preserveNewlines }) => {
+  const controller = new AbortController();
+  stopReadingOnExit(subprocess, controller);
+  return iterateOnStream({
+    stream: subprocessStdout,
+    controller,
+    binary,
+    shouldEncode: !subprocessStdout.readableObjectMode && shouldEncode,
+    encoding,
+    shouldSplit: !subprocessStdout.readableObjectMode,
+    preserveNewlines
+  });
+};
+var stopReadingOnExit = async (subprocess, controller) => {
+  try {
+    await subprocess;
+  } catch {
+  } finally {
+    controller.abort();
+  }
+};
+var iterateForResult = ({ stream, onStreamEnd, lines, encoding, stripFinalNewline: stripFinalNewline2, allMixed }) => {
+  const controller = new AbortController();
+  stopReadingOnStreamEnd(onStreamEnd, controller, stream);
+  const objectMode = stream.readableObjectMode && !allMixed;
+  return iterateOnStream({
+    stream,
+    controller,
+    binary: encoding === "buffer",
+    shouldEncode: !objectMode,
+    encoding,
+    shouldSplit: !objectMode && lines,
+    preserveNewlines: !stripFinalNewline2
+  });
+};
+var stopReadingOnStreamEnd = async (onStreamEnd, controller, stream) => {
+  try {
+    await onStreamEnd;
+  } catch {
+    stream.destroy();
+  } finally {
+    controller.abort();
+  }
+};
+var iterateOnStream = ({ stream, controller, binary, shouldEncode, encoding, shouldSplit, preserveNewlines }) => {
+  const onStdoutChunk = on5(stream, "data", {
+    signal: controller.signal,
+    highWaterMark: HIGH_WATER_MARK,
+    // Backward compatibility with older name for this option
+    // See https://github.com/nodejs/node/pull/52080#discussion_r1525227861
+    // @todo Remove after removing support for Node 21
+    highWatermark: HIGH_WATER_MARK
+  });
+  return iterateOnData({
+    onStdoutChunk,
+    controller,
+    binary,
+    shouldEncode,
+    encoding,
+    shouldSplit,
+    preserveNewlines
+  });
+};
+var DEFAULT_OBJECT_HIGH_WATER_MARK = getDefaultHighWaterMark3(true);
+var HIGH_WATER_MARK = DEFAULT_OBJECT_HIGH_WATER_MARK;
+var iterateOnData = async function* ({ onStdoutChunk, controller, binary, shouldEncode, encoding, shouldSplit, preserveNewlines }) {
+  const generators = getGenerators({
+    binary,
+    shouldEncode,
+    encoding,
+    shouldSplit,
+    preserveNewlines
+  });
+  try {
+    for await (const [chunk] of onStdoutChunk) {
+      yield* transformChunkSync(chunk, generators, 0);
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      throw error;
+    }
+  } finally {
+    yield* finalChunksSync(generators);
+  }
+};
+var getGenerators = ({ binary, shouldEncode, encoding, shouldSplit, preserveNewlines }) => [
+  getEncodingTransformGenerator(binary, encoding, !shouldEncode),
+  getSplitLinesGenerator(binary, preserveNewlines, !shouldSplit, {})
+].filter(Boolean);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/io/contents.js
+var getStreamOutput = async ({ stream, onStreamEnd, fdNumber, encoding, buffer, maxBuffer, lines, allMixed, stripFinalNewline: stripFinalNewline2, verboseInfo, streamInfo }) => {
+  const logPromise = logOutputAsync({
+    stream,
+    onStreamEnd,
+    fdNumber,
+    encoding,
+    allMixed,
+    verboseInfo,
+    streamInfo
+  });
+  if (!buffer) {
+    await Promise.all([resumeStream(stream), logPromise]);
+    return;
+  }
+  const stripFinalNewlineValue = getStripFinalNewline(stripFinalNewline2, fdNumber);
+  const iterable = iterateForResult({
+    stream,
+    onStreamEnd,
+    lines,
+    encoding,
+    stripFinalNewline: stripFinalNewlineValue,
+    allMixed
+  });
+  const [output] = await Promise.all([
+    getStreamContents2({
+      stream,
+      iterable,
+      fdNumber,
+      encoding,
+      maxBuffer,
+      lines
+    }),
+    logPromise
+  ]);
+  return output;
+};
+var logOutputAsync = async ({ stream, onStreamEnd, fdNumber, encoding, allMixed, verboseInfo, streamInfo: { fileDescriptors } }) => {
+  if (!shouldLogOutput({
+    stdioItems: fileDescriptors[fdNumber]?.stdioItems,
+    encoding,
+    verboseInfo,
+    fdNumber
+  })) {
+    return;
+  }
+  const linesIterable = iterateForResult({
+    stream,
+    onStreamEnd,
+    lines: true,
+    encoding,
+    stripFinalNewline: true,
+    allMixed
+  });
+  await logLines(linesIterable, stream, fdNumber, verboseInfo);
+};
+var resumeStream = async (stream) => {
+  await setImmediate();
+  if (stream.readableFlowing === null) {
+    stream.resume();
+  }
+};
+var getStreamContents2 = async ({ stream, stream: { readableObjectMode }, iterable, fdNumber, encoding, maxBuffer, lines }) => {
+  try {
+    if (readableObjectMode || lines) {
+      return await getStreamAsArray(iterable, { maxBuffer });
+    }
+    if (encoding === "buffer") {
+      return new Uint8Array(await getStreamAsArrayBuffer(iterable, { maxBuffer }));
+    }
+    return await getStreamAsString(iterable, { maxBuffer });
+  } catch (error) {
+    return handleBufferedData(handleMaxBuffer({
+      error,
+      stream,
+      readableObjectMode,
+      lines,
+      encoding,
+      fdNumber
+    }));
+  }
+};
+var getBufferedData = async (streamPromise) => {
+  try {
+    return await streamPromise;
+  } catch (error) {
+    return handleBufferedData(error);
+  }
+};
+var handleBufferedData = ({ bufferedData }) => isArrayBuffer(bufferedData) ? new Uint8Array(bufferedData) : bufferedData;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/wait-stream.js
+import { finished as finished5 } from "node:stream/promises";
+var waitForStream = async (stream, fdNumber, streamInfo, { isSameDirection, stopOnExit = false } = {}) => {
+  const state = handleStdinDestroy(stream, streamInfo);
+  const abortController = new AbortController();
+  try {
+    await Promise.race([
+      ...stopOnExit ? [streamInfo.exitPromise] : [],
+      finished5(stream, { cleanup: true, signal: abortController.signal })
+    ]);
+  } catch (error) {
+    if (!state.stdinCleanedUp) {
+      handleStreamError(error, fdNumber, streamInfo, isSameDirection);
+    }
+  } finally {
+    abortController.abort();
+  }
+};
+var handleStdinDestroy = (stream, { originalStreams: [originalStdin], subprocess }) => {
+  const state = { stdinCleanedUp: false };
+  if (stream === originalStdin) {
+    spyOnStdinDestroy(stream, subprocess, state);
+  }
+  return state;
+};
+var spyOnStdinDestroy = (subprocessStdin, subprocess, state) => {
+  const { _destroy } = subprocessStdin;
+  subprocessStdin._destroy = (...destroyArguments) => {
+    setStdinCleanedUp(subprocess, state);
+    _destroy.call(subprocessStdin, ...destroyArguments);
+  };
+};
+var setStdinCleanedUp = ({ exitCode, signalCode }, state) => {
+  if (exitCode !== null || signalCode !== null) {
+    state.stdinCleanedUp = true;
+  }
+};
+var handleStreamError = (error, fdNumber, streamInfo, isSameDirection) => {
+  if (!shouldIgnoreStreamError(error, fdNumber, streamInfo, isSameDirection)) {
+    throw error;
+  }
+};
+var shouldIgnoreStreamError = (error, fdNumber, streamInfo, isSameDirection = true) => {
+  if (streamInfo.propagating) {
+    return isStreamEpipe(error) || isStreamAbort(error);
+  }
+  streamInfo.propagating = true;
+  return isInputFileDescriptor(streamInfo, fdNumber) === isSameDirection ? isStreamEpipe(error) : isStreamAbort(error);
+};
+var isInputFileDescriptor = ({ fileDescriptors }, fdNumber) => fdNumber !== "all" && fileDescriptors[fdNumber].direction === "input";
+var isStreamAbort = (error) => error?.code === "ERR_STREAM_PREMATURE_CLOSE";
+var isStreamEpipe = (error) => error?.code === "EPIPE";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/stdio.js
+var waitForStdioStreams = ({ subprocess, encoding, buffer, maxBuffer, lines, stripFinalNewline: stripFinalNewline2, verboseInfo, streamInfo }) => subprocess.stdio.map((stream, fdNumber) => waitForSubprocessStream({
+  stream,
+  fdNumber,
+  encoding,
+  buffer: buffer[fdNumber],
+  maxBuffer: maxBuffer[fdNumber],
+  lines: lines[fdNumber],
+  allMixed: false,
+  stripFinalNewline: stripFinalNewline2,
+  verboseInfo,
+  streamInfo
+}));
+var waitForSubprocessStream = async ({ stream, fdNumber, encoding, buffer, maxBuffer, lines, allMixed, stripFinalNewline: stripFinalNewline2, verboseInfo, streamInfo }) => {
+  if (!stream) {
+    return;
+  }
+  const onStreamEnd = waitForStream(stream, fdNumber, streamInfo);
+  if (isInputFileDescriptor(streamInfo, fdNumber)) {
+    await onStreamEnd;
+    return;
+  }
+  const [output] = await Promise.all([
+    getStreamOutput({
+      stream,
+      onStreamEnd,
+      fdNumber,
+      encoding,
+      buffer,
+      maxBuffer,
+      lines,
+      allMixed,
+      stripFinalNewline: stripFinalNewline2,
+      verboseInfo,
+      streamInfo
+    }),
+    onStreamEnd
+  ]);
+  return output;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/all-async.js
+var makeAllStream = ({ stdout, stderr }, { all }) => all && (stdout || stderr) ? mergeStreams([stdout, stderr].filter(Boolean)) : void 0;
+var waitForAllStream = ({ subprocess, encoding, buffer, maxBuffer, lines, stripFinalNewline: stripFinalNewline2, verboseInfo, streamInfo }) => waitForSubprocessStream({
+  ...getAllStream(subprocess, buffer),
+  fdNumber: "all",
+  encoding,
+  maxBuffer: maxBuffer[1] + maxBuffer[2],
+  lines: lines[1] || lines[2],
+  allMixed: getAllMixed(subprocess),
+  stripFinalNewline: stripFinalNewline2,
+  verboseInfo,
+  streamInfo
+});
+var getAllStream = ({ stdout, stderr, all }, [, bufferStdout, bufferStderr]) => {
+  const buffer = bufferStdout || bufferStderr;
+  if (!buffer) {
+    return { stream: all, buffer };
+  }
+  if (!bufferStdout) {
+    return { stream: stderr, buffer };
+  }
+  if (!bufferStderr) {
+    return { stream: stdout, buffer };
+  }
+  return { stream: all, buffer };
+};
+var getAllMixed = ({ all, stdout, stderr }) => all && stdout && stderr && stdout.readableObjectMode !== stderr.readableObjectMode;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/wait-subprocess.js
+import { once as once8 } from "node:events";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/verbose/ipc.js
+var shouldLogIpc = (verboseInfo) => isFullVerbose(verboseInfo, "ipc");
+var logIpcOutput = (message, verboseInfo) => {
+  const verboseMessage = serializeVerboseMessage(message);
+  verboseLog({
+    type: "ipc",
+    verboseMessage,
+    fdNumber: "ipc",
+    verboseInfo
+  });
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/ipc/buffer-messages.js
+var waitForIpcOutput = async ({
+  subprocess,
+  buffer: bufferArray,
+  maxBuffer: maxBufferArray,
+  ipc,
+  ipcOutput,
+  verboseInfo
+}) => {
+  if (!ipc) {
+    return ipcOutput;
+  }
+  const isVerbose2 = shouldLogIpc(verboseInfo);
+  const buffer = getFdSpecificValue(bufferArray, "ipc");
+  const maxBuffer = getFdSpecificValue(maxBufferArray, "ipc");
+  for await (const message of loopOnMessages({
+    anyProcess: subprocess,
+    channel: subprocess.channel,
+    isSubprocess: false,
+    ipc,
+    shouldAwait: false,
+    reference: true
+  })) {
+    if (buffer) {
+      checkIpcMaxBuffer(subprocess, ipcOutput, maxBuffer);
+      ipcOutput.push(message);
+    }
+    if (isVerbose2) {
+      logIpcOutput(message, verboseInfo);
+    }
+  }
+  return ipcOutput;
+};
+var getBufferedIpcOutput = async (ipcOutputPromise, ipcOutput) => {
+  await Promise.allSettled([ipcOutputPromise]);
+  return ipcOutput;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/resolve/wait-subprocess.js
+var waitForSubprocessResult = async ({
+  subprocess,
+  options: {
+    encoding,
+    buffer,
+    maxBuffer,
+    lines,
+    timeoutDuration: timeout,
+    cancelSignal,
+    gracefulCancel,
+    forceKillAfterDelay,
+    stripFinalNewline: stripFinalNewline2,
+    ipc,
+    ipcInput
+  },
+  context,
+  verboseInfo,
+  fileDescriptors,
+  originalStreams,
+  onInternalError,
+  controller
+}) => {
+  const exitPromise = waitForExit(subprocess, context);
+  const streamInfo = {
+    originalStreams,
+    fileDescriptors,
+    subprocess,
+    exitPromise,
+    propagating: false
+  };
+  const stdioPromises = waitForStdioStreams({
+    subprocess,
+    encoding,
+    buffer,
+    maxBuffer,
+    lines,
+    stripFinalNewline: stripFinalNewline2,
+    verboseInfo,
+    streamInfo
+  });
+  const allPromise = waitForAllStream({
+    subprocess,
+    encoding,
+    buffer,
+    maxBuffer,
+    lines,
+    stripFinalNewline: stripFinalNewline2,
+    verboseInfo,
+    streamInfo
+  });
+  const ipcOutput = [];
+  const ipcOutputPromise = waitForIpcOutput({
+    subprocess,
+    buffer,
+    maxBuffer,
+    ipc,
+    ipcOutput,
+    verboseInfo
+  });
+  const originalPromises = waitForOriginalStreams(originalStreams, subprocess, streamInfo);
+  const customStreamsEndPromises = waitForCustomStreamsEnd(fileDescriptors, streamInfo);
+  try {
+    return await Promise.race([
+      Promise.all([
+        {},
+        waitForSuccessfulExit(exitPromise),
+        Promise.all(stdioPromises),
+        allPromise,
+        ipcOutputPromise,
+        sendIpcInput(subprocess, ipcInput),
+        ...originalPromises,
+        ...customStreamsEndPromises
+      ]),
+      onInternalError,
+      throwOnSubprocessError(subprocess, controller),
+      ...throwOnTimeout(subprocess, timeout, context, controller),
+      ...throwOnCancel({
+        subprocess,
+        cancelSignal,
+        gracefulCancel,
+        context,
+        controller
+      }),
+      ...throwOnGracefulCancel({
+        subprocess,
+        cancelSignal,
+        gracefulCancel,
+        forceKillAfterDelay,
+        context,
+        controller
+      })
+    ]);
+  } catch (error) {
+    context.terminationReason ??= "other";
+    return Promise.all([
+      { error },
+      exitPromise,
+      Promise.all(stdioPromises.map((stdioPromise) => getBufferedData(stdioPromise))),
+      getBufferedData(allPromise),
+      getBufferedIpcOutput(ipcOutputPromise, ipcOutput),
+      Promise.allSettled(originalPromises),
+      Promise.allSettled(customStreamsEndPromises)
+    ]);
+  }
+};
+var waitForOriginalStreams = (originalStreams, subprocess, streamInfo) => originalStreams.map((stream, fdNumber) => stream === subprocess.stdio[fdNumber] ? void 0 : waitForStream(stream, fdNumber, streamInfo));
+var waitForCustomStreamsEnd = (fileDescriptors, streamInfo) => fileDescriptors.flatMap(({ stdioItems }, fdNumber) => stdioItems.filter(({ value, stream = value }) => isStream(stream, { checkOpen: false }) && !isStandardStream(stream)).map(({ type, value, stream = value }) => waitForStream(stream, fdNumber, streamInfo, {
+  isSameDirection: TRANSFORM_TYPES.has(type),
+  stopOnExit: type === "native"
+})));
+var throwOnSubprocessError = async (subprocess, { signal }) => {
+  const [error] = await once8(subprocess, "error", { signal });
+  throw error;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/concurrent.js
+var initializeConcurrentStreams = () => ({
+  readableDestroy: /* @__PURE__ */ new WeakMap(),
+  writableFinal: /* @__PURE__ */ new WeakMap(),
+  writableDestroy: /* @__PURE__ */ new WeakMap()
+});
+var addConcurrentStream = (concurrentStreams, stream, waitName) => {
+  const weakMap = concurrentStreams[waitName];
+  if (!weakMap.has(stream)) {
+    weakMap.set(stream, []);
+  }
+  const promises = weakMap.get(stream);
+  const promise = createDeferred();
+  promises.push(promise);
+  const resolve5 = promise.resolve.bind(promise);
+  return { resolve: resolve5, promises };
+};
+var waitForConcurrentStreams = async ({ resolve: resolve5, promises }, subprocess) => {
+  resolve5();
+  const [isSubprocessExit] = await Promise.race([
+    Promise.allSettled([true, subprocess]),
+    Promise.all([false, ...promises])
+  ]);
+  return !isSubprocessExit;
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/readable.js
+import { Readable as Readable3 } from "node:stream";
+import { callbackify as callbackify2 } from "node:util";
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/shared.js
+import { finished as finished6 } from "node:stream/promises";
+var safeWaitForSubprocessStdin = async (subprocessStdin) => {
+  if (subprocessStdin === void 0) {
+    return;
+  }
+  try {
+    await waitForSubprocessStdin(subprocessStdin);
+  } catch {
+  }
+};
+var safeWaitForSubprocessStdout = async (subprocessStdout) => {
+  if (subprocessStdout === void 0) {
+    return;
+  }
+  try {
+    await waitForSubprocessStdout(subprocessStdout);
+  } catch {
+  }
+};
+var waitForSubprocessStdin = async (subprocessStdin) => {
+  await finished6(subprocessStdin, { cleanup: true, readable: false, writable: true });
+};
+var waitForSubprocessStdout = async (subprocessStdout) => {
+  await finished6(subprocessStdout, { cleanup: true, readable: true, writable: false });
+};
+var waitForSubprocess = async (subprocess, error) => {
+  await subprocess;
+  if (error) {
+    throw error;
+  }
+};
+var destroyOtherStream = (stream, isOpen, error) => {
+  if (error && !isStreamAbort(error)) {
+    stream.destroy(error);
+  } else if (isOpen) {
+    stream.destroy();
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/readable.js
+var createReadable = ({ subprocess, concurrentStreams, encoding }, { from, binary: binaryOption = true, preserveNewlines = true } = {}) => {
+  const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
+  const { subprocessStdout, waitReadableDestroy } = getSubprocessStdout(subprocess, from, concurrentStreams);
+  const { readableEncoding, readableObjectMode, readableHighWaterMark } = getReadableOptions(subprocessStdout, binary);
+  const { read, onStdoutDataDone } = getReadableMethods({
+    subprocessStdout,
+    subprocess,
+    binary,
+    encoding,
+    preserveNewlines
+  });
+  const readable2 = new Readable3({
+    read,
+    destroy: callbackify2(onReadableDestroy.bind(void 0, { subprocessStdout, subprocess, waitReadableDestroy })),
+    highWaterMark: readableHighWaterMark,
+    objectMode: readableObjectMode,
+    encoding: readableEncoding
+  });
+  onStdoutFinished({
+    subprocessStdout,
+    onStdoutDataDone,
+    readable: readable2,
+    subprocess
+  });
+  return readable2;
+};
+var getSubprocessStdout = (subprocess, from, concurrentStreams) => {
+  const subprocessStdout = getFromStream(subprocess, from);
+  const waitReadableDestroy = addConcurrentStream(concurrentStreams, subprocessStdout, "readableDestroy");
+  return { subprocessStdout, waitReadableDestroy };
+};
+var getReadableOptions = ({ readableEncoding, readableObjectMode, readableHighWaterMark }, binary) => binary ? { readableEncoding, readableObjectMode, readableHighWaterMark } : { readableEncoding, readableObjectMode: true, readableHighWaterMark: DEFAULT_OBJECT_HIGH_WATER_MARK };
+var getReadableMethods = ({ subprocessStdout, subprocess, binary, encoding, preserveNewlines }) => {
+  const onStdoutDataDone = createDeferred();
+  const onStdoutData = iterateOnSubprocessStream({
+    subprocessStdout,
+    subprocess,
+    binary,
+    shouldEncode: !binary,
+    encoding,
+    preserveNewlines
+  });
+  return {
+    read() {
+      onRead(this, onStdoutData, onStdoutDataDone);
+    },
+    onStdoutDataDone
+  };
+};
+var onRead = async (readable2, onStdoutData, onStdoutDataDone) => {
+  try {
+    const { value, done } = await onStdoutData.next();
+    if (done) {
+      onStdoutDataDone.resolve();
+    } else {
+      readable2.push(value);
+    }
+  } catch {
+  }
+};
+var onStdoutFinished = async ({ subprocessStdout, onStdoutDataDone, readable: readable2, subprocess, subprocessStdin }) => {
+  try {
+    await waitForSubprocessStdout(subprocessStdout);
+    await subprocess;
+    await safeWaitForSubprocessStdin(subprocessStdin);
+    await onStdoutDataDone;
+    if (readable2.readable) {
+      readable2.push(null);
+    }
+  } catch (error) {
+    await safeWaitForSubprocessStdin(subprocessStdin);
+    destroyOtherReadable(readable2, error);
+  }
+};
+var onReadableDestroy = async ({ subprocessStdout, subprocess, waitReadableDestroy }, error) => {
+  if (await waitForConcurrentStreams(waitReadableDestroy, subprocess)) {
+    destroyOtherReadable(subprocessStdout, error);
+    await waitForSubprocess(subprocess, error);
+  }
+};
+var destroyOtherReadable = (stream, error) => {
+  destroyOtherStream(stream, stream.readable, error);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/writable.js
+import { Writable as Writable3 } from "node:stream";
+import { callbackify as callbackify3 } from "node:util";
+var createWritable = ({ subprocess, concurrentStreams }, { to } = {}) => {
+  const { subprocessStdin, waitWritableFinal, waitWritableDestroy } = getSubprocessStdin(subprocess, to, concurrentStreams);
+  const writable2 = new Writable3({
+    ...getWritableMethods(subprocessStdin, subprocess, waitWritableFinal),
+    destroy: callbackify3(onWritableDestroy.bind(void 0, {
+      subprocessStdin,
+      subprocess,
+      waitWritableFinal,
+      waitWritableDestroy
+    })),
+    highWaterMark: subprocessStdin.writableHighWaterMark,
+    objectMode: subprocessStdin.writableObjectMode
+  });
+  onStdinFinished(subprocessStdin, writable2);
+  return writable2;
+};
+var getSubprocessStdin = (subprocess, to, concurrentStreams) => {
+  const subprocessStdin = getToStream(subprocess, to);
+  const waitWritableFinal = addConcurrentStream(concurrentStreams, subprocessStdin, "writableFinal");
+  const waitWritableDestroy = addConcurrentStream(concurrentStreams, subprocessStdin, "writableDestroy");
+  return { subprocessStdin, waitWritableFinal, waitWritableDestroy };
+};
+var getWritableMethods = (subprocessStdin, subprocess, waitWritableFinal) => ({
+  write: onWrite.bind(void 0, subprocessStdin),
+  final: callbackify3(onWritableFinal.bind(void 0, subprocessStdin, subprocess, waitWritableFinal))
+});
+var onWrite = (subprocessStdin, chunk, encoding, done) => {
+  if (subprocessStdin.write(chunk, encoding)) {
+    done();
+  } else {
+    subprocessStdin.once("drain", done);
+  }
+};
+var onWritableFinal = async (subprocessStdin, subprocess, waitWritableFinal) => {
+  if (await waitForConcurrentStreams(waitWritableFinal, subprocess)) {
+    if (subprocessStdin.writable) {
+      subprocessStdin.end();
+    }
+    await subprocess;
+  }
+};
+var onStdinFinished = async (subprocessStdin, writable2, subprocessStdout) => {
+  try {
+    await waitForSubprocessStdin(subprocessStdin);
+    if (writable2.writable) {
+      writable2.end();
+    }
+  } catch (error) {
+    await safeWaitForSubprocessStdout(subprocessStdout);
+    destroyOtherWritable(writable2, error);
+  }
+};
+var onWritableDestroy = async ({ subprocessStdin, subprocess, waitWritableFinal, waitWritableDestroy }, error) => {
+  await waitForConcurrentStreams(waitWritableFinal, subprocess);
+  if (await waitForConcurrentStreams(waitWritableDestroy, subprocess)) {
+    destroyOtherWritable(subprocessStdin, error);
+    await waitForSubprocess(subprocess, error);
+  }
+};
+var destroyOtherWritable = (stream, error) => {
+  destroyOtherStream(stream, stream.writable, error);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/duplex.js
+import { Duplex as Duplex3 } from "node:stream";
+import { callbackify as callbackify4 } from "node:util";
+var createDuplex = ({ subprocess, concurrentStreams, encoding }, { from, to, binary: binaryOption = true, preserveNewlines = true } = {}) => {
+  const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
+  const { subprocessStdout, waitReadableDestroy } = getSubprocessStdout(subprocess, from, concurrentStreams);
+  const { subprocessStdin, waitWritableFinal, waitWritableDestroy } = getSubprocessStdin(subprocess, to, concurrentStreams);
+  const { readableEncoding, readableObjectMode, readableHighWaterMark } = getReadableOptions(subprocessStdout, binary);
+  const { read, onStdoutDataDone } = getReadableMethods({
+    subprocessStdout,
+    subprocess,
+    binary,
+    encoding,
+    preserveNewlines
+  });
+  const duplex2 = new Duplex3({
+    read,
+    ...getWritableMethods(subprocessStdin, subprocess, waitWritableFinal),
+    destroy: callbackify4(onDuplexDestroy.bind(void 0, {
+      subprocessStdout,
+      subprocessStdin,
+      subprocess,
+      waitReadableDestroy,
+      waitWritableFinal,
+      waitWritableDestroy
+    })),
+    readableHighWaterMark,
+    writableHighWaterMark: subprocessStdin.writableHighWaterMark,
+    readableObjectMode,
+    writableObjectMode: subprocessStdin.writableObjectMode,
+    encoding: readableEncoding
+  });
+  onStdoutFinished({
+    subprocessStdout,
+    onStdoutDataDone,
+    readable: duplex2,
+    subprocess,
+    subprocessStdin
+  });
+  onStdinFinished(subprocessStdin, duplex2, subprocessStdout);
+  return duplex2;
+};
+var onDuplexDestroy = async ({ subprocessStdout, subprocessStdin, subprocess, waitReadableDestroy, waitWritableFinal, waitWritableDestroy }, error) => {
+  await Promise.all([
+    onReadableDestroy({ subprocessStdout, subprocess, waitReadableDestroy }, error),
+    onWritableDestroy({
+      subprocessStdin,
+      subprocess,
+      waitWritableFinal,
+      waitWritableDestroy
+    }, error)
+  ]);
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/iterable.js
+var createIterable = (subprocess, encoding, {
+  from,
+  binary: binaryOption = false,
+  preserveNewlines = false
+} = {}) => {
+  const binary = binaryOption || BINARY_ENCODINGS.has(encoding);
+  const subprocessStdout = getFromStream(subprocess, from);
+  const onStdoutData = iterateOnSubprocessStream({
+    subprocessStdout,
+    subprocess,
+    binary,
+    shouldEncode: true,
+    encoding,
+    preserveNewlines
+  });
+  return iterateOnStdoutData(onStdoutData, subprocessStdout, subprocess);
+};
+var iterateOnStdoutData = async function* (onStdoutData, subprocessStdout, subprocess) {
+  try {
+    yield* onStdoutData;
+  } finally {
+    if (subprocessStdout.readable) {
+      subprocessStdout.destroy();
+    }
+    await subprocess;
+  }
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/convert/add.js
+var addConvertedStreams = (subprocess, { encoding }) => {
+  const concurrentStreams = initializeConcurrentStreams();
+  subprocess.readable = createReadable.bind(void 0, { subprocess, concurrentStreams, encoding });
+  subprocess.writable = createWritable.bind(void 0, { subprocess, concurrentStreams });
+  subprocess.duplex = createDuplex.bind(void 0, { subprocess, concurrentStreams, encoding });
+  subprocess.iterable = createIterable.bind(void 0, subprocess, encoding);
+  subprocess[Symbol.asyncIterator] = createIterable.bind(void 0, subprocess, encoding, {});
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/promise.js
+var mergePromise = (subprocess, promise) => {
+  for (const [property, descriptor] of descriptors) {
+    const value = descriptor.value.bind(promise);
+    Reflect.defineProperty(subprocess, property, { ...descriptor, value });
+  }
+};
+var nativePromisePrototype = (async () => {
+})().constructor.prototype;
+var descriptors = ["then", "catch", "finally"].map((property) => [
+  property,
+  Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)
+]);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/main-async.js
+var execaCoreAsync = (rawFile, rawArguments, rawOptions, createNested) => {
+  const { file, commandArguments, command, escapedCommand, startTime, verboseInfo, options, fileDescriptors } = handleAsyncArguments(rawFile, rawArguments, rawOptions);
+  const { subprocess, promise } = spawnSubprocessAsync({
+    file,
+    commandArguments,
+    options,
+    startTime,
+    verboseInfo,
+    command,
+    escapedCommand,
+    fileDescriptors
+  });
+  subprocess.pipe = pipeToSubprocess.bind(void 0, {
+    source: subprocess,
+    sourcePromise: promise,
+    boundOptions: {},
+    createNested
+  });
+  mergePromise(subprocess, promise);
+  SUBPROCESS_OPTIONS.set(subprocess, { options, fileDescriptors });
+  return subprocess;
+};
+var handleAsyncArguments = (rawFile, rawArguments, rawOptions) => {
+  const { command, escapedCommand, startTime, verboseInfo } = handleCommand(rawFile, rawArguments, rawOptions);
+  const { file, commandArguments, options: normalizedOptions } = normalizeOptions(rawFile, rawArguments, rawOptions);
+  const options = handleAsyncOptions(normalizedOptions);
+  const fileDescriptors = handleStdioAsync(options, verboseInfo);
+  return {
+    file,
+    commandArguments,
+    command,
+    escapedCommand,
+    startTime,
+    verboseInfo,
+    options,
+    fileDescriptors
+  };
+};
+var handleAsyncOptions = ({ timeout, signal, ...options }) => {
+  if (signal !== void 0) {
+    throw new TypeError('The "signal" option has been renamed to "cancelSignal" instead.');
+  }
+  return { ...options, timeoutDuration: timeout };
+};
+var spawnSubprocessAsync = ({ file, commandArguments, options, startTime, verboseInfo, command, escapedCommand, fileDescriptors }) => {
+  let subprocess;
+  try {
+    subprocess = spawn2(...concatenateShell(file, commandArguments, options));
+  } catch (error) {
+    return handleEarlyError({
+      error,
+      command,
+      escapedCommand,
+      fileDescriptors,
+      options,
+      startTime,
+      verboseInfo
+    });
+  }
+  const controller = new AbortController();
+  setMaxListeners(Number.POSITIVE_INFINITY, controller.signal);
+  const originalStreams = [...subprocess.stdio];
+  pipeOutputAsync(subprocess, fileDescriptors, controller);
+  cleanupOnExit(subprocess, options, controller);
+  const context = {};
+  const onInternalError = createDeferred();
+  subprocess.kill = subprocessKill.bind(void 0, {
+    kill: subprocess.kill.bind(subprocess),
+    options,
+    onInternalError,
+    context,
+    controller
+  });
+  subprocess.all = makeAllStream(subprocess, options);
+  addConvertedStreams(subprocess, options);
+  addIpcMethods(subprocess, options);
+  const promise = handlePromise({
+    subprocess,
+    options,
+    startTime,
+    verboseInfo,
+    fileDescriptors,
+    originalStreams,
+    command,
+    escapedCommand,
+    context,
+    onInternalError,
+    controller
+  });
+  return { subprocess, promise };
+};
+var handlePromise = async ({ subprocess, options, startTime, verboseInfo, fileDescriptors, originalStreams, command, escapedCommand, context, onInternalError, controller }) => {
+  const [
+    errorInfo,
+    [exitCode, signal],
+    stdioResults,
+    allResult,
+    ipcOutput
+  ] = await waitForSubprocessResult({
+    subprocess,
+    options,
+    context,
+    verboseInfo,
+    fileDescriptors,
+    originalStreams,
+    onInternalError,
+    controller
+  });
+  controller.abort();
+  onInternalError.resolve();
+  const stdio = stdioResults.map((stdioResult, fdNumber) => stripNewline(stdioResult, options, fdNumber));
+  const all = stripNewline(allResult, options, "all");
+  const result = getAsyncResult({
+    errorInfo,
+    exitCode,
+    signal,
+    stdio,
+    all,
+    ipcOutput,
+    context,
+    options,
+    command,
+    escapedCommand,
+    startTime
+  });
+  return handleResult(result, verboseInfo, options);
+};
+var getAsyncResult = ({ errorInfo, exitCode, signal, stdio, all, ipcOutput, context, options, command, escapedCommand, startTime }) => "error" in errorInfo ? makeError({
+  error: errorInfo.error,
+  command,
+  escapedCommand,
+  timedOut: context.terminationReason === "timeout",
+  isCanceled: context.terminationReason === "cancel" || context.terminationReason === "gracefulCancel",
+  isGracefullyCanceled: context.terminationReason === "gracefulCancel",
+  isMaxBuffer: errorInfo.error instanceof MaxBufferError,
+  isForcefullyTerminated: context.isForcefullyTerminated,
+  exitCode,
+  signal,
+  stdio,
+  all,
+  ipcOutput,
+  options,
+  startTime,
+  isSync: false
+}) : makeSuccessResult({
+  command,
+  escapedCommand,
+  stdio,
+  all,
+  ipcOutput,
+  options,
+  startTime
+});
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/bind.js
+var mergeOptions = (boundOptions, options) => {
+  const newOptions = Object.fromEntries(
+    Object.entries(options).map(([optionName, optionValue]) => [
+      optionName,
+      mergeOption(optionName, boundOptions[optionName], optionValue)
+    ])
+  );
+  return { ...boundOptions, ...newOptions };
+};
+var mergeOption = (optionName, boundOptionValue, optionValue) => {
+  if (DEEP_OPTIONS.has(optionName) && isPlainObject(boundOptionValue) && isPlainObject(optionValue)) {
+    return { ...boundOptionValue, ...optionValue };
+  }
+  return optionValue;
+};
+var DEEP_OPTIONS = /* @__PURE__ */ new Set(["env", ...FD_SPECIFIC_OPTIONS]);
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/create.js
+var createExeca = (mapArguments, boundOptions, deepOptions, setBoundExeca) => {
+  const createNested = (mapArguments2, boundOptions2, setBoundExeca2) => createExeca(mapArguments2, boundOptions2, deepOptions, setBoundExeca2);
+  const boundExeca = (...execaArguments) => callBoundExeca({
+    mapArguments,
+    deepOptions,
+    boundOptions,
+    setBoundExeca,
+    createNested
+  }, ...execaArguments);
+  if (setBoundExeca !== void 0) {
+    setBoundExeca(boundExeca, createNested, boundOptions);
+  }
+  return boundExeca;
+};
+var callBoundExeca = ({ mapArguments, deepOptions = {}, boundOptions = {}, setBoundExeca, createNested }, firstArgument, ...nextArguments) => {
+  if (isPlainObject(firstArgument)) {
+    return createNested(mapArguments, mergeOptions(boundOptions, firstArgument), setBoundExeca);
+  }
+  const { file, commandArguments, options, isSync } = parseArguments({
+    mapArguments,
+    firstArgument,
+    nextArguments,
+    deepOptions,
+    boundOptions
+  });
+  return isSync ? execaCoreSync(file, commandArguments, options) : execaCoreAsync(file, commandArguments, options, createNested);
+};
+var parseArguments = ({ mapArguments, firstArgument, nextArguments, deepOptions, boundOptions }) => {
+  const callArguments = isTemplateString(firstArgument) ? parseTemplates(firstArgument, nextArguments) : [firstArgument, ...nextArguments];
+  const [initialFile, initialArguments, initialOptions] = normalizeParameters(...callArguments);
+  const mergedOptions = mergeOptions(mergeOptions(deepOptions, boundOptions), initialOptions);
+  const {
+    file = initialFile,
+    commandArguments = initialArguments,
+    options = mergedOptions,
+    isSync = false
+  } = mapArguments({ file: initialFile, commandArguments: initialArguments, options: mergedOptions });
+  return {
+    file,
+    commandArguments,
+    options,
+    isSync
+  };
+};
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/command.js
+var mapCommandAsync = ({ file, commandArguments }) => parseCommand(file, commandArguments);
+var mapCommandSync = ({ file, commandArguments }) => ({ ...parseCommand(file, commandArguments), isSync: true });
+var parseCommand = (command, unusedArguments) => {
+  if (unusedArguments.length > 0) {
+    throw new TypeError(`The command and its arguments must be passed as a single string: ${command} ${unusedArguments}.`);
+  }
+  const [file, ...commandArguments] = parseCommandString(command);
+  return { file, commandArguments };
+};
+var parseCommandString = (command) => {
+  if (typeof command !== "string") {
+    throw new TypeError(`The command must be a string: ${String(command)}.`);
+  }
+  const trimmedCommand = command.trim();
+  if (trimmedCommand === "") {
+    return [];
+  }
+  const tokens = [];
+  for (const token of trimmedCommand.split(SPACES_REGEXP)) {
+    const previousToken = tokens.at(-1);
+    if (previousToken && previousToken.endsWith("\\")) {
+      tokens[tokens.length - 1] = `${previousToken.slice(0, -1)} ${token}`;
+    } else {
+      tokens.push(token);
+    }
+  }
+  return tokens;
+};
+var SPACES_REGEXP = / +/g;
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/lib/methods/script.js
+var setScriptSync = (boundExeca, createNested, boundOptions) => {
+  boundExeca.sync = createNested(mapScriptSync, boundOptions);
+  boundExeca.s = boundExeca.sync;
+};
+var mapScriptAsync = ({ options }) => getScriptOptions(options);
+var mapScriptSync = ({ options }) => ({ ...getScriptOptions(options), isSync: true });
+var getScriptOptions = (options) => ({ options: { ...getScriptStdinOption(options), ...options } });
+var getScriptStdinOption = ({ input, inputFile, stdio }) => input === void 0 && inputFile === void 0 && stdio === void 0 ? { stdin: "inherit" } : {};
+var deepScriptOptions = { preferLocal: true };
+
+// ../../node_modules/.pnpm/execa@9.6.1/node_modules/execa/index.js
+var execa = createExeca(() => ({}));
+var execaSync = createExeca(() => ({ isSync: true }));
+var execaCommand = createExeca(mapCommandAsync);
+var execaCommandSync = createExeca(mapCommandSync);
+var execaNode = createExeca(mapNode);
+var $ = createExeca(mapScriptAsync, {}, deepScriptOptions, setScriptSync);
+var {
+  sendMessage: sendMessage2,
+  getOneMessage: getOneMessage2,
+  getEachMessage: getEachMessage2,
+  getCancelSignal: getCancelSignal2
+} = getIpcExport();
+
+// ../process-utils/src/vcs-process-scheduler.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+import { availableParallelism } from "node:os";
+var ranks = { interactive: 0, status: 1, background: 2 };
+function localProcessCapacities(parallelism) {
+  const total = Math.min(6, Math.max(4, parallelism - 2));
+  return [total, total - 1, total - 2];
+}
+var capacities = {
+  local: localProcessCapacities(availableParallelism()),
+  network: [4, 3, 2]
+};
+var githubCapacity = 2;
+var agingMs = 15e3;
+var networkGitSubcommands = /* @__PURE__ */ new Set([
+  "fetch",
+  "pull",
+  "push",
+  "clone",
+  "ls-remote"
+]);
+var gitGlobalOptionsWithValue = /* @__PURE__ */ new Set([
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--config-env"
+]);
+function isNetworkGitCommand(args) {
+  let index = 0;
+  while (index < args.length && args[index].startsWith("-")) {
+    index += gitGlobalOptionsWithValue.has(args[index]) ? 2 : 1;
+  }
+  const subcommand = args[index];
+  if (subcommand === void 0) return false;
+  if (networkGitSubcommands.has(subcommand)) return true;
+  const action = args.slice(index + 1).find((arg) => !arg.startsWith("-"));
+  return (subcommand === "submodule" || subcommand === "remote") && action === "update";
+}
+var VcsProcessScheduler = class {
+  priority = new AsyncLocalStorage();
+  admitted = new AsyncLocalStorage();
+  active = { local: 0, network: 0 };
+  githubActive = 0;
+  queue = [];
+  timer;
+  acquire(command, args, options) {
+    const pool = command === "gh" || isNetworkGitCommand(args) ? "network" : "local";
+    const slots = options.slots ?? 1;
+    if (!Number.isInteger(slots) || slots < 1 || slots > capacities[pool][ranks.background]) {
+      return Promise.reject(new Error("Invalid VCS process slot count"));
+    }
+    if (options.signal?.aborted) {
+      return Promise.reject(this.abortError(options.signal));
+    }
+    return new Promise((grant, reject) => {
+      const waiter = {
+        command,
+        pool,
+        priority: options.priority ?? this.priority.getStore() ?? "status",
+        slots,
+        queuedAt: performance.now(),
+        signal: options.signal,
+        grant,
+        onAbort: () => {
+          const index = this.queue.indexOf(waiter);
+          if (index === -1) return;
+          this.queue.splice(index, 1);
+          reject(this.abortError(options.signal));
+          this.drain();
+        }
+      };
+      this.queue.push(waiter);
+      options.signal?.addEventListener("abort", waiter.onAbort, { once: true });
+      this.drain();
+    });
+  }
+  abortError(signal) {
+    return Object.assign(
+      new Error("The operation was aborted", { cause: signal?.reason }),
+      {
+        name: "AbortError",
+        code: "ABORT_ERR"
+      }
+    );
+  }
+  rank(waiter) {
+    return Math.max(
+      0,
+      ranks[waiter.priority] - Math.floor((performance.now() - waiter.queuedAt) / agingMs)
+    );
+  }
+  drain() {
+    clearTimeout(this.timer);
+    this.queue.sort(
+      (a2, b) => this.rank(a2) - this.rank(b) || a2.queuedAt - b.queuedAt
+    );
+    const blocked = /* @__PURE__ */ new Set();
+    for (let index = 0; index < this.queue.length; ) {
+      const waiter = this.queue[index];
+      if (blocked.has(waiter.pool) || waiter.command === "gh" && this.githubActive + waiter.slots > githubCapacity) {
+        index += 1;
+        continue;
+      }
+      if (this.active[waiter.pool] + waiter.slots > capacities[waiter.pool][this.rank(waiter)]) {
+        blocked.add(waiter.pool);
+        index += 1;
+        continue;
+      }
+      this.queue.splice(index, 1);
+      waiter.signal?.removeEventListener("abort", waiter.onAbort);
+      this.active[waiter.pool] += waiter.slots;
+      if (waiter.command === "gh") this.githubActive += waiter.slots;
+      let released = false;
+      waiter.grant(() => {
+        if (released) return;
+        released = true;
+        this.active[waiter.pool] -= waiter.slots;
+        if (waiter.command === "gh") this.githubActive -= waiter.slots;
+        this.drain();
+      });
+    }
+    if (this.queue.length > 0) {
+      const delay = Math.min(
+        ...this.queue.map(
+          (waiter) => agingMs - (performance.now() - waiter.queuedAt) % agingMs
+        )
+      );
+      this.timer = setTimeout(() => this.drain(), delay);
+    }
+  }
+};
+var registry = globalThis;
+var scheduler3 = registry.__bbVcsProcessScheduler ??= new VcsProcessScheduler();
+async function runVcsProcess(command, args, operation, options = {}) {
+  if (scheduler3.admitted.getStore()) {
+    options.signal?.throwIfAborted();
+    return operation();
+  }
+  const release = await scheduler3.acquire(command, args, options);
+  try {
+    options.signal?.throwIfAborted();
+    return await scheduler3.admitted.run(true, operation);
+  } finally {
+    release();
+  }
+}
+
+// ../process-utils/src/exec-portable-file.ts
+import { basename as basename2 } from "node:path";
+function resolvePortableCommand(command, options) {
+  return hostToolchain.resolve(command, options) ?? void 0;
+}
+async function execPortableFile(command, args, options) {
+  const executable2 = basename2(command).toLowerCase().replace(/\.(exe|cmd|bat)$/u, "");
+  if (executable2 === "git" || executable2 === "gh") {
+    return runVcsProcess(
+      executable2,
+      args,
+      () => execPortableFileUnbounded(command, args, options),
+      {
+        priority: options.priority,
+        signal: options.signal
+      }
+    );
+  }
+  return execPortableFileUnbounded(command, args, options);
+}
+async function execPortableFileUnbounded(command, args, options) {
+  if (options.signal?.aborted) throw options.signal.reason;
+  if (process.platform === "win32" && resolvePortableCommand(command, options) === void 0) {
+    throw Object.assign(new Error(`spawn ${command} ENOENT`), {
+      code: "ENOENT",
+      syscall: `spawn ${command}`,
+      stdout: "",
+      stderr: "",
+      signal: null,
+      killed: false
+    });
+  }
+  const launch = hostToolchain.command(command, args, options);
+  const subprocess = execa(launch.command, launch.args, {
+    cwd: options.cwd,
+    env: launch.env,
+    extendEnv: false,
+    encoding: "buffer",
+    stripFinalNewline: false,
+    maxBuffer: options.maxBuffer,
+    input: options.input ?? "",
+    detached: supportsProcessGroups(),
+    forceKillAfterDelay: 1e3,
+    reject: false
+  });
+  const stopProcess = createProcessStop(subprocess);
+  let stopPromise;
+  let canceled = false;
+  let timedOut = false;
+  function stop() {
+    stopPromise ??= stopProcess({ gracePeriodMs: 1e3 });
+    void stopPromise.catch(() => void 0);
+  }
+  const onAbort = () => {
+    canceled = true;
+    stop();
+  };
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = options.timeout ? setTimeout(() => {
+    timedOut = true;
+    stop();
+  }, options.timeout) : void 0;
+  for (const stream of [subprocess.stdout, subprocess.stderr]) {
+    stream?.once("close", () => {
+      if (!stream.readableEnded && (process.platform !== "win32" || subprocess.exitCode === null && subprocess.signalCode === null)) {
+        stop();
+      }
+    });
+  }
+  if (options.onStderr) {
+    const decoder = new TextDecoder();
+    const onStderr = options.onStderr;
+    subprocess.stderr?.on("data", (chunk) => {
+      const text = decoder.decode(chunk, { stream: true });
+      if (text) onStderr(text);
+    });
+    subprocess.stderr?.on("end", () => {
+      const text = decoder.decode();
+      if (text) onStderr(text);
+    });
+  }
+  const result = await subprocess.finally(() => {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onAbort);
+  });
+  await stopPromise;
+  const output = {
+    stdout: Buffer.from(result.stdout).toString("utf8"),
+    stderr: Buffer.from(result.stderr).toString("utf8")
+  };
+  if (!result.failed && !canceled && !timedOut) return output;
+  hostToolchain.invalidateFailure(result.code ?? result.exitCode);
+  const stopped = canceled || result.isMaxBuffer || timedOut;
+  const syscall = result.cause instanceof Error && "syscall" in result.cause && typeof result.cause.syscall === "string" ? result.cause.syscall : void 0;
+  const overflowStream = result.shortMessage?.startsWith(
+    "Command's stderr was larger than "
+  ) ? "stderr" : "stdout";
+  const message = canceled ? "The operation was aborted" : result.isMaxBuffer ? `${overflowStream} maxBuffer length exceeded` : timedOut ? `Command timed out after ${options.timeout}ms` : result.originalMessage || `Command failed: ${command}`;
+  throw Object.assign(
+    new Error(message, {
+      cause: canceled ? options.signal?.reason : result.cause
+    }),
+    {
+      name: canceled ? "AbortError" : "Error",
+      code: canceled ? "ABORT_ERR" : result.isMaxBuffer ? "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" : result.code ?? result.exitCode ?? null,
+      signal: stopped ? "SIGTERM" : result.signal ?? null,
+      killed: stopped || result.isTerminated,
+      ...syscall === void 0 ? {} : { syscall },
+      ...output
+    }
+  );
+}
+
+// ../process-utils/src/paths.ts
+import { isAbsolute as isAbsolute2, relative, resolve as resolve2, sep } from "node:path";
+function isPathWithinDirectory(directoryPath, candidatePath) {
+  const relativePath = relative(directoryPath, candidatePath);
+  return relativePath === "" || relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute2(relativePath);
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/provider-maintenance-kit.ts
+var import_compare = __toESM(require_compare(), 1);
+var import_valid = __toESM(require_valid(), 1);
+import { z as z36 } from "zod";
+async function resolveExecutablePath(command) {
+  return hostToolchain.resolve(command);
+}
+function versionFrom(value) {
+  const candidate = value?.match(/\bv?(\d+\.\d+\.\d+[0-9A-Za-z.+-]*)/u)?.[1];
+  return candidate !== void 0 && (0, import_valid.default)(candidate) !== null ? candidate : null;
+}
+function downloadedInstallerCommand(url2, options = {}) {
+  if ((options.platform ?? process.platform) === "win32" && options.powershellUrl !== void 0) {
+    const powershellScript = `irm ${options.powershellUrl} | iex`;
+    return {
+      command: "powershell.exe",
+      args: [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        powershellScript
+      ],
+      displayCommand: powershellScript
+    };
+  }
+  const script = [
+    'tmp=$(mktemp "${TMPDIR:-/tmp}/provider-installation.XXXXXX")',
+    `trap 'rm -f "$tmp"' EXIT`,
+    `curl -fsSL ${url2} -o "$tmp"`,
+    'bash "$tmp"'
+  ].join(" && ");
+  return { command: "sh", args: ["-c", script], displayCommand: script };
+}
+function clampPercent(value) {
+  return Math.min(
+    100,
+    Math.max(0, Math.round(Number.isFinite(value) ? value : 0))
+  );
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/provider-tool-call-contract.ts
+import { z as z37 } from "zod";
+var providerToolCallCancellationSchema = z37.object({
+  requestId: z37.union([z37.string(), z37.number().int()])
+});
+var PROVIDER_TOOL_CALL_CANCELLED_METHOD = "notifications/cancelled";
+
+// ../provider-bridge-protocol/src/bridge-kit/provider-visibility.ts
+function createProviderVisibilityMetadata(args) {
+  return {
+    parseRawEvent: args.parseRawEvent,
+    describeParsedRawEvent: args.describeParsedRawEvent,
+    describeRawEvent(event) {
+      return args.describeParsedRawEvent(args.parseRawEvent(event));
+    }
+  };
+}
+
+// ../provider-bridge-protocol/src/bridge-kit/runtime-json-rpc.ts
+import { z as z38 } from "zod";
+var ignoredJsonRpcResultSchema = z38.unknown();
+
+// ../provider-bridge-acp/src/bridge/bridge.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
+import { promises as fs4, readFileSync as readFileSync3, statSync as statSync3 } from "node:fs";
+import { createServer } from "node:net";
+import { dirname as dirname3, isAbsolute as isAbsolute3, basename as basename5, relative as relative2, resolve as resolve4 } from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+import { z as z51 } from "zod";
+
+// ../provider-bridge-acp/src/bridge-protocol.ts
+import { z as z40 } from "zod";
+
+// ../provider-bridge-acp/src/wire.ts
+import { z as z39 } from "zod";
+var acpTextContentBlockSchema = z39.object({
+  type: z39.literal("text"),
+  text: z39.string()
+}).passthrough();
+var acpOtherContentBlockSchema = z39.object({
+  type: z39.string()
+}).passthrough();
+var acpContentBlockSchema = z39.union([
+  acpTextContentBlockSchema,
+  acpOtherContentBlockSchema
+]);
+function extractAcpContentText(content) {
+  if (!content) {
+    return void 0;
+  }
+  const parsed = acpTextContentBlockSchema.safeParse(content);
+  return parsed.success ? parsed.data.text : void 0;
+}
+var ACP_TOOL_KINDS = [
+  "read",
+  "edit",
+  "delete",
+  "move",
+  "search",
+  "execute",
+  "think",
+  "fetch",
+  "switch_mode",
+  "other"
+];
+var acpToolKindSchema = z39.enum(ACP_TOOL_KINDS);
+var ACP_TOOL_KIND_SET = new Set(ACP_TOOL_KINDS);
+var ACP_TOOL_CALL_STATUSES = [
+  "pending",
+  "in_progress",
+  "completed",
+  "failed",
+  "cancelled"
+];
+var acpToolCallStatusSchema = z39.enum(ACP_TOOL_CALL_STATUSES);
+var ACP_TOOL_CALL_STATUS_SET = new Set(
+  ACP_TOOL_CALL_STATUSES
+);
+var acpToolCallContentSchema = z39.union([
+  z39.object({
+    type: z39.literal("content"),
+    content: acpContentBlockSchema
+  }).passthrough(),
+  z39.object({
+    type: z39.literal("diff"),
+    path: z39.string(),
+    oldText: z39.string().nullable().optional(),
+    newText: z39.string()
+  }).passthrough(),
+  z39.object({
+    type: z39.literal("terminal"),
+    terminalId: z39.string()
+  }).passthrough()
+]);
+var acpToolCallContentListSchema = z39.array(z39.unknown()).transform(
+  (entries) => entries.flatMap((entry) => {
+    const parsed = acpToolCallContentSchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  })
+);
+var acpToolCallLocationSchema = z39.object({
+  path: z39.string(),
+  line: z39.number().optional().nullable()
+}).passthrough();
+var acpToolCallNameSchema = z39.union([z39.string(), z39.null()]).transform((value) => value ?? void 0).optional();
+var acpToolCallFieldsSchema = z39.object({
+  toolCallId: z39.string(),
+  title: z39.string().optional(),
+  name: acpToolCallNameSchema,
+  kind: acpToolKindSchema.optional(),
+  rawKind: z39.string().optional(),
+  status: acpToolCallStatusSchema.optional(),
+  content: acpToolCallContentListSchema.optional(),
+  locations: z39.array(acpToolCallLocationSchema).optional(),
+  rawInput: z39.unknown().optional(),
+  rawOutput: z39.unknown().optional()
+});
+function openAcpToolCallEnums(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const fields = value;
+  const { kind, status, ...rest } = fields;
+  const next = rest;
+  if (typeof kind === "string") {
+    if (ACP_TOOL_KIND_SET.has(kind)) {
+      next["kind"] = kind;
+    } else {
+      next["kind"] = "other";
+      next["rawKind"] = kind;
+    }
+  } else if (kind !== void 0 && kind !== null) {
+    next["kind"] = kind;
+  }
+  if (typeof status === "string") {
+    next["status"] = ACP_TOOL_CALL_STATUS_SET.has(status) ? status : "pending";
+  } else if (status !== void 0 && status !== null) {
+    next["status"] = status;
+  }
+  return next;
+}
+var acpAgentMessageChunkUpdateSchema = z39.object({
+  sessionUpdate: z39.literal("agent_message_chunk"),
+  content: acpContentBlockSchema
+}).passthrough();
+var acpAgentThoughtChunkUpdateSchema = z39.object({
+  sessionUpdate: z39.literal("agent_thought_chunk"),
+  content: acpContentBlockSchema
+}).passthrough();
+var acpToolCallUpdateEventSchema = z39.preprocess(
+  openAcpToolCallEnums,
+  acpToolCallFieldsSchema.extend({
+    sessionUpdate: z39.enum(["tool_call", "tool_call_update"])
+  }).passthrough()
+);
+var acpPlanEntryStatusSchema = z39.enum([
+  "pending",
+  "in_progress",
+  "completed"
+]);
+var acpPlanUpdateSchema = z39.object({
+  sessionUpdate: z39.literal("plan"),
+  entries: z39.array(
+    z39.object({
+      content: z39.string(),
+      status: acpPlanEntryStatusSchema.optional()
+    }).passthrough()
+  )
+}).passthrough();
+var acpUsageUpdateSchema = z39.object({
+  sessionUpdate: z39.literal("usage_update"),
+  used: z39.number().int().nonnegative(),
+  size: z39.number().int().nonnegative()
+}).passthrough();
+var acpOtherSessionUpdateSchema = z39.object({
+  sessionUpdate: z39.string()
+}).passthrough();
+var acpSessionUpdateSchema = z39.union([
+  acpAgentMessageChunkUpdateSchema,
+  acpAgentThoughtChunkUpdateSchema,
+  acpToolCallUpdateEventSchema,
+  acpPlanUpdateSchema,
+  acpUsageUpdateSchema,
+  acpOtherSessionUpdateSchema
+]);
+var acpSessionNotificationParamsSchema = z39.object({
+  sessionId: z39.string(),
+  update: acpSessionUpdateSchema
+}).passthrough();
+var acpOptionalString = z39.union([z39.string(), z39.null()]).transform((value) => value ?? void 0).optional();
+var acpConfigOptionSelectOptionSchema = z39.object({
+  value: z39.string(),
+  name: acpOptionalString
+}).passthrough();
+var acpConfigOptionSchema = z39.object({
+  id: z39.string(),
+  name: acpOptionalString,
+  category: acpOptionalString,
+  type: z39.string(),
+  currentValue: acpOptionalString,
+  options: z39.array(acpConfigOptionSelectOptionSchema).optional()
+}).passthrough();
+var acpSessionModelSchema = z39.object({
+  modelId: z39.string(),
+  name: acpOptionalString,
+  description: acpOptionalString
+}).passthrough();
+var acpSessionModelsSchema = z39.object({
+  currentModelId: acpOptionalString,
+  availableModels: z39.array(acpSessionModelSchema).optional()
+}).passthrough();
+var acpLooseConfigOptionSchema = z39.object({
+  id: z39.string().optional(),
+  name: z39.unknown().optional(),
+  category: acpOptionalString,
+  type: z39.unknown().optional(),
+  currentValue: z39.unknown().optional(),
+  options: z39.unknown().optional()
+}).passthrough();
+var acpConfigOptionSelectGroupSchema = z39.object({
+  group: z39.string(),
+  options: z39.array(z39.unknown())
+}).passthrough();
+function flattenAcpConfigOptionGroups(option) {
+  if (typeof option !== "object" || option === null) {
+    return option;
+  }
+  const { options } = option;
+  if (!Array.isArray(options)) {
+    return option;
+  }
+  return {
+    ...option,
+    options: options.flatMap((entry) => {
+      const group = acpConfigOptionSelectGroupSchema.safeParse(entry);
+      return group.success ? group.data.options : [entry];
+    })
+  };
+}
+function parseAcpConfigOptions(options, ctx) {
+  if (options == null) {
+    return void 0;
+  }
+  const parsedOptions = [];
+  for (const rawOption of options) {
+    const option = flattenAcpConfigOptionGroups(rawOption);
+    const loose = acpLooseConfigOptionSchema.safeParse(option);
+    if (!loose.success) {
+      continue;
+    }
+    const isModelOption = loose.data.category === "model" || loose.data.id === "model";
+    if (isModelOption) {
+      const strict = acpConfigOptionSchema.safeParse(option);
+      if (strict.success) {
+        parsedOptions.push(strict.data);
+        continue;
+      }
+      ctx.addIssue({
+        code: "custom",
+        message: `Invalid ACP model config option: ${strict.error.message}`
+      });
+      continue;
+    }
+    if (loose.data.id === void 0) {
+      continue;
+    }
+    parsedOptions.push({
+      id: loose.data.id,
+      ...typeof loose.data.name === "string" ? { name: loose.data.name } : {},
+      ...loose.data.category !== void 0 ? { category: loose.data.category } : {},
+      type: typeof loose.data.type === "string" ? loose.data.type : "",
+      ...typeof loose.data.currentValue === "string" ? { currentValue: loose.data.currentValue } : {},
+      ...Array.isArray(loose.data.options) ? {
+        options: loose.data.options.flatMap((selectOption) => {
+          const parsed = acpConfigOptionSelectOptionSchema.safeParse(selectOption);
+          return parsed.success ? [parsed.data] : [];
+        })
+      } : {}
+    });
+  }
+  return parsedOptions;
+}
+var acpSessionNewResultSchema = z39.object({
+  sessionId: z39.string(),
+  models: acpSessionModelsSchema.optional(),
+  configOptions: z39.array(z39.unknown()).nullable().optional().transform((options, ctx) => parseAcpConfigOptions(options, ctx))
+}).passthrough();
+var acpConfigStateResultSchema = z39.object({
+  models: acpSessionModelsSchema.optional(),
+  configOptions: z39.array(z39.unknown()).nullable().optional().transform((options, ctx) => parseAcpConfigOptions(options, ctx))
+}).passthrough();
+var acpSessionForkResultSchema = acpConfigStateResultSchema.extend({
+  sessionId: z39.string()
+});
+var acpStopReasonSchema = z39.string();
+var acpPromptResultSchema = z39.object({
+  stopReason: acpStopReasonSchema
+}).passthrough();
+var acpPermissionOptionKindSchema = z39.enum([
+  "allow_once",
+  "allow_always",
+  "reject_once",
+  "reject_always"
+]);
+var acpPermissionOptionSchema = z39.object({
+  optionId: z39.string(),
+  name: z39.string(),
+  kind: acpPermissionOptionKindSchema
+}).passthrough();
+var acpRequestPermissionParamsSchema = z39.object({
+  sessionId: z39.string(),
+  toolCall: z39.preprocess(
+    openAcpToolCallEnums,
+    acpToolCallFieldsSchema.partial().passthrough()
+  ).optional(),
+  options: z39.array(acpPermissionOptionSchema).min(1)
+}).passthrough();
+var acpReadTextFileParamsSchema = z39.object({
+  sessionId: z39.string(),
+  path: z39.string(),
+  line: z39.number().nullable().optional(),
+  limit: z39.number().nullable().optional()
+}).passthrough();
+var acpWriteTextFileParamsSchema = z39.object({
+  sessionId: z39.string(),
+  path: z39.string(),
+  content: z39.string()
+}).passthrough();
+
+// ../provider-bridge-acp/src/bridge-protocol.ts
+var ACP_DEFAULT_MODEL_ID = "acp-default";
+var acpModelListParamsSchema = modelListParamsSchema.extend({
+  providerOptions: z40.record(z40.string(), z40.unknown()).optional()
+});
+var acpBridgeCommandSchema = z40.discriminatedUnion("method", [
+  z40.object({
+    method: z40.literal("initialize"),
+    params: initializeParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("model/list"),
+    params: acpModelListParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("provider/health"),
+    params: providerMaintenanceParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("provider/usage"),
+    params: providerMaintenanceParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("provider/installation/status"),
+    params: providerInstallationStatusParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("provider/installation/run"),
+    params: providerInstallationRunParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("thread/start"),
+    params: threadStartParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("thread/resume"),
+    params: threadResumeParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("thread/fork"),
+    params: threadForkParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("turn/start"),
+    params: turnStartParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("turn/steer"),
+    params: turnSteerParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("thread/stop"),
+    params: threadStopParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("thread/discard"),
+    params: threadDiscardParamsSchema
+  }),
+  z40.object({
+    method: z40.literal("skills/configure"),
+    params: skillsConfigureParamsSchema
+  })
+]);
+var acpBridgeCommandMethodValues = acpBridgeCommandSchema.options.map(
+  (option) => option.shape.method.value
+);
+var ACP_TURN_STARTED_METHOD = "acp/turn/started";
+var ACP_TURN_COMPLETED_METHOD = "acp/turn/completed";
+var ACP_PROMPT_INTERRUPTED_METHOD = "acp/prompt/interrupted";
+var ACP_COMPACTION_STARTED_METHOD = "acp/compaction/started";
+var ACP_COMPACTION_COMPLETED_METHOD = "acp/compaction/completed";
+var ACP_UPDATE_METHOD = "acp/update";
+var ACP_FS_WRITE_METHOD = "acp/fs/write";
+var ACP_WARNING_METHOD = "acp/warning";
+var acpTurnStartedNotificationParamsSchema = z40.object({
+  threadId: z40.string().min(1)
+}).passthrough();
+var acpTurnCompletedNotificationParamsSchema = z40.object({
+  threadId: z40.string().min(1),
+  stopReason: acpStopReasonSchema
+}).passthrough();
+var acpCompactionCompletedNotificationParamsSchema = z40.discriminatedUnion("status", [
+  z40.object({
+    threadId: z40.string().min(1),
+    status: z40.literal("completed")
+  }).passthrough(),
+  z40.object({
+    threadId: z40.string().min(1),
+    status: z40.literal("interrupted")
+  }).passthrough(),
+  z40.object({
+    threadId: z40.string().min(1),
+    status: z40.literal("skipped"),
+    detail: z40.string().min(1)
+  }).passthrough(),
+  z40.object({
+    threadId: z40.string().min(1),
+    status: z40.literal("failed"),
+    error: z40.string().min(1)
+  }).passthrough()
+]);
+var acpUpdateNotificationParamsSchema = z40.object({
+  threadId: z40.string().min(1),
+  update: acpSessionUpdateSchema
+}).passthrough();
+var acpFsWriteNotificationParamsSchema = z40.object({
+  threadId: z40.string().min(1),
+  path: z40.string().min(1),
+  kind: z40.enum(["add", "update"]),
+  oldText: z40.string().optional(),
+  content: z40.string()
+}).passthrough();
+var acpWarningNotificationParamsSchema = z40.object({
+  threadId: z40.string().min(1),
+  summary: z40.string().min(1),
+  details: z40.string().optional()
+}).passthrough();
+
+// ../provider-bridge-acp/src/dialect.ts
+import { basename as basename3 } from "node:path";
+import { z as z45 } from "zod";
+
+// ../provider-bridge-acp/src/bridge/provider-maintenance.ts
+import { existsSync as existsSync2 } from "node:fs";
+import fs3 from "node:fs/promises";
+import os2 from "node:os";
+import path9 from "node:path";
+import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+import { z as z42 } from "zod";
+
+// ../provider-bridge-acp/src/bridge/opencode-usage.ts
+import fs2 from "node:fs/promises";
+import os from "node:os";
+import path8 from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { z as z41 } from "zod";
+var apiCredentialSchema = z41.object({
+  type: z41.literal("api"),
+  key: z41.string().trim().min(1)
+});
+var storedKeySchema = apiCredentialSchema.extend({ type: z41.literal("key") });
+var credentialsSchema = z41.record(z41.string(), z41.unknown());
+var accountSchema = z41.object({
+  id: z41.string().min(1),
+  email: z41.email().nullable().catch(null),
+  url: z41.url(),
+  access_token: z41.string().min(1),
+  token_expiry: z41.number().nullable(),
+  active_org_id: z41.string().min(1).nullable()
+});
+var storedOAuthSchema = z41.object({
+  type: z41.literal("oauth"),
+  methodID: z41.literal("device"),
+  access: z41.string().min(1),
+  expires: z41.number().nonnegative(),
+  metadata: z41.object({
+    server: z41.url().default("https://opencode.ai/console"),
+    accountID: z41.string().min(1),
+    email: z41.email().nullable().catch(null),
+    orgID: z41.string().min(1)
+  })
+});
+var OPENCODE_2_CREDENTIAL_IMPORT_MIGRATION = "20260805200742_import_legacy_credentials";
+function isOfficialConsole(url2) {
+  const issuer = new URL(url2);
+  return issuer.origin === "https://opencode.ai" && ["/", "/console", "/console/"].includes(issuer.pathname);
+}
+var windowSchema = z41.object({
+  status: z41.enum(["ok", "rate-limited"]),
+  percent: z41.number().nonnegative(),
+  resetsAt: z41.iso.datetime({ offset: true })
+});
+var usageSchema = z41.object({
+  usage: z41.object({
+    rolling: windowSchema,
+    weekly: windowSchema,
+    monthly: windowSchema
+  })
+});
+function dataDirectory(env) {
+  const dataHome = env.XDG_DATA_HOME;
+  return path8.join(
+    dataHome && path8.isAbsolute(dataHome) ? dataHome : path8.join(env.HOME || os.homedir(), ".local", "share"),
+    "opencode"
+  );
+}
+async function openDatabase(env) {
+  const databasePath = path8.join(dataDirectory(env), "opencode.db");
+  try {
+    await fs2.access(databasePath);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return null;
+    throw error;
+  }
+  return new DatabaseSync(databasePath, { readOnly: true });
+}
+function readAccount(database) {
+  const tables = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('account', 'account_state')"
+  ).all();
+  if (tables.length !== 2) return null;
+  const row = database.prepare(
+    "SELECT a.id, a.email, a.url, a.access_token, a.token_expiry, s.active_org_id FROM account a JOIN account_state s ON s.active_account_id = a.id WHERE s.id = 1"
+  ).get();
+  if (!row) return null;
+  const account = accountSchema.parse(row);
+  if (!isOfficialConsole(account.url) || account.active_org_id === null)
+    return null;
+  return account;
+}
+function readStoredCredential(database) {
+  const table = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'credential'"
+  ).get();
+  if (!table) return null;
+  const query = database.prepare(
+    "SELECT value FROM credential WHERE integration_id = ? ORDER BY active DESC, time_created DESC, id DESC LIMIT 1"
+  );
+  for (const provider of ["opencode-go", "opencode"]) {
+    const row = query.get(provider);
+    if (!row) continue;
+    const value = z41.string().parse(row.value);
+    const parsed = JSON.parse(value);
+    const credential = storedKeySchema.safeParse(parsed);
+    if (credential.success)
+      return { apiKey: credential.data.key, account: null };
+    const oauth = storedOAuthSchema.safeParse(parsed);
+    if (!oauth.success || !isOfficialConsole(oauth.data.metadata.server))
+      continue;
+    const { access, expires, metadata } = oauth.data;
+    return {
+      apiKey: access,
+      account: {
+        id: metadata.accountID,
+        email: metadata.email,
+        url: metadata.server,
+        access_token: access,
+        token_expiry: expires,
+        active_org_id: metadata.orgID
+      }
+    };
+  }
+  return null;
+}
+function isOpenCode2Database(database) {
+  const table = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migration'"
+  ).get();
+  if (!table) return false;
+  return database.prepare("SELECT id FROM migration WHERE id = ?").get(OPENCODE_2_CREDENTIAL_IMPORT_MIGRATION) !== void 0;
+}
+async function readLegacyApiKey(env) {
+  let content = env.OPENCODE_AUTH_CONTENT;
+  if (content) {
+    try {
+      JSON.parse(content);
+    } catch {
+      content = void 0;
+    }
+  }
+  if (!content) {
+    try {
+      content = await fs2.readFile(
+        path8.join(dataDirectory(env), "auth.json"),
+        "utf8"
+      );
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT")
+        return null;
+      throw error;
+    }
+  }
+  const credentials = credentialsSchema.parse(JSON.parse(content));
+  for (const provider of ["opencode-go", "opencode"]) {
+    const credential = apiCredentialSchema.safeParse(credentials[provider]);
+    if (credential.success) return credential.data.key;
+  }
+  return null;
+}
+async function readOpenCodeGoUsage(env) {
+  const failure = (message) => ({
+    supported: true,
+    usage: {
+      status: "error",
+      message,
+      planLabel: "OpenCode Go",
+      accountEmail: null
+    }
+  });
+  let apiKey;
+  let account = null;
+  let openCode2 = false;
+  try {
+    apiKey = env.OPENCODE_API_KEY?.trim() || null;
+    if (apiKey === null) {
+      const database = await openDatabase(env);
+      if (database) {
+        try {
+          openCode2 = isOpenCode2Database(database);
+          if (openCode2) {
+            const stored = readStoredCredential(database);
+            apiKey = stored?.apiKey ?? null;
+            account = stored?.account ?? null;
+          } else {
+            account = readAccount(database);
+            apiKey = account?.access_token ?? null;
+          }
+        } finally {
+          database.close();
+        }
+      }
+      if (!openCode2) apiKey ??= await readLegacyApiKey(env);
+    }
+  } catch {
+    return failure("OpenCode credentials could not be read.");
+  }
+  if (apiKey === null)
+    return { supported: true, usage: { status: "unauthenticated" } };
+  if (account?.token_expiry != null && account.token_expiry <= Date.now())
+    return { supported: true, usage: { status: "expired" } };
+  try {
+    const response = await fetch(
+      account ? "https://opencode.ai/inference/go/v1/usage" : "https://opencode.ai/zen/go/v1/usage",
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+          "User-Agent": "bb-provider-acp",
+          ...account?.active_org_id ? { "x-opencode-org-id": account.active_org_id } : {}
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(15e3)
+      }
+    );
+    if (response.status === 401)
+      return { supported: true, usage: { status: "expired" } };
+    if (response.status === 403)
+      return failure(
+        "OpenCode Go usage access was denied. Check that the account has an active Go subscription."
+      );
+    if (!response.ok)
+      return failure(
+        `OpenCode Go usage request failed (HTTP ${response.status}).`
+      );
+    const parsed = usageSchema.safeParse(await response.json());
+    if (!parsed.success)
+      return failure("OpenCode Go returned invalid usage information.");
+    const { rolling, weekly, monthly } = parsed.data.usage;
+    return {
+      supported: true,
+      usage: {
+        status: "ok",
+        accountEmail: account?.email ?? null,
+        accountKey: account ? `opencode:organization:${account.active_org_id}:account:${account.id}` : null,
+        planLabel: "OpenCode Go",
+        windows: [
+          { label: "5 hour", kind: "five-hour", window: rolling },
+          { label: "Weekly", kind: "weekly", window: weekly },
+          { label: "Monthly", kind: "custom", window: monthly }
+        ].map(({ label, kind, window }) => ({
+          label,
+          kind,
+          model: null,
+          usedPercent: Math.min(100, window.percent),
+          resetsAt: window.resetsAt
+        }))
+      }
+    };
+  } catch {
+    return failure("OpenCode Go usage could not be collected. Try again.");
+  }
+}
+
+// ../provider-bridge-acp/src/bridge/provider-maintenance.ts
+var execFileAsync = execHostFile;
+var USAGE_FETCH_TIMEOUT_MS = 15e3;
+var CURSOR_DASHBOARD_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService";
+var CURSOR_KEYCHAIN_ACCOUNT = "cursor-user";
+var CURSOR_ACCESS_TOKEN_SERVICE = "cursor-access-token";
+var CURSOR_INSTALL_SCRIPT_URL = "https://cursor.com/install";
+function cursorAuthFilePath() {
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA ?? path9.join(os2.homedir(), "AppData", "Roaming");
+    return path9.join(appData, "Cursor", "auth.json");
+  }
+  if (process.platform === "darwin") {
+    return path9.join(os2.homedir(), ".cursor", "auth.json");
+  }
+  const configHome = process.env.XDG_CONFIG_HOME ?? path9.join(os2.homedir(), ".config");
+  return path9.join(configHome, "cursor", "auth.json");
+}
+async function readKeychainAccessToken() {
+  if (process.platform !== "darwin") return null;
+  try {
+    const { stdout } = await execFileAsync(
+      "security",
+      [
+        "find-generic-password",
+        "-s",
+        CURSOR_ACCESS_TOKEN_SERVICE,
+        "-a",
+        CURSOR_KEYCHAIN_ACCOUNT,
+        "-w"
+      ],
+      { timeout: 1e4 }
+    );
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+var cursorFileCredentialsSchema = z42.object({
+  accessToken: z42.string().min(1).nullish()
+});
+async function readAccessToken() {
+  const keychain = await readKeychainAccessToken();
+  if (keychain) return keychain;
+  try {
+    const parsed = cursorFileCredentialsSchema.safeParse(
+      JSON.parse(await fs3.readFile(cursorAuthFilePath(), "utf8"))
+    );
+    return parsed.success ? parsed.data.accessToken ?? null : null;
+  } catch {
+    return null;
+  }
+}
+function cursorStateDatabasePath() {
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA ?? path9.join(os2.homedir(), "AppData", "Roaming");
+    return path9.join(appData, "Cursor", "User", "globalStorage", "state.vscdb");
+  }
+  if (process.platform === "darwin") {
+    return path9.join(
+      os2.homedir(),
+      "Library",
+      "Application Support",
+      "Cursor",
+      "User",
+      "globalStorage",
+      "state.vscdb"
+    );
+  }
+  const configHome = process.env.XDG_CONFIG_HOME ?? path9.join(os2.homedir(), ".config");
+  return path9.join(
+    configHome,
+    "Cursor",
+    "User",
+    "globalStorage",
+    "state.vscdb"
+  );
+}
+function readAccountEmail() {
+  const databasePath = cursorStateDatabasePath();
+  if (!existsSync2(databasePath)) return null;
+  let database = null;
+  try {
+    database = new DatabaseSync2(databasePath);
+    database.exec("PRAGMA query_only = true");
+    const row = database.prepare("SELECT value FROM ItemTable WHERE key = ?").get("cursorAuth/cachedEmail");
+    const parsed = z42.object({ value: z42.string().email() }).safeParse(row);
+    return parsed.success ? parsed.data.value : null;
+  } catch {
+    return null;
+  } finally {
+    database?.close();
+  }
+}
+function healthResult(args) {
+  const maintained = args.maintenance !== void 0;
+  return {
+    supported: true,
+    health: {
+      status: args.status,
+      statusMessage: args.statusMessage ?? null,
+      accountEmail: args.accountEmail ?? null,
+      planLabel: null,
+      installedVersion: args.installedVersion ?? null,
+      minimumSupportedVersion: null,
+      canInstall: maintained,
+      canUpdate: maintained && args.status !== "not_installed",
+      loginCommand: args.maintenance?.loginCommand ?? null
+    }
+  };
+}
+async function readAcpCliVersion(command) {
+  try {
+    const { stdout, stderr } = await execPortableFile(command, ["--version"], {
+      cwd: process.cwd(),
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+      timeout: 5e3
+    });
+    const output = `${stdout}
+${stderr}`;
+    return versionFrom(output) ?? output.match(
+      /(?:^|\s)(\d{4}\.(?:0[1-9]|1[0-2])\.(?:0[1-9]|[12]\d|3[01])-[0-9a-f]+)(?=\s|$)/u
+    )?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+async function getAcpProviderHealth(args) {
+  const maintenance = args.maintenance;
+  if (args.command === null) {
+    return healthResult({
+      maintenance,
+      status: "unknown",
+      statusMessage: "The ACP provider has no launch command."
+    });
+  }
+  if (await resolveExecutablePath(args.command) === null) {
+    return healthResult({ maintenance, status: "not_installed" });
+  }
+  const version = await readAcpCliVersion(args.command);
+  if (maintenance === void 0) {
+    return healthResult({
+      maintenance,
+      status: "ready",
+      installedVersion: version
+    });
+  }
+  try {
+    const account = await maintenance.readAccount();
+    return healthResult({
+      maintenance,
+      status: account === null ? "unauthenticated" : "ready",
+      accountEmail: account?.email ?? null,
+      installedVersion: version
+    });
+  } catch (error) {
+    return healthResult({
+      maintenance,
+      status: "unknown",
+      installedVersion: version,
+      statusMessage: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+async function getAcpProviderInstallationStatus(args) {
+  const executableName = args.command ?? "";
+  const resolvedExecutable = args.command === null ? null : await resolveExecutablePath(args.command);
+  const installed = resolvedExecutable !== null;
+  const currentVersion = installed && args.command !== null ? await readAcpCliVersion(args.command) : null;
+  const installAction = args.maintenance !== void 0 && !installed ? {
+    kind: "install",
+    label: "Install",
+    command: args.maintenance.installer().displayCommand
+  } : null;
+  return {
+    executableName,
+    executablePath: resolvedExecutable,
+    installed,
+    installSource: installed ? "external" : "notInstalled",
+    currentVersion,
+    latestVersion: null,
+    minimumSupportedVersion: null,
+    npmPackageName: null,
+    npmGlobalPackageVersion: null,
+    installAction,
+    needsUpdate: false,
+    versionUnsupported: false
+  };
+}
+async function getAcpProviderInstallationRun(args) {
+  const status = await getAcpProviderInstallationStatus(args);
+  return buildAcpProviderInstallationRun(status, args);
+}
+function buildAcpProviderInstallationRun(status, args) {
+  if (status.installAction?.kind !== args.action || args.maintenance === void 0) {
+    return {
+      available: false,
+      message: `${args.command ?? "This ACP agent"} ${args.action} is not available on this host.`
+    };
+  }
+  return {
+    available: true,
+    command: args.maintenance.installer(),
+    verification: { kind: "installed" }
+  };
+}
+var cursorNonNegativeIntegerSchema = z42.union([
+  z42.number().int().nonnegative(),
+  z42.string().regex(/^\d+$/u).transform(Number)
+]).refine(Number.isSafeInteger);
+var cursorUsageResponseSchema = z42.object({
+  billingCycleEnd: cursorNonNegativeIntegerSchema.nullish(),
+  planUsage: z42.object({ totalPercentUsed: z42.number().nonnegative().default(0) }).nullish(),
+  spendLimitUsage: z42.object({
+    overallLimit: cursorNonNegativeIntegerSchema.nullish(),
+    overallUsed: cursorNonNegativeIntegerSchema.nullish(),
+    individualLimit: cursorNonNegativeIntegerSchema.nullish(),
+    individualUsed: cursorNonNegativeIntegerSchema.nullish(),
+    pooledLimit: cursorNonNegativeIntegerSchema.nullish(),
+    pooledUsed: cursorNonNegativeIntegerSchema.nullish()
+  }).nullish()
+}).passthrough();
+var cursorPlanResponseSchema = z42.object({
+  planInfo: z42.object({ planName: z42.string().min(1) }).nullish()
+}).passthrough();
+function normalizeUsage(rawUsage, rawPlan, accountEmail = null) {
+  const usage = cursorUsageResponseSchema.safeParse(rawUsage);
+  if (!usage.success) {
+    return {
+      status: "error",
+      message: "Cursor usage response was malformed.",
+      planLabel: null,
+      accountEmail
+    };
+  }
+  const plan = cursorPlanResponseSchema.safeParse(rawPlan);
+  const resetsAt = usage.data.billingCycleEnd == null ? null : new Date(usage.data.billingCycleEnd).toISOString();
+  const windows = [];
+  if (usage.data.planUsage?.totalPercentUsed != null) {
+    windows.push({
+      label: "Plan usage",
+      usedPercent: clampPercent(usage.data.planUsage.totalPercentUsed),
+      resetsAt
+    });
+  }
+  const spend = usage.data.spendLimitUsage;
+  const pair = spend?.overallLimit != null ? { limit: spend.overallLimit, used: spend.overallUsed ?? 0 } : spend?.individualLimit != null ? { limit: spend.individualLimit, used: spend.individualUsed ?? 0 } : spend?.pooledLimit != null ? { limit: spend.pooledLimit, used: spend.pooledUsed ?? 0 } : null;
+  if (pair && pair.limit > 0) {
+    windows.push({
+      label: "On-demand spend",
+      usedPercent: clampPercent(pair.used / pair.limit * 100),
+      resetsAt,
+      cost: { usedUsdCents: pair.used, limitUsdCents: pair.limit }
+    });
+  }
+  return {
+    status: "ok",
+    accountEmail,
+    planLabel: plan.success ? plan.data.planInfo?.planName ?? null : null,
+    windows
+  };
+}
+function fetchDashboard(method, accessToken) {
+  return fetch(`${CURSOR_DASHBOARD_URL}/${method}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      "x-cursor-client-type": "cli",
+      "x-cursor-client-version": "cli-bb-provider-acp"
+    },
+    body: "{}",
+    signal: AbortSignal.timeout(USAGE_FETCH_TIMEOUT_MS)
+  });
+}
+async function getAcpProviderUsage(args) {
+  const readUsage = args.dialectId === "opencode" ? () => readOpenCodeGoUsage(args.env) : args.maintenance?.readUsage;
+  if (readUsage === void 0) return { supported: false };
+  if (args.command === null || await resolveExecutablePath(args.command) === null) {
+    return { supported: true, usage: { status: "not_installed" } };
+  }
+  return readUsage();
+}
+var CURSOR_ACP_MAINTENANCE = {
+  loginCommand: "cursor-agent login",
+  installer: () => downloadedInstallerCommand(CURSOR_INSTALL_SCRIPT_URL),
+  readAccount: async () => {
+    const accessToken = await readAccessToken();
+    return accessToken === null ? null : { email: readAccountEmail() };
+  },
+  readUsage: readCursorUsage
+};
+async function readCursorUsage() {
+  const accessToken = await readAccessToken();
+  if (!accessToken) {
+    return { supported: true, usage: { status: "unauthenticated" } };
+  }
+  try {
+    const [usageResponse, planResponse] = await Promise.all([
+      fetchDashboard("GetCurrentPeriodUsage", accessToken),
+      fetchDashboard("GetPlanInfo", accessToken)
+    ]);
+    if (usageResponse.status === 401 || planResponse.status === 401) {
+      return { supported: true, usage: { status: "expired" } };
+    }
+    if (!usageResponse.ok) {
+      return {
+        supported: true,
+        usage: {
+          status: "error",
+          message: `Cursor usage request failed (HTTP ${usageResponse.status}).`,
+          planLabel: null,
+          accountEmail: readAccountEmail()
+        }
+      };
+    }
+    return {
+      supported: true,
+      usage: normalizeUsage(
+        await usageResponse.json(),
+        planResponse.ok ? await planResponse.json() : {},
+        readAccountEmail()
+      )
+    };
+  } catch (error) {
+    return {
+      supported: true,
+      usage: {
+        status: "error",
+        message: error instanceof Error ? error.message : String(error),
+        planLabel: null,
+        accountEmail: readAccountEmail()
+      }
+    };
+  }
+}
+
+// ../provider-bridge-acp/src/presentation.ts
+function stripCodeTicks(text) {
+  const trimmed = text.trim();
+  return trimmed.length >= 2 && trimmed.startsWith("`") && trimmed.endsWith("`") ? trimmed.slice(1, -1) : trimmed;
+}
+function commandPresentation(command) {
+  return withTitle(
+    {
+      label: { pending: "Running command", completed: "Ran command" },
+      icon: { glyph: "Terminal" }
+    },
+    presentationTitle(stripCodeTicks(command))
+  );
+}
+function fileChangePresentation(args) {
+  const names = [...new Set(args.paths.map(presentationFileName))];
+  const plural = names.length > 1;
+  const label = args.verb === "add" ? {
+    pending: plural ? "Writing files" : "Writing file",
+    completed: plural ? "Wrote files" : "Wrote file"
+  } : args.verb === "delete" ? {
+    pending: plural ? "Deleting files" : "Deleting file",
+    completed: plural ? "Deleted files" : "Deleted file"
+  } : {
+    pending: plural ? "Editing files" : "Editing file",
+    completed: plural ? "Edited files" : "Edited file"
+  };
+  return withTitle(
+    {
+      label,
+      icon: { glyph: args.verb === "delete" ? "Trash2" : "EditFile" }
+    },
+    names.length === 0 ? void 0 : presentationTitle(names.join(", "))
+  );
+}
+function delegationPresentation(args) {
+  const presentation = withTitle(
+    {
+      label: { pending: "Running subagent", completed: "Subagent finished" },
+      icon: { glyph: "UserRound" }
+    },
+    presentationTitle(args.label)
+  );
+  return args.detail === void 0 ? presentation : { ...presentation, detail: args.detail };
+}
+var KIND_PRESENTATIONS = {
+  read: {
+    label: { pending: "Reading file", completed: "Read file" },
+    glyph: "FileText"
+  },
+  edit: {
+    label: { pending: "Editing file", completed: "Edited file" },
+    glyph: "EditFile"
+  },
+  delete: {
+    label: { pending: "Deleting file", completed: "Deleted file" },
+    glyph: "Trash2"
+  },
+  move: {
+    label: { pending: "Moving file", completed: "Moved file" },
+    glyph: "FolderEdit"
+  },
+  search: {
+    label: { pending: "Searching", completed: "Searched" },
+    glyph: "Search"
+  },
+  execute: {
+    label: { pending: "Running command", completed: "Ran command" },
+    glyph: "Terminal"
+  },
+  think: {
+    label: { pending: "Thinking", completed: "Thought" },
+    glyph: "Brain"
+  },
+  fetch: {
+    label: { pending: "Fetching", completed: "Fetched" },
+    glyph: "Globe"
+  },
+  switch_mode: {
+    label: { pending: "Switching mode", completed: "Switched mode" },
+    glyph: "SlidersHorizontal"
+  },
+  other: {
+    label: { pending: "Running tool", completed: "Ran tool" },
+    glyph: "Toolbox"
+  }
+};
+function toolKindPresentation(args) {
+  const spec = KIND_PRESENTATIONS[args.kind ?? "other"];
+  const label = args.name === void 0 ? spec.label : { pending: `Running ${args.name}`, completed: `Ran ${args.name}` };
+  return withTitle(
+    { label, icon: { glyph: spec.glyph } },
+    args.title === void 0 ? void 0 : presentationTitle(args.title)
+  );
+}
+
+// ../provider-bridge-acp/src/tool-classification.ts
+import { z as z44 } from "zod";
+
+// ../provider-bridge-acp/src/tool-call-operation.ts
+import path10 from "node:path";
+import { z as z43 } from "zod";
+var acpRawInputCommandSchema = z43.object({ command: z43.string() }).passthrough();
+var acpRawInputPathSchema = z43.object({
+  path: z43.string().optional(),
+  filePath: z43.string().optional(),
+  file_path: z43.string().optional(),
+  target_file: z43.string().optional()
+}).passthrough();
+function resolveAcpToolCallPath(value, options) {
+  const cwd = options?.cwd;
+  if (cwd === void 0 || path10.isAbsolute(value) || value.startsWith("~")) {
+    return value;
+  }
+  return path10.resolve(cwd, value);
+}
+function extractAcpCommand(event) {
+  const parsed = acpRawInputCommandSchema.safeParse(event.rawInput);
+  if (parsed.success && parsed.data.command.trim().length > 0) {
+    return parsed.data.command;
+  }
+  return toOptionalString(event.title);
+}
+function isNonBlank(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function extractAcpToolCallPaths(event, options) {
+  const paths = [];
+  for (const entry of event.content ?? []) {
+    if (entry.type === "diff" && isNonBlank(entry.path)) {
+      paths.push(resolveAcpToolCallPath(entry.path, options));
+    }
+  }
+  for (const location of event.locations ?? []) {
+    if (isNonBlank(location.path)) {
+      paths.push(resolveAcpToolCallPath(location.path, options));
+    }
+  }
+  if (paths.length > 0) {
+    return paths;
+  }
+  const parsed = acpRawInputPathSchema.safeParse(event.rawInput);
+  if (!parsed.success) {
+    return [];
+  }
+  const rawInputPath = [
+    parsed.data.path,
+    parsed.data.filePath,
+    parsed.data.file_path,
+    parsed.data.target_file
+  ].find(isNonBlank);
+  return rawInputPath === void 0 ? [] : [resolveAcpToolCallPath(rawInputPath, options)];
+}
+function classifyAcpToolCall(event, options) {
+  if (event.kind === "execute") {
+    const command = extractAcpCommand(event);
+    if (command) {
+      return { kind: "command", command };
+    }
+  }
+  const paths = extractAcpToolCallPaths(event, options);
+  const hasDiff = (event.content ?? []).some((entry) => entry.type === "diff");
+  if (hasDiff || event.kind === "edit") {
+    return { kind: "file_change", changeKind: "update", paths };
+  }
+  if (event.kind === "delete") {
+    return { kind: "file_change", changeKind: "delete", paths };
+  }
+  return { kind: "generic" };
+}
+function resolveAcpFileChangeWriteScope(paths) {
+  const normalized = paths.filter(isNonBlank).map((entry) => {
+    const value = path10.normalize(entry);
+    return value !== path10.parse(value).root && value.endsWith(path10.sep) ? value.slice(0, -1) : value;
+  });
+  const [first, ...rest] = normalized;
+  if (first === void 0) {
+    return null;
+  }
+  let candidate = first;
+  for (const entry of rest) {
+    if (entry.length < candidate.length) {
+      candidate = entry;
+    }
+  }
+  for (const entry of normalized) {
+    if (!isPathWithinDirectory(candidate, entry)) {
+      return null;
+    }
+  }
+  return candidate;
+}
+
+// ../provider-bridge-acp/src/tool-classification.ts
+var BB_TOOL_SERVER = "bb";
+function isInjectedToolCandidate(event) {
+  if (event.kind !== void 0 && event.kind !== "other") {
+    return false;
+  }
+  return classifyAcpToolCall(event).kind === "generic";
+}
+var INLINE_IMAGE_DATA_URL_PATTERN = /data:image\/[a-z0-9.+-]+(?:;[^,]*)?;base64,[a-z0-9+/_=-]+/giu;
+var ACP_TOOL_PAYLOAD_MAX_CHARS = 64 * 1024;
+function scrubInlineImageDataUrls(text) {
+  return text.replace(INLINE_IMAGE_DATA_URL_PATTERN, "[image]");
+}
+function scrubToolPayloadStrings(value) {
+  if (typeof value === "string") {
+    return scrubInlineImageDataUrls(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(scrubToolPayloadStrings);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        scrubToolPayloadStrings(entry)
+      ])
+    );
+  }
+  return value;
+}
+function truncatedPayloadText(text) {
+  if (text.length <= ACP_TOOL_PAYLOAD_MAX_CHARS) {
+    return text;
+  }
+  const removed = text.length - ACP_TOOL_PAYLOAD_MAX_CHARS;
+  return `${text.slice(0, ACP_TOOL_PAYLOAD_MAX_CHARS)}
+\u2026[${removed.toLocaleString("en-US")} more characters truncated]`;
+}
+function boundAcpToolPayload(value) {
+  if (value === void 0) {
+    return void 0;
+  }
+  const scrubbed = scrubToolPayloadStrings(value);
+  const serialized = JSON.stringify(scrubbed);
+  if (serialized === void 0) {
+    return void 0;
+  }
+  if (serialized.length <= ACP_TOOL_PAYLOAD_MAX_CHARS) {
+    return scrubbed;
+  }
+  return truncatedPayloadText(
+    typeof scrubbed === "string" ? scrubbed : extractResultText(scrubbed)
+  );
+}
+function boundAcpToolArgs(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  const bounded = boundAcpToolPayload(value);
+  if (typeof bounded === "string") {
+    return { truncated: bounded };
+  }
+  return bounded !== null && typeof bounded === "object" && !Array.isArray(bounded) ? bounded : void 0;
+}
+function extractAcpToolCallContentText(event) {
+  const chunks = [];
+  for (const entry of event.content ?? []) {
+    if (entry.type !== "content") {
+      continue;
+    }
+    const text = extractAcpContentText(entry.content);
+    if (text) {
+      chunks.push(text);
+    }
+  }
+  return chunks.length > 0 ? chunks.join("\n") : void 0;
+}
+function extractAcpToolCallOutputText(event) {
+  const contentText = extractAcpToolCallContentText(event);
+  if (contentText !== void 0) {
+    return contentText;
+  }
+  if (event.rawOutput === void 0) {
+    return void 0;
+  }
+  const rawOutputText = scrubInlineImageDataUrls(
+    extractResultText(event.rawOutput)
+  ).trim();
+  return rawOutputText.length > 0 ? rawOutputText : void 0;
+}
+var commandRawOutputSchema = z44.object({
+  exitCode: z44.number().int().nullable().optional(),
+  exit_code: z44.number().int().nullable().optional(),
+  stdout: z44.string().optional(),
+  stderr: z44.string().optional(),
+  output_for_prompt: z44.string().optional(),
+  signal: z44.string().nullable().optional(),
+  timed_out: z44.boolean().optional()
+}).passthrough();
+function emptyToUndefined(value) {
+  return value === void 0 || value.length === 0 ? void 0 : value;
+}
+function joinStreams(stdout, stderr) {
+  if (stdout.length === 0 && stderr.length === 0) {
+    return void 0;
+  }
+  if (stdout.length === 0 || stderr.length === 0) {
+    return stdout.length > 0 ? stdout : stderr;
+  }
+  return stdout.endsWith("\n") ? `${stdout}${stderr}` : `${stdout}
+${stderr}`;
+}
+function acpCommandOutputSoFar(event, raw) {
+  const content = extractAcpToolCallContentText(event);
+  if (content !== void 0) {
+    return { reported: true, output: content };
+  }
+  if (typeof event.rawOutput === "string") {
+    return {
+      reported: true,
+      output: emptyToUndefined(
+        scrubInlineImageDataUrls(event.rawOutput).trim()
+      )
+    };
+  }
+  if (raw === void 0) {
+    return { reported: false, output: void 0 };
+  }
+  if (raw.stdout !== void 0 || raw.stderr !== void 0) {
+    return {
+      reported: true,
+      output: joinStreams(raw.stdout ?? "", raw.stderr ?? "")
+    };
+  }
+  if (raw.output_for_prompt !== void 0) {
+    return { reported: true, output: emptyToUndefined(raw.output_for_prompt) };
+  }
+  return { reported: false, output: void 0 };
+}
+function extractAcpStreamedCommandOutput(event) {
+  const parsed = commandRawOutputSchema.safeParse(event.rawOutput);
+  const { output } = acpCommandOutputSoFar(
+    event,
+    parsed.success ? parsed.data : void 0
+  );
+  return output === void 0 ? void 0 : scrubInlineImageDataUrls(output);
+}
+function extractAcpCommandResult(event) {
+  const parsed = commandRawOutputSchema.safeParse(event.rawOutput);
+  const raw = parsed.success ? parsed.data : void 0;
+  const exitCode = raw?.exitCode ?? raw?.exit_code ?? void 0;
+  const reported = acpCommandOutputSoFar(event, raw);
+  let output = reported.reported ? reported.output : extractAcpToolCallOutputText(event);
+  const notes = [
+    ...raw?.timed_out === true ? ["[timed out]"] : [],
+    ...raw?.signal ? [`[signal ${raw.signal}]`] : []
+  ];
+  if (notes.length > 0) {
+    const body = output ?? "";
+    output = `${body}${body.length > 0 && !body.endsWith("\n") ? "\n" : ""}${notes.join(" ")}`;
+  }
+  return {
+    ...exitCode === void 0 ? {} : { exitCode },
+    ...output === void 0 ? {} : { output: scrubInlineImageDataUrls(output) }
+  };
+}
+var optionalNonBlank = z44.string().optional().transform(
+  (value) => value !== void 0 && value.trim().length > 0 ? value : void 0
+);
+var searchRawInputSchema = z44.object({
+  pattern: optionalNonBlank,
+  query: optionalNonBlank,
+  regex: optionalNonBlank,
+  glob: optionalNonBlank,
+  globPattern: optionalNonBlank,
+  path: optionalNonBlank,
+  directory: optionalNonBlank
+}).passthrough();
+var fetchRawInputSchema = z44.object({ url: optionalNonBlank, uri: optionalNonBlank }).passthrough();
+var thinkRawInputSchema = z44.object({ thought: optionalNonBlank, thinking: optionalNonBlank }).passthrough();
+var SINGLE_TICKED_TOKEN_PATTERN = /^[^`]*`([^`\n]+)`[^`]*$/;
+var URL_PATTERN = /https?:\/\/[^\s`'"<>]+/g;
+function tickedTokenFromTitle(title) {
+  if (title === void 0) {
+    return void 0;
+  }
+  const match = SINGLE_TICKED_TOKEN_PATTERN.exec(title);
+  const token = match?.[1]?.trim();
+  return token !== void 0 && token.length > 0 ? token : void 0;
+}
+function urlFromTitle(title) {
+  if (title === void 0) {
+    return void 0;
+  }
+  const urls = title.match(URL_PATTERN);
+  return urls !== null && urls.length === 1 ? urls[0] : void 0;
+}
+function looksLikePath(token) {
+  return token.startsWith("/") || token.startsWith("~") || token.startsWith(".");
+}
+function fileChangeVerb(changes, fallback) {
+  if (changes.length === 0) {
+    return fallback;
+  }
+  if (changes.every((change) => change.kind === "add")) {
+    return "add";
+  }
+  if (changes.every((change) => change.kind === "delete")) {
+    return "delete";
+  }
+  return "update";
+}
+var DEV_NULL_OLD_TEXT = /^-{2,3} \/dev\/null$/u;
+var NEW_FILE_HEADER = /^\+{2,3} b\/[^\n]*(?:\n|$)/u;
+function buildAcpFileChanges(event, operation, options) {
+  const changes = [];
+  for (const entry of event.content ?? []) {
+    if (entry.type !== "diff") {
+      continue;
+    }
+    const createsFile = entry.oldText === null || entry.oldText === void 0 || DEV_NULL_OLD_TEXT.test(entry.oldText);
+    changes.push({
+      path: resolveAcpToolCallPath(entry.path, options),
+      kind: createsFile ? "add" : "update",
+      ...createsFile ? {} : { oldText: entry.oldText ?? void 0 },
+      newText: createsFile ? entry.newText.replace(NEW_FILE_HEADER, "") : entry.newText
+    });
+  }
+  if (changes.length > 0) {
+    return changes;
+  }
+  const [path12] = operation.paths;
+  if (path12 === void 0) {
+    return [];
+  }
+  return [
+    {
+      path: path12,
+      kind: operation.changeKind === "update" && options?.existedBefore?.get(path12) === false ? "add" : operation.changeKind
+    }
+  ];
+}
+function fileChangeItem(changes, fallbackVerb) {
+  return {
+    item: { type: "fileChange", changes },
+    presentation: fileChangePresentation({
+      verb: fileChangeVerb(changes, fallbackVerb),
+      paths: changes.map((change) => change.path)
+    })
+  };
+}
+function fileReadItem(event, title, options) {
+  const ticked = tickedTokenFromTitle(title);
+  const path12 = extractAcpToolCallPaths(event, options)[0] ?? (ticked !== void 0 && looksLikePath(ticked) ? ticked : void 0);
+  if (path12 === void 0) {
+    return null;
+  }
+  return {
+    item: { type: "fileRead", path: path12 },
+    presentation: fileReadPresentation(path12)
+  };
+}
+function searchItem(event) {
+  const parsed = searchRawInputSchema.safeParse(event.rawInput);
+  if (!parsed.success) {
+    return null;
+  }
+  const input = parsed.data;
+  const glob = input.glob ?? input.globPattern;
+  const contentQuery = input.pattern ?? input.query ?? input.regex;
+  const mode = contentQuery !== void 0 ? "content" : "path";
+  const query = contentQuery ?? glob;
+  if (query === void 0) {
+    return null;
+  }
+  const root = input.path ?? input.directory;
+  return {
+    item: {
+      type: "search",
+      mode,
+      query,
+      ...root === void 0 ? {} : { path: root }
+    },
+    presentation: searchPresentation({ mode, query })
+  };
+}
+function webFetchItem(event, title) {
+  const parsed = fetchRawInputSchema.safeParse(event.rawInput);
+  const url2 = (parsed.success ? parsed.data.url ?? parsed.data.uri : void 0) ?? urlFromTitle(title);
+  if (url2 === void 0) {
+    return null;
+  }
+  return {
+    item: { type: "webFetch", url: url2, pattern: null },
+    presentation: webFetchPresentation(url2)
+  };
+}
+function reasoningItem(event) {
+  const parsed = thinkRawInputSchema.safeParse(event.rawInput);
+  const thought = extractAcpToolCallOutputText(event) ?? (parsed.success ? parsed.data.thought ?? parsed.data.thinking : void 0);
+  return {
+    item: {
+      type: "reasoning",
+      summary: [],
+      content: thought === void 0 ? [] : [thought]
+    },
+    presentation: REASONING_PRESENTATION
+  };
+}
+function genericToolFields(event) {
+  const args = boundAcpToolArgs(event.rawInput);
+  const result = boundAcpToolPayload(event.rawOutput);
+  const error = event.status === "failed" ? extractAcpToolCallOutputText(event) : void 0;
+  return {
+    ...args === void 0 ? {} : { args },
+    ...result === void 0 ? {} : { result },
+    ...error === void 0 ? {} : { error }
+  };
+}
+function genericToolItem(event, title) {
+  const name = toOptionalString(event.name);
+  return {
+    item: {
+      type: "tool",
+      tool: name ?? event.rawKind ?? event.kind ?? "tool",
+      ...genericToolFields(event)
+    },
+    presentation: toolKindPresentation({ kind: event.kind, name, title })
+  };
+}
+function bbToolItem(event, injected) {
+  return {
+    item: {
+      type: "tool",
+      tool: injected.name,
+      server: BB_TOOL_SERVER,
+      ...genericToolFields(event)
+    },
+    presentation: injected.presentation ?? toolPresentation(injected.name)
+  };
+}
+function classifyAcpToolCall2(event, injected, options) {
+  if (injected !== void 0 && isInjectedToolCandidate(event)) {
+    return bbToolItem(event, injected);
+  }
+  const operation = classifyAcpToolCall(event, options);
+  if (operation.kind === "command") {
+    const cwd = toOptionalString(options?.cwd);
+    if (cwd !== void 0) {
+      return {
+        item: { type: "command", command: operation.command, cwd },
+        presentation: commandPresentation(operation.command)
+      };
+    }
+  }
+  if (operation.kind === "file_change") {
+    const changes = buildAcpFileChanges(event, operation, options);
+    return fileChangeItem(changes, operation.changeKind);
+  }
+  const title = toOptionalString(event.title);
+  switch (event.kind) {
+    case "read":
+      return fileReadItem(event, title, options) ?? genericToolItem(event, title);
+    case "search":
+      return searchItem(event) ?? genericToolItem(event, title);
+    case "fetch":
+      return webFetchItem(event, title) ?? genericToolItem(event, title);
+    case "think":
+      return reasoningItem(event);
+    case "execute":
+    case "edit":
+    case "delete":
+    case "move":
+    case "switch_mode":
+    case "other":
+    case void 0:
+      return genericToolItem(event, title);
+  }
+}
+
+// ../provider-bridge-acp/src/dialect.ts
+var GENERIC_ACP_DIALECT = { id: "acp" };
+var grokToolMetaSchema = z45.object({
+  "x.ai/tool": z45.object({
+    name: z45.string().optional(),
+    kind: z45.string().optional()
+  }).passthrough()
+}).passthrough();
+function grokToolIdentity(event) {
+  const meta = grokToolMetaSchema.safeParse(event["_meta"]);
+  if (!meta.success) {
+    return void 0;
+  }
+  const tool = meta.data["x.ai/tool"];
+  const kind = acpToolKindSchema.safeParse(tool.kind);
+  return {
+    ...tool.name !== void 0 && tool.name.length > 0 ? { name: tool.name } : {},
+    ...kind.success ? { kind: kind.data } : {}
+  };
+}
+var GROK_SPAWN_SUBAGENT_TOOL = "spawn_subagent";
+var grokSpawnSubagentInputSchema = z45.object({
+  description: z45.string().optional(),
+  prompt: z45.string().optional(),
+  subagent_type: z45.string().optional()
+}).passthrough();
+function grokClassifyToolCall(event) {
+  if (grokToolIdentity(event)?.name !== GROK_SPAWN_SUBAGENT_TOOL) {
+    return void 0;
+  }
+  const parsed = grokSpawnSubagentInputSchema.safeParse(event.rawInput);
+  const input = parsed.success ? parsed.data : void 0;
+  const label = input?.description ?? input?.prompt ?? event.title ?? "Subagent";
+  const shape = {
+    type: "delegation",
+    childRef: event.toolCallId,
+    label,
+    background: false
+  };
+  return {
+    item: shape,
+    presentation: delegationPresentation({
+      label,
+      ...input?.subagent_type === void 0 ? {} : { detail: input.subagent_type }
+    })
+  };
+}
+var GROK_ACP_DIALECT = {
+  id: "grok",
+  toolIdentity: grokToolIdentity,
+  classifyToolCall: grokClassifyToolCall
+};
+var grokModelMetaSchema = z45.object({
+  totalContextTokens: z45.number().int().positive()
+}).passthrough();
+var grokPromptMetaSchema = z45.object({
+  inputTokens: z45.number().int().nonnegative().optional(),
+  totalTokens: z45.number().int().nonnegative().optional(),
+  usage: z45.object({
+    inputTokens: z45.number().int().nonnegative().optional(),
+    totalTokens: z45.number().int().nonnegative().optional()
+  }).passthrough().optional()
+}).passthrough();
+var grokPromptResultSchema = z45.object({
+  _meta: grokPromptMetaSchema.optional()
+}).passthrough();
+var grokSessionModelSchema = z45.object({
+  modelId: z45.string(),
+  _meta: grokModelMetaSchema.optional()
+}).passthrough();
+var grokSessionModelsSchema = z45.object({
+  currentModelId: z45.string().optional(),
+  availableModels: z45.array(grokSessionModelSchema).optional()
+}).passthrough();
+function grokContextWindowSizeFromSessionModels(models) {
+  const parsed = grokSessionModelsSchema.safeParse(models);
+  if (!parsed.success) {
+    return void 0;
+  }
+  const available = parsed.data.availableModels ?? [];
+  const currentId = parsed.data.currentModelId;
+  const ordered = [
+    ...currentId === void 0 ? [] : available.filter((model) => model.modelId === currentId),
+    ...available
+  ];
+  for (const model of ordered) {
+    if (model._meta !== void 0) {
+      return model._meta.totalContextTokens;
+    }
+  }
+  return void 0;
+}
+function grokContextUsageFromPromptResult(result) {
+  const parsed = grokPromptResultSchema.safeParse(result);
+  if (!parsed.success) {
+    return void 0;
+  }
+  const meta = parsed.data._meta;
+  const used = meta?.usage?.inputTokens ?? meta?.inputTokens ?? meta?.usage?.totalTokens ?? meta?.totalTokens;
+  return used === void 0 ? void 0 : { used };
+}
+var CURSOR_TASK_TOOL = "task";
+var cursorTaskRawInputSchema = z45.object({ _toolName: z45.string().optional() }).passthrough();
+var CURSOR_TASK_METHOD = "cursor/task";
+var cursorTaskParamsSchema = z45.object({
+  toolCallId: z45.string(),
+  description: z45.string().optional(),
+  prompt: z45.string().optional(),
+  agentId: z45.string().optional(),
+  model: z45.string().optional()
+}).passthrough();
+function cursorClassifyToolCall(event) {
+  const parsed = cursorTaskRawInputSchema.safeParse(event.rawInput);
+  if (!parsed.success || parsed.data._toolName !== CURSOR_TASK_TOOL) {
+    return void 0;
+  }
+  const label = event.title ?? "Subagent task";
+  const shape = {
+    type: "delegation",
+    childRef: event.toolCallId,
+    label,
+    background: false
+  };
+  return {
+    item: shape,
+    presentation: delegationPresentation({ label })
+  };
+}
+function cursorHandleClientRequest(method, params) {
+  if (method !== CURSOR_TASK_METHOD) {
+    return void 0;
+  }
+  const parsed = cursorTaskParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    return { result: {} };
+  }
+  const task = parsed.data;
+  const label = task.description ?? task.prompt;
+  if (label === void 0) {
+    return { result: {} };
+  }
+  return {
+    result: {},
+    delegation: {
+      toolCallId: task.toolCallId,
+      childRef: task.agentId ?? task.toolCallId,
+      label,
+      ...task.model === void 0 ? {} : { detail: `model ${task.model}` }
+    }
+  };
+}
+var CURSOR_ACP_DIALECT = {
+  id: "cursor",
+  classifyToolCall: cursorClassifyToolCall,
+  clientRequestMethods: [CURSOR_TASK_METHOD],
+  handleClientRequest: cursorHandleClientRequest,
+  maintenance: CURSOR_ACP_MAINTENANCE
+};
+var ompBashRawInputSchema = z45.object({
+  command: z45.string(),
+  async: z45.boolean().optional()
+}).passthrough();
+var ompBashRawOutputSchema = commandRawOutputSchema.extend({
+  content: z45.array(
+    z45.object({
+      type: z45.literal("text"),
+      text: z45.string()
+    }).passthrough()
+  ),
+  details: z45.object({
+    exitCode: z45.number().int().optional(),
+    wallTimeMs: z45.number().nonnegative().optional(),
+    timedOut: z45.boolean().optional(),
+    signal: z45.unknown().optional(),
+    async: z45.unknown().optional()
+  }).passthrough()
+});
+function stripOmpTrailingNotice(text, notice) {
+  const suffix = `
+
+${notice}`;
+  return text.endsWith(suffix) ? text.slice(0, -suffix.length) : text;
+}
+function ompCommandResult(event) {
+  if (event.kind !== "execute") {
+    return void 0;
+  }
+  const parsedInput = ompBashRawInputSchema.safeParse(event.rawInput);
+  const parsedOutput = ompBashRawOutputSchema.safeParse(event.rawOutput);
+  if (!parsedInput.success || parsedInput.data.command.trim().length === 0 || !parsedOutput.success) {
+    return void 0;
+  }
+  const rawOutput = parsedOutput.data;
+  const details = rawOutput.details;
+  const hasGenericCommandResult = rawOutput.exitCode !== void 0 || rawOutput.exit_code !== void 0 || rawOutput.stdout !== void 0 || rawOutput.stderr !== void 0 || rawOutput.output_for_prompt !== void 0 || rawOutput.signal !== void 0 && rawOutput.signal !== null || rawOutput.timed_out === true;
+  if (parsedInput.data.async === true || details.async !== void 0 || hasGenericCommandResult) {
+    return void 0;
+  }
+  if (details.exitCode === void 0 && details.wallTimeMs === void 0) {
+    return void 0;
+  }
+  let output = rawOutput.content.map((block) => block.text).join("\n");
+  if (details.exitCode !== void 0) {
+    output = stripOmpTrailingNotice(
+      output,
+      `Command exited with code ${String(details.exitCode)}`
+    );
+  }
+  if (details.wallTimeMs !== void 0) {
+    output = stripOmpTrailingNotice(
+      output,
+      `Wall time: ${(details.wallTimeMs / 1e3).toFixed(2)} seconds`
+    );
+  }
+  const isCompletedForegroundBash = event.status === "completed" && details.timedOut !== true && (details.signal === void 0 || details.signal === null);
+  const exitCode = details.exitCode ?? (isCompletedForegroundBash ? 0 : void 0);
+  return {
+    ...exitCode === void 0 ? {} : { exitCode },
+    ...output.length === 0 ? {} : { output }
+  };
+}
+var OMP_COMPACTION_FAILURE_PATTERN = /\bcompaction failed\b/i;
+var OMP_COMPACTION_NOOP_PATTERN = /\b(?:nothing to compact|already compacted)\b/i;
+function compactionOutcomeForEndTurn(dialect, agentMessage) {
+  if (dialect.id !== "omp") {
+    return { status: "completed" };
+  }
+  const text = agentMessage.trim();
+  if (!OMP_COMPACTION_FAILURE_PATTERN.test(text)) {
+    return { status: "completed" };
+  }
+  return OMP_COMPACTION_NOOP_PATTERN.test(text) ? { status: "skipped", detail: text } : { status: "failed", error: text };
+}
+function presentProviderPrefixedModel(model) {
+  const separator = model.id.indexOf("/");
+  if (separator <= 0) {
+    return model;
+  }
+  const routeProviderId = model.id.slice(0, separator);
+  const prefix = `${routeProviderId}/`;
+  return {
+    ...model,
+    displayName: model.displayName.startsWith(prefix) ? model.displayName.slice(prefix.length) : model.displayName,
+    routeProviderId
+  };
+}
+var OMP_ACP_DIALECT = {
+  id: "omp",
+  commandResult: ompCommandResult,
+  presentModel: presentProviderPrefixedModel
+};
+var openCodeCommandRawOutputSchema = z45.object({
+  output: z45.unknown().optional(),
+  metadata: z45.object({
+    exit: z45.number().int().nullable().optional(),
+    output: z45.string().optional()
+  }).passthrough().optional()
+}).passthrough();
+function normalizeOpenCodeCommandEvent(event) {
+  const parsed = openCodeCommandRawOutputSchema.safeParse(event.rawOutput);
+  if (!parsed.success) {
+    return event;
+  }
+  const rawOutput = parsed.data;
+  const output = typeof rawOutput.output === "string" ? rawOutput.output : rawOutput.metadata?.output;
+  const hasSharedOutput = rawOutput["stdout"] !== void 0 || rawOutput["stderr"] !== void 0 || rawOutput["output_for_prompt"] !== void 0;
+  const hasSharedExitCode = rawOutput["exitCode"] !== void 0 || rawOutput["exit_code"] !== void 0;
+  const exitCode = rawOutput.metadata?.exit ?? void 0;
+  if ((output === void 0 || hasSharedOutput) && (exitCode === void 0 || hasSharedExitCode)) {
+    return event;
+  }
+  return {
+    ...event,
+    rawOutput: {
+      ...rawOutput,
+      ...output === void 0 || hasSharedOutput ? {} : { stdout: output },
+      ...exitCode === void 0 || hasSharedExitCode ? {} : { exitCode }
+    }
+  };
+}
+var OPENCODE_ACP_DIALECT = {
+  id: "opencode",
+  normalizeCommandEvent: normalizeOpenCodeCommandEvent,
+  presentModel: presentProviderPrefixedModel
+};
+var BUILT_IN_DIALECTS = [
+  GENERIC_ACP_DIALECT,
+  CURSOR_ACP_DIALECT,
+  GROK_ACP_DIALECT,
+  OMP_ACP_DIALECT,
+  OPENCODE_ACP_DIALECT
+];
+var DIALECTS_BY_ID = new Map(
+  BUILT_IN_DIALECTS.map((dialect) => [dialect.id, dialect])
+);
+function registerAcpDialect(dialect) {
+  if (dialect.id.trim() === "") {
+    throw new Error("An ACP dialect needs a non-empty id.");
+  }
+  if (BUILT_IN_DIALECTS.some((builtIn) => builtIn.id === dialect.id)) {
+    throw new Error(
+      `ACP dialect id "${dialect.id}" is reserved by a built-in dialect.`
+    );
+  }
+  DIALECTS_BY_ID.set(dialect.id, dialect);
+}
+var DIALECT_IDS_BY_COMMAND = {
+  "cursor-agent": CURSOR_ACP_DIALECT.id,
+  grok: GROK_ACP_DIALECT.id,
+  omp: OMP_ACP_DIALECT.id,
+  opencode: OPENCODE_ACP_DIALECT.id
+};
+function resolveAcpDialect(launch) {
+  if (launch.dialectId !== void 0) {
+    return DIALECTS_BY_ID.get(launch.dialectId) ?? GENERIC_ACP_DIALECT;
+  }
+  const byCommand = DIALECT_IDS_BY_COMMAND[basename3(launch.command)];
+  return byCommand === void 0 ? GENERIC_ACP_DIALECT : DIALECTS_BY_ID.get(byCommand) ?? GENERIC_ACP_DIALECT;
+}
+
+// ../provider-bridge-acp/src/session/decode.ts
+var ACP_LEGACY_MODE_CONFIG_ID = "_bb/legacy-mode";
+var ACP_LEGACY_MODEL_CONFIG_ID = "_bb/legacy-model";
+function isJsonObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function readString(source, key) {
+  const value = source[key];
+  return typeof value === "string" ? value : void 0;
+}
+function readFiniteNumber(source, key) {
+  const value = source[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function readMeta(source) {
+  const meta = source["_meta"];
+  return isJsonObject(meta) ? meta : void 0;
+}
+function decodeContentBlock(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const type = readString(value, "type");
+  if (type === void 0) {
+    return null;
+  }
+  return { ...value, type };
+}
+function decodeContentBlocks(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const blocks = [];
+  for (const entry of value) {
+    const block = decodeContentBlock(entry);
+    if (block) {
+      blocks.push(block);
+    }
+  }
+  return blocks;
+}
+function decodeToolCallContentItem(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const type = readString(value, "type");
+  if (type === void 0) {
+    return null;
+  }
+  return { ...value, type };
+}
+function decodeToolCallContent(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const items = [];
+  for (const entry of value) {
+    const item = decodeToolCallContentItem(entry);
+    if (item) {
+      items.push(item);
+    }
+  }
+  return items;
+}
+function decodeToolCallLocations(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const locations = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const path12 = readString(entry, "path");
+    if (path12 === void 0) {
+      continue;
+    }
+    const line = readFiniteNumber(entry, "line");
+    locations.push(line === void 0 ? { path: path12 } : { path: path12, line });
+  }
+  return locations;
+}
+function decodePlanEntries(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const entries = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const content = readString(entry, "content");
+    if (content === void 0) {
+      continue;
+    }
+    const meta = readMeta(entry);
+    entries.push({
+      content,
+      priority: readString(entry, "priority") ?? "medium",
+      status: readString(entry, "status") ?? "pending",
+      ...meta ? { meta } : {}
+    });
+  }
+  return entries;
+}
+function decodeConfigOptionValue(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const optionValue = readString(value, "value");
+  if (optionValue === void 0) {
+    return null;
+  }
+  const description = readString(value, "description");
+  return {
+    value: optionValue,
+    name: readString(value, "name") ?? optionValue,
+    ...description !== void 0 ? { description } : {}
+  };
+}
+function decodeSelectChoices(value) {
+  const values = [];
+  const groups = [];
+  if (!Array.isArray(value)) {
+    return { values, groups };
+  }
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const groupId = readString(entry, "group") ?? readString(entry, "groupId");
+    if (groupId !== void 0 && Array.isArray(entry["options"])) {
+      const groupValues = [];
+      for (const nested of entry["options"]) {
+        const decoded2 = decodeConfigOptionValue(nested);
+        if (decoded2) {
+          groupValues.push(decoded2);
+          values.push(decoded2);
+        }
+      }
+      groups.push({
+        group: groupId,
+        name: readString(entry, "name") ?? groupId,
+        options: groupValues
+      });
+      continue;
+    }
+    const decoded = decodeConfigOptionValue(entry);
+    if (decoded) {
+      values.push(decoded);
+    }
+  }
+  return { values, groups };
+}
+function decodeConfigOption(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const id = readString(value, "id") ?? readString(value, "configId");
+  if (id === void 0) {
+    return null;
+  }
+  const description = readString(value, "description");
+  const category = readString(value, "category");
+  const base = {
+    id,
+    name: readString(value, "name") ?? id,
+    ...description !== void 0 ? { description } : {},
+    ...category !== void 0 ? { category } : {},
+    setMethod: "session/set_config_option"
+  };
+  const type = readString(value, "type") ?? "select";
+  const currentValue = value["currentValue"];
+  if (type === "select" && typeof currentValue === "string") {
+    return {
+      ...base,
+      type: "select",
+      currentValue,
+      ...decodeSelectChoices(value["options"])
+    };
+  }
+  if (type === "boolean" && typeof currentValue === "boolean") {
+    return { ...base, type: "boolean", currentValue };
+  }
+  return { ...base, type: "unsupported", rawType: type, raw: value };
+}
+function decodeConfigOptions(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const options = [];
+  for (const entry of value) {
+    const option = decodeConfigOption(entry);
+    if (option) {
+      options.push(option);
+    }
+  }
+  return options;
+}
+function legacySelectOption(args) {
+  return {
+    id: args.id,
+    name: args.name,
+    category: args.category,
+    setMethod: args.setMethod,
+    type: "select",
+    currentValue: args.currentValue,
+    values: args.values,
+    groups: []
+  };
+}
+function decodeLegacyModes(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const currentModeId = readString(value, "currentModeId");
+  const availableModes = value["availableModes"];
+  if (currentModeId === void 0 || !Array.isArray(availableModes)) {
+    return null;
+  }
+  const values = [];
+  for (const entry of availableModes) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const id = readString(entry, "id");
+    if (id === void 0) {
+      continue;
+    }
+    const description = readString(entry, "description");
+    values.push({
+      value: id,
+      name: readString(entry, "name") ?? id,
+      ...description !== void 0 ? { description } : {}
+    });
+  }
+  return legacySelectOption({
+    id: ACP_LEGACY_MODE_CONFIG_ID,
+    name: "Mode",
+    category: "mode",
+    setMethod: "session/set_mode",
+    currentValue: currentModeId,
+    values
+  });
+}
+function decodeLegacyModels(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const currentModelId = readString(value, "currentModelId");
+  const availableModels = value["availableModels"];
+  if (currentModelId === void 0 || !Array.isArray(availableModels)) {
+    return null;
+  }
+  const values = [];
+  for (const entry of availableModels) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const id = readString(entry, "modelId");
+    if (id === void 0) {
+      continue;
+    }
+    const description = readString(entry, "description");
+    values.push({
+      value: id,
+      name: readString(entry, "name") ?? id,
+      ...description !== void 0 ? { description } : {}
+    });
+  }
+  return legacySelectOption({
+    id: ACP_LEGACY_MODEL_CONFIG_ID,
+    name: "Model",
+    category: "model",
+    setMethod: "session/set_model",
+    currentValue: currentModelId,
+    values
+  });
+}
+function decodeAvailableCommands(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const commands = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const name = readString(entry, "name");
+    if (name === void 0) {
+      continue;
+    }
+    const input = entry["input"];
+    const inputHint = isJsonObject(input) ? readString(input, "hint") : void 0;
+    commands.push({
+      name,
+      description: readString(entry, "description") ?? "",
+      ...inputHint !== void 0 ? { inputHint } : {}
+    });
+  }
+  return commands;
+}
+function decodeUsageCost(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const amount = readFiniteNumber(value, "amount");
+  const currency = readString(value, "currency");
+  if (amount === void 0 || currency === void 0) {
+    return null;
+  }
+  return { amount, currency };
+}
+function decodeUsageCounts(value) {
+  const used = readFiniteNumber(value, "used");
+  const size = readFiniteNumber(value, "size");
+  if (used === void 0 || size === void 0) {
+    return null;
+  }
+  return { used, size };
+}
+function decodeWorkError(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const code = readFiniteNumber(value, "code");
+  const message = readString(value, "message");
+  if (code === void 0 || message === void 0) {
+    return null;
+  }
+  return "data" in value ? { code, message, data: value["data"] } : { code, message };
+}
+
+// ../provider-bridge-acp/src/visibility.ts
+var NORMALIZED_ACP_METHODS = /* @__PURE__ */ new Set([
+  "thread/identity",
+  "error",
+  ACP_TURN_STARTED_METHOD,
+  ACP_TURN_COMPLETED_METHOD,
+  ACP_FS_WRITE_METHOD,
+  ACP_WARNING_METHOD
+]);
+var NORMALIZED_ACP_UPDATE_KINDS = /* @__PURE__ */ new Set([
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+  "plan",
+  "usage_update",
+  "session_info_update"
+]);
+var NOISE_ACP_UPDATE_KINDS = /* @__PURE__ */ new Set([
+  "user_message_chunk",
+  "available_commands_update",
+  "current_mode_update",
+  "config_option_update"
+]);
+function parseAcpRawEvent(event) {
+  if (event.method !== ACP_UPDATE_METHOD) {
+    return { kind: "method", method: event.method };
+  }
+  if (!isRecord(event.params)) {
+    return { kind: "update/unknown" };
+  }
+  const update = event.params["update"];
+  const updateKind = isRecord(update) ? getStringProperty(update, "sessionUpdate") : void 0;
+  if (!updateKind) {
+    return { kind: "update/unknown" };
+  }
+  return { kind: "update", updateKind };
+}
+function describeParsedAcpRawEvent(event) {
+  switch (event.kind) {
+    case "method":
+      return {
+        kind: event.method,
+        coverage: NORMALIZED_ACP_METHODS.has(event.method) ? "normalized" : "unknown"
+      };
+    case "update":
+      if (NORMALIZED_ACP_UPDATE_KINDS.has(event.updateKind)) {
+        return {
+          kind: `acp/update:${event.updateKind}`,
+          coverage: "normalized"
+        };
+      }
+      if (NOISE_ACP_UPDATE_KINDS.has(event.updateKind)) {
+        return { kind: `acp/update:${event.updateKind}`, coverage: "noise" };
+      }
+      return { kind: `acp/update:${event.updateKind}`, coverage: "unknown" };
+    case "update/unknown":
+      return { kind: "acp/update", coverage: "unknown" };
+  }
+}
+var acpVisibilityMetadata = createProviderVisibilityMetadata({
+  parseRawEvent: parseAcpRawEvent,
+  describeParsedRawEvent: describeParsedAcpRawEvent
+});
+
+// ../provider-bridge-acp/src/delta-translation.ts
+var ASSISTANT_STREAM_KEY = "assistant";
+var THOUGHT_STREAM_KEY = "thought";
+var ACP_PLAN_STEP_STATUS_BY_ENTRY_STATUS = {
+  pending: "pending",
+  in_progress: "active",
+  completed: "completed"
+};
+var PLAN_STEPS_CHANNEL = "planSteps";
+function isTerminalAcpStatus(status) {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+function mapAcpToolCallStatus(status) {
+  switch (status) {
+    case "completed":
+      return "completed";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "interrupted";
+    default:
+      return "pending";
+  }
+}
+function mergeAcpToolCallEvents(started, update) {
+  if (!started) {
+    return update;
+  }
+  const { rawKind: startedRawKind, ...startedRest } = started;
+  const kindFields = update.kind !== void 0 ? {
+    kind: update.kind,
+    ...update.rawKind !== void 0 ? { rawKind: update.rawKind } : {}
+  } : startedRawKind !== void 0 ? { rawKind: startedRawKind } : {};
+  return {
+    ...startedRest,
+    ...kindFields,
+    ...update.title !== void 0 ? { title: update.title } : {},
+    ...update.name !== void 0 ? { name: update.name } : {},
+    ...update.status !== void 0 ? { status: update.status } : {},
+    ...update.content !== void 0 ? { content: update.content } : {},
+    ...update.locations !== void 0 ? { locations: update.locations } : {},
+    ...update.rawInput !== void 0 ? { rawInput: update.rawInput } : {},
+    ...update.rawOutput !== void 0 ? { rawOutput: update.rawOutput } : {}
+  };
+}
+function createAcpDeltaTranslator(options = {}) {
+  const dialect = options.dialect ?? GENERIC_ACP_DIALECT;
+  const pathOptions = { cwd: options.cwd };
+  const mergedToolCalls = /* @__PURE__ */ new Map();
+  const fileExistence = /* @__PURE__ */ new Map();
+  const filesAddedThisTurn = /* @__PURE__ */ new Set();
+  function noteEditedPaths(key, event) {
+    const fileCreatedThisTurn = options.fileCreatedThisTurn;
+    if (fileCreatedThisTurn === void 0 || event.kind !== "edit") {
+      return;
+    }
+    const seen = fileExistence.get(key) ?? /* @__PURE__ */ new Map();
+    for (const location of event.locations ?? []) {
+      const resolved = resolveAcpToolCallPath(location.path, pathOptions);
+      if (seen.has(resolved)) {
+        continue;
+      }
+      const created = fileCreatedThisTurn(resolved);
+      if (created === void 0) {
+        seen.set(resolved, void 0);
+        continue;
+      }
+      const added = created && !filesAddedThisTurn.has(resolved);
+      if (added) {
+        filesAddedThisTurn.add(resolved);
+      }
+      seen.set(resolved, !added);
+    }
+    if (seen.size > 0) {
+      fileExistence.set(key, seen);
+    }
+  }
+  let lastUsageCost;
+  let lastAgentTitle;
+  let injectedToolsByName = /* @__PURE__ */ new Map();
+  const injectedToolBindings = /* @__PURE__ */ new Map();
+  const pendingInjectedCalls = /* @__PURE__ */ new Map();
+  function callKey(context, toolCallId) {
+    return `${context?.threadId ?? ""} ${toolCallId}`;
+  }
+  function threadCallEntries(context) {
+    const prefix = `${context?.threadId ?? ""} `;
+    return [...mergedToolCalls.entries()].filter(
+      ([key]) => key.startsWith(prefix)
+    );
+  }
+  function withDialectIdentity(event) {
+    if (dialect.toolIdentity === void 0) {
+      return event;
+    }
+    const identity3 = dialect.toolIdentity(event);
+    if (identity3 === void 0) {
+      return event;
+    }
+    return {
+      ...event,
+      ...event.kind === void 0 && identity3.kind !== void 0 ? { kind: identity3.kind } : {},
+      ...event.name === void 0 && identity3.name !== void 0 ? { name: identity3.name } : {}
+    };
+  }
+  function clearThreadCalls(context) {
+    for (const [key] of threadCallEntries(context)) {
+      mergedToolCalls.delete(key);
+      injectedToolBindings.delete(key);
+    }
+    pendingInjectedCalls.delete(context?.threadId ?? "");
+  }
+  function configureInjectedTools(tools) {
+    injectedToolsByName = new Map(tools.map((tool) => [tool.name, tool]));
+  }
+  function injectedToolNamedBy(event) {
+    const title = event.title;
+    if (title === void 0 || injectedToolsByName.size === 0) {
+      return void 0;
+    }
+    for (const tool of injectedToolsByName.values()) {
+      if (title.includes(tool.name)) {
+        return tool;
+      }
+    }
+    return void 0;
+  }
+  function bindAnnouncedCall(context, event) {
+    if (!isInjectedToolCandidate(event)) {
+      return void 0;
+    }
+    const named = injectedToolNamedBy(event);
+    if (named !== void 0) {
+      return named;
+    }
+    return pendingInjectedCalls.get(context?.threadId ?? "")?.shift();
+  }
+  function noteInjectedToolCall(threadId, toolName) {
+    const tool = injectedToolsByName.get(toolName) ?? { name: toolName };
+    const candidates = threadCallEntries({ threadId }).filter(
+      ([key, open]) => !injectedToolBindings.has(key) && isInjectedToolCandidate(open.event)
+    );
+    const chosen = candidates.find(([, open]) => open.event.title?.includes(tool.name)) ?? candidates.find(([, open]) => /\bmcp\b/i.test(open.event.title ?? "")) ?? candidates[0];
+    if (chosen !== void 0) {
+      injectedToolBindings.set(chosen[0], tool);
+      return;
+    }
+    const queue = pendingInjectedCalls.get(threadId) ?? [];
+    queue.push(tool);
+    pendingInjectedCalls.set(threadId, queue);
+  }
+  function classifyCall(context, event) {
+    const injected = injectedToolBindings.get(
+      callKey(context, event.toolCallId)
+    );
+    if (injected === void 0) {
+      const dialectShape = dialect.classifyToolCall?.(event);
+      if (dialectShape !== void 0) {
+        return dialectShape;
+      }
+    }
+    return classifyAcpToolCall2(event, injected, {
+      ...pathOptions,
+      existedBefore: fileExistence.get(callKey(context, event.toolCallId))
+    });
+  }
+  function withClientFileWrites(event, writes) {
+    if (writes.length === 0) {
+      return event;
+    }
+    const paths = new Set(
+      writes.map((write) => resolveAcpToolCallPath(write.path, pathOptions))
+    );
+    return {
+      ...event,
+      content: [
+        ...(event.content ?? []).filter(
+          (entry) => entry.type !== "diff" || !paths.has(resolveAcpToolCallPath(entry.path, pathOptions))
+        ),
+        ...writes
+      ]
+    };
+  }
+  function mergeFsWriteIntoOpenToolCall(context, write) {
+    const writePath = resolveAcpToolCallPath(write.path, pathOptions);
+    const fileChangeCalls = threadCallEntries(context).flatMap(
+      ([key, open]) => {
+        if (open.openedType !== "fileChange") {
+          return [];
+        }
+        const classified = classifyCall(context, open.event);
+        return classified.item.type === "fileChange" ? [
+          {
+            key,
+            open,
+            paths: classified.item.changes.map((change) => change.path)
+          }
+        ] : [];
+      }
+    );
+    const exactMatches = fileChangeCalls.filter(
+      ({ paths }) => paths.includes(writePath)
+    );
+    const pathPendingMatches = fileChangeCalls.filter(
+      ({ paths }) => paths.length === 0
+    );
+    const matching = exactMatches.length === 1 ? exactMatches[0] : exactMatches.length === 0 && pathPendingMatches.length === 1 ? pathPendingMatches[0] : void 0;
+    if (matching === void 0) {
+      return false;
+    }
+    const previous = matching.open.clientFileWrites?.find(
+      (entry) => resolveAcpToolCallPath(entry.path, pathOptions) === writePath
+    );
+    const oldText = previous === void 0 ? write.oldText : previous.oldText;
+    const diff = {
+      type: "diff",
+      path: write.path,
+      ...oldText === void 0 ? {} : { oldText },
+      newText: write.content
+    };
+    const clientFileWrites = [
+      ...(matching.open.clientFileWrites ?? []).filter(
+        (entry) => resolveAcpToolCallPath(entry.path, pathOptions) !== writePath
+      ),
+      diff
+    ];
+    mergedToolCalls.set(matching.key, {
+      ...matching.open,
+      clientFileWrites,
+      event: withClientFileWrites(matching.open.event, clientFileWrites)
+    });
+    return true;
+  }
+  function toRawEvent(rawEvent) {
+    const parsed = providerRawEventSchema.safeParse(rawEvent);
+    if (parsed.success) {
+      return parsed.data;
+    }
+    return {
+      jsonrpc: "2.0",
+      ...rawEvent.id !== void 0 ? { id: rawEvent.id } : {},
+      method: rawEvent.method,
+      params: {
+        serializationError: "Provider raw event params were not JSON-serializable."
+      }
+    };
+  }
+  function noTurnFallbackFor(rawEvent) {
+    return {
+      raw: toRawEvent(rawEvent),
+      rawType: acpVisibilityMetadata.describeRawEvent(rawEvent).kind
+    };
+  }
+  function updateEnvelope(context, update) {
+    return {
+      jsonrpc: "2.0",
+      method: ACP_UPDATE_METHOD,
+      params: {
+        ...context?.threadId ? { threadId: context.threadId } : {},
+        update
+      }
+    };
+  }
+  function suppressedUnhandled(rawEvent) {
+    const fallback = noTurnFallbackFor(rawEvent);
+    return [
+      {
+        kind: "unhandled",
+        raw: fallback.raw,
+        rawType: fallback.rawType,
+        vouchedTurn: false,
+        onlyIfNoTurn: true
+      }
+    ];
+  }
+  function unhandledDeltas(rawEvent) {
+    const description = acpVisibilityMetadata.describeRawEvent(rawEvent);
+    if (description.coverage !== "unknown") {
+      return [];
+    }
+    return [
+      {
+        kind: "unhandled",
+        raw: toRawEvent(rawEvent),
+        rawType: description.kind,
+        vouchedTurn: true
+      }
+    ];
+  }
+  function closeThoughtStream() {
+    return {
+      kind: "item.textClose",
+      key: { channel: THOUGHT_STREAM_KEY },
+      channel: "reasoningText"
+    };
+  }
+  function closeAssistantStream() {
+    return {
+      kind: "item.textClose",
+      key: { channel: ASSISTANT_STREAM_KEY },
+      channel: "agentMessage"
+    };
+  }
+  function withDelegationReport(classified, report) {
+    if (report === void 0 || classified.item.type !== "delegation") {
+      return classified;
+    }
+    return {
+      item: {
+        ...classified.item,
+        childRef: report.childRef,
+        label: report.label
+      },
+      presentation: delegationPresentation({
+        label: report.label,
+        ...report.detail === void 0 ? {} : { detail: report.detail }
+      })
+    };
+  }
+  function withPermissionTitle(classified, permissionTitle) {
+    const title = permissionTitle === void 0 ? void 0 : presentationTitle(permissionTitle);
+    return title === void 0 ? classified : {
+      item: classified.item,
+      presentation: { ...classified.presentation, title }
+    };
+  }
+  function toolCallClose(args) {
+    const classified = withPermissionTitle(
+      withDelegationReport(
+        classifyCall(args.context, args.event),
+        args.delegation
+      ),
+      args.permissionTitle
+    );
+    injectedToolBindings.delete(callKey(args.context, args.event.toolCallId));
+    fileExistence.delete(callKey(args.context, args.event.toolCallId));
+    const closeFields = classified.item.type === "command" ? commandCloseFields(args.event, args.status) : genericCloseFields(args.event);
+    return {
+      kind: "item.close",
+      key: {
+        providerItemId: args.event.toolCallId
+      },
+      status: args.status,
+      ...closeFields,
+      item: classified.item,
+      presentation: classified.presentation,
+      ...args.noTurnFallback ? { noTurnFallback: args.noTurnFallback } : {}
+    };
+  }
+  function commandCloseFields(event, status) {
+    const normalizedEvent = dialect.normalizeCommandEvent?.(event, event) ?? event;
+    const result = dialect.commandResult?.(normalizedEvent) ?? extractAcpCommandResult(normalizedEvent);
+    const exitCode = result.exitCode ?? (status === "failed" ? 1 : void 0);
+    return {
+      ...result.output === void 0 ? {} : { aggregatedOutput: result.output, resultText: result.output },
+      ...exitCode === void 0 ? {} : { exitCode }
+    };
+  }
+  function genericCloseFields(event) {
+    const normalizedEvent = dialect.normalizeToolCallEvent?.(event, event) ?? event;
+    const outputText = extractAcpToolCallOutputText(normalizedEvent);
+    return outputText === void 0 ? {} : { resultText: outputText };
+  }
+  function drainOpenToolCalls(context, status) {
+    const deltas = [];
+    for (const [key, open] of threadCallEntries(context)) {
+      mergedToolCalls.delete(key);
+      deltas.push(
+        toolCallClose({
+          context,
+          event: open.event,
+          status,
+          permissionTitle: open.permissionTitle,
+          delegation: open.delegation
+        })
+      );
+    }
+    return deltas;
+  }
+  function flushOpenTurnWork(context, status) {
+    return [
+      closeThoughtStream(),
+      closeAssistantStream(),
+      ...drainOpenToolCalls(context, status)
+    ];
+  }
+  function translateUpdate(update, context) {
+    const rawEvent = updateEnvelope(context, update);
+    switch (update.sessionUpdate) {
+      case "agent_message_chunk": {
+        const parsed = acpAgentMessageChunkUpdateSchema.safeParse(update);
+        const text = parsed.success ? extractAcpContentText(parsed.data.content) : void 0;
+        if (text === void 0) {
+          return suppressedUnhandled(rawEvent);
+        }
+        return [
+          closeThoughtStream(),
+          {
+            kind: "item.textDelta",
+            key: { channel: ASSISTANT_STREAM_KEY },
+            channel: "agentMessage",
+            text,
+            noTurnFallback: noTurnFallbackFor(rawEvent)
+          }
+        ];
+      }
+      case "agent_thought_chunk": {
+        const parsed = acpAgentThoughtChunkUpdateSchema.safeParse(update);
+        const text = parsed.success ? extractAcpContentText(parsed.data.content) : void 0;
+        if (text === void 0) {
+          return suppressedUnhandled(rawEvent);
+        }
+        return [
+          {
+            kind: "item.textDelta",
+            key: { channel: THOUGHT_STREAM_KEY },
+            channel: "reasoningText",
+            text,
+            noTurnFallback: noTurnFallbackFor(rawEvent)
+          }
+        ];
+      }
+      case "tool_call": {
+        const parsed = acpToolCallUpdateEventSchema.safeParse(update);
+        if (!parsed.success) {
+          return suppressedUnhandled(rawEvent);
+        }
+        const event = withDialectIdentity(parsed.data);
+        const flush = [closeThoughtStream(), closeAssistantStream()];
+        const announcedKey = callKey(context, event.toolCallId);
+        const bound = bindAnnouncedCall(context, event);
+        if (bound !== void 0) {
+          injectedToolBindings.set(announcedKey, bound);
+        }
+        noteEditedPaths(announcedKey, event);
+        if (isTerminalAcpStatus(event.status)) {
+          return [
+            ...flush,
+            toolCallClose({
+              context,
+              event,
+              status: mapAcpToolCallStatus(event.status),
+              noTurnFallback: noTurnFallbackFor(rawEvent)
+            })
+          ];
+        }
+        const classified = classifyCall(context, event);
+        mergedToolCalls.set(announcedKey, {
+          event,
+          openedType: classified.item.type
+        });
+        return [
+          ...flush,
+          {
+            kind: "item.open",
+            key: {
+              providerItemId: event.toolCallId
+            },
+            item: classified.item,
+            presentation: classified.presentation,
+            noTurnFallback: noTurnFallbackFor(rawEvent)
+          }
+        ];
+      }
+      case "tool_call_update": {
+        const parsed = acpToolCallUpdateEventSchema.safeParse(update);
+        if (!parsed.success) {
+          return suppressedUnhandled(rawEvent);
+        }
+        const event = withDialectIdentity(parsed.data);
+        const key = callKey(context, event.toolCallId);
+        const open = mergedToolCalls.get(key);
+        const merged = withClientFileWrites(
+          mergeAcpToolCallEvents(open?.event, event),
+          open?.clientFileWrites ?? []
+        );
+        noteEditedPaths(key, merged);
+        if (isTerminalAcpStatus(merged.status)) {
+          mergedToolCalls.delete(key);
+          return [
+            toolCallClose({
+              context,
+              event: merged,
+              status: mapAcpToolCallStatus(merged.status),
+              permissionTitle: open?.permissionTitle,
+              delegation: open?.delegation,
+              noTurnFallback: noTurnFallbackFor(rawEvent)
+            })
+          ];
+        }
+        const mergedType = classifyCall(context, merged).item.type;
+        mergedToolCalls.set(key, {
+          event: merged,
+          openedType: open?.openedType ?? mergedType,
+          ...open?.permissionTitle === void 0 ? {} : { permissionTitle: open.permissionTitle },
+          ...open?.delegation === void 0 ? {} : { delegation: open.delegation },
+          ...open?.clientFileWrites === void 0 ? {} : { clientFileWrites: open.clientFileWrites }
+        });
+        if (event.status === "in_progress" && mergedType === "command" && open?.openedType === "command") {
+          const normalizedEvent = dialect.normalizeCommandEvent?.(event, merged) ?? event;
+          const streamed = extractAcpStreamedCommandOutput(normalizedEvent);
+          return streamed === void 0 ? suppressedUnhandled(rawEvent) : [
+            {
+              kind: "command.outputSnapshot",
+              key: { providerItemId: event.toolCallId },
+              text: streamed
+            }
+          ];
+        }
+        const progressEvent = dialect.normalizeToolCallEvent?.(event, merged) ?? event;
+        const progressText = extractAcpToolCallOutputText(progressEvent);
+        if (progressText === void 0) {
+          return suppressedUnhandled(rawEvent);
+        }
+        if (mergedType !== "command" && mergedType !== "fileChange") {
+          return [
+            {
+              kind: "item.progress",
+              key: {
+                providerItemId: event.toolCallId
+              },
+              message: progressText,
+              noTurnFallback: noTurnFallbackFor(rawEvent)
+            }
+          ];
+        }
+        return suppressedUnhandled(rawEvent);
+      }
+      case "plan": {
+        const parsed = acpPlanUpdateSchema.safeParse(update);
+        if (!parsed.success) {
+          return suppressedUnhandled(rawEvent);
+        }
+        const steps = parsed.data.entries.map(
+          (entry) => ({
+            step: entry.content,
+            ...entry.status ? { status: ACP_PLAN_STEP_STATUS_BY_ENTRY_STATUS[entry.status] } : {}
+          })
+        );
+        return [
+          {
+            kind: "item.close",
+            key: { channel: PLAN_STEPS_CHANNEL },
+            status: "completed",
+            item: { type: "planSteps", steps },
+            presentation: planStepsPresentation(steps),
+            noTurnFallback: noTurnFallbackFor(rawEvent)
+          }
+        ];
+      }
+      case "usage_update": {
+        const parsed = acpUsageUpdateSchema.safeParse(update);
+        if (!parsed.success) {
+          return [];
+        }
+        const cost = threadUsageCostSchema.safeParse(parsed.data["cost"]);
+        if (cost.success) {
+          lastUsageCost = cost.data;
+        }
+        return [
+          {
+            kind: "contextWindow",
+            used: parsed.data.used,
+            size: parsed.data.size,
+            estimated: false,
+            attach: "open",
+            ...lastUsageCost === void 0 ? {} : { cost: lastUsageCost }
+          }
+        ];
+      }
+      case "session_info_update": {
+        const title = isJsonObject(update) ? update["title"] : void 0;
+        if (typeof title !== "string" || title.trim() === "" || title === lastAgentTitle) {
+          return [];
+        }
+        lastAgentTitle = title;
+        return [{ kind: "thread.name", name: title, source: "agent" }];
+      }
+      default:
+        return unhandledDeltas(rawEvent);
+    }
+  }
+  function turnStatusForStopReason(stopReason) {
+    return stopReason === "cancelled" ? "interrupted" : "completed";
+  }
+  function stopReasonNotice(stopReason) {
+    switch (stopReason) {
+      case "end_turn":
+      case "cancelled":
+        return void 0;
+      case "max_tokens":
+        return {
+          summary: "The agent stopped at its output limit",
+          details: "The model reached its maximum output length before finishing this turn."
+        };
+      case "max_turn_requests":
+        return {
+          summary: "The agent stopped at its request limit",
+          details: "The agent reached its limit of model requests for a single turn."
+        };
+      case "refusal":
+        return { summary: "The agent declined to continue" };
+      default:
+        return {
+          summary: "The agent stopped the turn",
+          details: `Stop reason: ${stopReason}`
+        };
+    }
+  }
+  function itemStatusForTurnStatus(status) {
+    return status === "completed" ? "completed" : status === "interrupted" ? "interrupted" : "failed";
+  }
+  function translateTurnCompleted(stopReason, context) {
+    const status = turnStatusForStopReason(stopReason);
+    const notice = stopReasonNotice(stopReason);
+    return [
+      ...flushOpenTurnWork(context, itemStatusForTurnStatus(status)),
+      ...notice === void 0 ? [] : [
+        {
+          kind: "provider.warning",
+          summary: notice.summary,
+          ...notice.details === void 0 ? {} : { details: notice.details },
+          vouchedTurn: true
+        }
+      ],
+      { kind: "turn.boundary", status, claimIfIdle: true }
+    ];
+  }
+  function translateAcpEvent(event, context) {
+    const errorEnvelope = errorEnvelopeSchema.safeParse(event);
+    if (errorEnvelope.success) {
+      clearThreadCalls(context);
+      return [
+        {
+          kind: "provider.error",
+          message: "Provider error",
+          detail: errorEnvelope.data.params?.message ?? "unknown error",
+          settlesTurn: true
+        }
+      ];
+    }
+    const envelope = jsonRpcEnvelopeSchema.safeParse(event);
+    if (!envelope.success) {
+      return [];
+    }
+    switch (envelope.data.method) {
+      case ACP_TURN_STARTED_METHOD: {
+        const params = acpTurnStartedNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        clearThreadCalls(context);
+        filesAddedThisTurn.clear();
+        return [{ kind: "turn.open" }];
+      }
+      case ACP_PROMPT_INTERRUPTED_METHOD: {
+        const params = acpTurnStartedNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        return drainOpenToolCalls(context, "interrupted");
+      }
+      case ACP_TURN_COMPLETED_METHOD: {
+        const params = acpTurnCompletedNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        return translateTurnCompleted(params.data.stopReason, context);
+      }
+      case ACP_COMPACTION_STARTED_METHOD: {
+        const params = acpTurnStartedNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        clearThreadCalls(context);
+        return [
+          { kind: "turn.open" },
+          {
+            kind: "item.open",
+            key: { channel: "compaction" },
+            item: { type: "compaction" },
+            presentation: COMPACTION_PRESENTATION
+          }
+        ];
+      }
+      case ACP_COMPACTION_COMPLETED_METHOD: {
+        const params = acpCompactionCompletedNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        const status = params.data.status;
+        const turnStatus = status === "skipped" ? "completed" : status;
+        return [
+          ...flushOpenTurnWork(context, itemStatusForTurnStatus(turnStatus)),
+          ...status === "completed" ? [{ kind: "context.compacted" }] : [],
+          ...status === "skipped" ? [
+            {
+              kind: "provider.warning",
+              category: "compaction-skipped",
+              summary: "Context compaction skipped",
+              details: params.data.detail,
+              vouchedTurn: true
+            }
+          ] : [],
+          {
+            kind: "turn.boundary",
+            status: turnStatus,
+            ...status === "failed" ? { error: { message: params.data.error } } : {}
+          }
+        ];
+      }
+      case ACP_UPDATE_METHOD: {
+        const params = acpUpdateNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        return translateUpdate(params.data.update, context);
+      }
+      case ACP_FS_WRITE_METHOD: {
+        const params = acpFsWriteNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        if (mergeFsWriteIntoOpenToolCall(context, params.data)) {
+          return [];
+        }
+        const rawEvent = {
+          jsonrpc: "2.0",
+          method: ACP_FS_WRITE_METHOD,
+          params: params.data
+        };
+        return [
+          {
+            kind: "item.close",
+            key: { channel: "fs-write" },
+            status: "completed",
+            item: {
+              type: "fileChange",
+              changes: [
+                {
+                  path: params.data.path,
+                  kind: params.data.kind,
+                  ...params.data.oldText === void 0 ? {} : { oldText: params.data.oldText },
+                  newText: params.data.content
+                }
+              ]
+            },
+            presentation: fileChangePresentation({
+              verb: params.data.kind,
+              paths: [params.data.path]
+            }),
+            noTurnFallback: noTurnFallbackFor(rawEvent)
+          }
+        ];
+      }
+      case ACP_WARNING_METHOD: {
+        const params = acpWarningNotificationParamsSchema.safeParse(
+          envelope.data.params
+        );
+        if (!params.success) {
+          return [];
+        }
+        return [
+          {
+            kind: "provider.warning",
+            summary: params.data.summary,
+            ...params.data.details ? { details: params.data.details } : {},
+            vouchedTurn: true
+          }
+        ];
+      }
+      default:
+        return unhandledDeltas({
+          jsonrpc: "2.0",
+          method: envelope.data.method,
+          ...envelope.data.params ? { params: envelope.data.params } : {}
+        });
+    }
+  }
+  function notePermissionToolCall(threadId, toolCall) {
+    const context = { threadId };
+    const ownKey = callKey(context, toolCall.toolCallId);
+    let boundKey = mergedToolCalls.has(ownKey) ? ownKey : void 0;
+    if (boundKey === void 0) {
+      const sameKind = threadCallEntries(context).filter(
+        ([, open2]) => toolCall.kind !== void 0 && open2.event.kind === toolCall.kind
+      );
+      boundKey = sameKind.length === 1 ? sameKind[0]?.[0] : void 0;
+    }
+    const open = boundKey === void 0 ? void 0 : mergedToolCalls.get(boundKey);
+    if (boundKey === void 0 || open === void 0) {
+      return { toolCallId: toolCall.toolCallId, event: void 0 };
+    }
+    if (classifyCall(context, open.event).item.type !== "tool") {
+      return { toolCallId: open.event.toolCallId, event: open.event };
+    }
+    const kind = toolCall.kind !== void 0 && (toolCall.kind !== "other" || open.event.kind === void 0) ? toolCall.kind : void 0;
+    const merged = mergeAcpToolCallEvents(open.event, {
+      sessionUpdate: "tool_call_update",
+      toolCallId: open.event.toolCallId,
+      ...toolCall.title !== void 0 ? { title: toolCall.title } : {},
+      ...kind !== void 0 ? { kind } : {},
+      ...kind === "other" && toolCall.rawKind !== void 0 ? { rawKind: toolCall.rawKind } : {},
+      ...toolCall.locations !== void 0 ? { locations: toolCall.locations } : {},
+      ...toolCall.rawInput !== void 0 ? { rawInput: toolCall.rawInput } : {},
+      ...toolCall.rawOutput !== void 0 ? { rawOutput: toolCall.rawOutput } : {}
+    });
+    if (classifyCall(context, merged).item.type === open.openedType) {
+      mergedToolCalls.set(boundKey, { ...open, event: merged });
+      return { toolCallId: merged.toolCallId, event: merged };
+    }
+    mergedToolCalls.set(boundKey, {
+      ...open,
+      ...toolCall.title === void 0 ? {} : { permissionTitle: toolCall.title }
+    });
+    return { toolCallId: open.event.toolCallId, event: merged };
+  }
+  function noteDelegationReport(threadId, report) {
+    const context = { threadId };
+    const key = callKey(context, report.toolCallId);
+    const open = mergedToolCalls.get(key);
+    if (open === void 0) {
+      return [];
+    }
+    const classified = classifyCall(context, open.event);
+    if (classified.item.type !== "delegation") {
+      return [];
+    }
+    const item = {
+      ...classified.item,
+      childRef: report.childRef,
+      label: report.label
+    };
+    mergedToolCalls.set(key, { ...open, delegation: report });
+    return [
+      {
+        kind: "item.open",
+        key: { providerItemId: report.toolCallId },
+        item,
+        presentation: delegationPresentation({
+          label: report.label,
+          ...report.detail === void 0 ? {} : { detail: report.detail }
+        })
+      }
+    ];
+  }
+  function getInjectedToolBinding(threadId, toolCallId) {
+    return injectedToolBindings.get(callKey({ threadId }, toolCallId));
+  }
+  return {
+    configureInjectedTools,
+    getInjectedToolBinding,
+    noteDelegationReport,
+    noteInjectedToolCall,
+    notePermissionToolCall,
+    translateAcpEvent
+  };
+}
+
+// ../provider-bridge-acp/src/auth-guidance.ts
+var SHELL_SAFE_WORD = /^[A-Za-z0-9_@%+=:,./-]+$/u;
+var WINDOWS_SAFE_WORD = /^[A-Za-z0-9_@%+=:,./\\-]+$/u;
+var MAX_LISTED_METHODS = 4;
+function shellWord(value, platform2) {
+  if (platform2 === "win32") {
+    return WINDOWS_SAFE_WORD.test(value) ? value : `"${value.replaceAll('"', '\\"')}"`;
+  }
+  return SHELL_SAFE_WORD.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`;
+}
+function acpTerminalSignInCommand(args) {
+  const platform2 = args.platform ?? process.platform;
+  const word = (value) => shellWord(value, platform2);
+  const command = [
+    word(args.command),
+    ...args.args.map(word),
+    ...args.method.args.map(word)
+  ].join(" ");
+  const env = Object.entries(args.method.env);
+  if (platform2 === "win32") {
+    return [
+      ...env.map(
+        ([name, value]) => `$env:${name}="${value.replaceAll('"', '`"')}";`
+      ),
+      command
+    ].join(" ");
+  }
+  return [
+    ...env.map(([name, value]) => `${name}=${word(value)}`),
+    command
+  ].join(" ");
+}
+function describeAcpSignIn(args) {
+  const terminal = args.authMethods.find(
+    (method) => method.type === "terminal"
+  );
+  if (terminal !== void 0) {
+    return `To sign in, run this in a terminal on the machine that hosts the thread, then try again: ${acpTerminalSignInCommand(
+      {
+        command: args.command,
+        args: args.args,
+        method: terminal,
+        ...args.platform === void 0 ? {} : { platform: args.platform }
+      }
+    )}`;
+  }
+  const names = [
+    ...new Set(
+      args.authMethods.map((method) => method.name.trim()).filter((name) => name !== "")
+    )
+  ];
+  if (names.length === 0) {
+    return null;
+  }
+  const listed = names.slice(0, MAX_LISTED_METHODS).join(", ");
+  const more = names.length > MAX_LISTED_METHODS ? ` and ${names.length - MAX_LISTED_METHODS} more` : "";
+  return `The agent offers these ways to sign in: ${listed}${more}. Sign in with the agent's own command on the machine that hosts the thread, then try again.`;
+}
+
+// ../provider-bridge-acp/src/elicitation.ts
+var CONFIRM_QUESTION_ID = "confirm";
+var CONFIRM_ACCEPT_VALUE = "accept";
+var CONFIRM_DECLINE_VALUE = "decline";
+var OTHER_COMPANION_SUFFIXES = ["__other", "_other"];
+var OTHER_CHOICE_VALUE = "other";
+function readChoices(schema) {
+  const titled = schema["oneOf"] ?? schema["anyOf"];
+  if (Array.isArray(titled)) {
+    const choices2 = [];
+    for (const entry of titled) {
+      if (!isJsonObject(entry) || typeof entry["const"] !== "string") {
+        return null;
+      }
+      choices2.push({
+        value: entry["const"],
+        label: readString(entry, "title") ?? entry["const"]
+      });
+    }
+    return choices2.length > 0 ? choices2 : null;
+  }
+  const values = schema["enum"];
+  if (!Array.isArray(values)) {
+    return null;
+  }
+  const names = Array.isArray(schema["enumNames"]) ? schema["enumNames"] : [];
+  const choices = [];
+  values.forEach((value, index) => {
+    if (typeof value !== "string" || value.trim() === "") {
+      return;
+    }
+    const name = names[index];
+    choices.push({
+      value,
+      label: typeof name === "string" && name.trim() !== "" ? name : value
+    });
+  });
+  return choices.length > 0 ? choices : null;
+}
+function readField(schema) {
+  const type = readString(schema, "type");
+  if (type === "array") {
+    const items = schema["items"];
+    const choices2 = isJsonObject(items) ? readChoices(items) : null;
+    return choices2 ? { kind: "multiChoice", choices: choices2 } : null;
+  }
+  const choices = readChoices(schema);
+  if (choices) {
+    return { kind: "choice", choices };
+  }
+  switch (type) {
+    case "boolean":
+      return { kind: "boolean" };
+    case "string":
+      return { kind: "text" };
+    case "number":
+      return { kind: "number", integer: false };
+    case "integer":
+      return { kind: "number", integer: true };
+    default:
+      return null;
+  }
+}
+function readRequiredNames(schema) {
+  const required = isJsonObject(schema) ? schema["required"] : void 0;
+  return new Set(
+    Array.isArray(required) ? required.filter((name) => typeof name === "string") : []
+  );
+}
+function otherCompanionFor(entry, fieldsByName) {
+  if (entry.field.kind !== "choice" && entry.field.kind !== "multiChoice") {
+    return null;
+  }
+  const choice = entry.field.choices.some(
+    (option) => option.value === OTHER_CHOICE_VALUE
+  ) ? OTHER_CHOICE_VALUE : null;
+  if (entry.required && choice === null) {
+    return null;
+  }
+  for (const suffix of OTHER_COMPANION_SUFFIXES) {
+    const companion = fieldsByName.get(`${entry.name}${suffix}`);
+    if (companion?.field.kind === "text" && !companion.required && companion.schema["format"] === void 0) {
+      return { name: companion.name, choice };
+    }
+  }
+  return null;
+}
+function shownField(field, other) {
+  if (field.kind !== "choice" && field.kind !== "multiChoice") {
+    return field;
+  }
+  const choices = field.choices.filter(
+    (option) => other === null || option.value !== other.choice
+  );
+  if (choices.length <= USER_QUESTION_MAX_OPTIONS) {
+    return { kind: field.kind, choices };
+  }
+  return field.kind === "choice" ? { kind: "typedChoice", choices } : null;
+}
+function questionFor(name, schema, field, required, other, message) {
+  const label = readString(schema, "title")?.trim() || name;
+  const description = readString(schema, "description")?.trim();
+  const lines = [
+    ...message ? [message, ""] : [],
+    label,
+    ...description ? [description] : [],
+    ...field.kind === "typedChoice" ? [`One of: ${field.choices.map((choice) => choice.label).join(", ")}`] : [],
+    ...field.kind === "number" ? [field.integer ? "Enter a whole number." : "Enter a number."] : []
+  ];
+  const base = {
+    id: name,
+    prompt: lines.join("\n"),
+    shortLabel: label,
+    required
+  };
+  switch (field.kind) {
+    case "choice":
+      return {
+        ...base,
+        multiSelect: false,
+        options: field.choices,
+        allowFreeText: other !== null
+      };
+    case "multiChoice":
+      return {
+        ...base,
+        multiSelect: true,
+        options: field.choices,
+        allowFreeText: other !== null
+      };
+    case "boolean":
+      return {
+        ...base,
+        multiSelect: false,
+        options: [
+          { value: "true", label: "Yes" },
+          { value: "false", label: "No" }
+        ],
+        allowFreeText: false
+      };
+    case "typedChoice":
+    case "text":
+    case "number":
+      return { ...base, multiSelect: false, allowFreeText: true };
+  }
+}
+function matchTypedChoice(choices, typed) {
+  const wanted = typed.toLowerCase();
+  return choices.find(
+    (choice) => choice.value.toLowerCase() === wanted || choice.label.toLowerCase() === wanted
+  )?.value ?? null;
+}
+function otherContent(entry, typed) {
+  if (entry.other === null) {
+    return null;
+  }
+  return {
+    ...entry.other.choice === null ? {} : { [entry.name]: entry.other.choice },
+    [entry.other.name]: typed
+  };
+}
+function contentFor(entry, answer) {
+  const selected = answer?.selected ?? [];
+  const typed = answer?.freeText?.trim() || void 0;
+  if (selected.length === 0 && typed === void 0) {
+    return entry.required ? null : {};
+  }
+  const { field, name } = entry;
+  switch (field.kind) {
+    case "choice": {
+      const [value] = selected;
+      if (value === void 0) {
+        return typed === void 0 ? null : otherContent(entry, typed);
+      }
+      if (!field.choices.some((choice) => choice.value === value)) {
+        return null;
+      }
+      return {
+        [name]: value,
+        ...typed !== void 0 && entry.other !== null ? { [entry.other.name]: typed } : {}
+      };
+    }
+    case "multiChoice": {
+      const allowed = new Set(field.choices.map((choice) => choice.value));
+      if (!selected.every((value) => allowed.has(value))) {
+        return null;
+      }
+      const other = typed === void 0 ? null : entry.other;
+      const values = [...selected, ...other?.choice ? [other.choice] : []];
+      return {
+        ...values.length > 0 ? { [name]: values } : {},
+        ...other !== null && typed !== void 0 ? { [other.name]: typed } : {}
+      };
+    }
+    case "boolean": {
+      const [value] = selected;
+      return value === "true" || value === "false" ? { [name]: value === "true" } : null;
+    }
+    case "typedChoice": {
+      if (typed === void 0) {
+        return null;
+      }
+      const match = matchTypedChoice(field.choices, typed);
+      return match === null ? otherContent(entry, typed) : { [name]: match };
+    }
+    case "text":
+      return typed === void 0 ? null : { [name]: typed };
+    case "number": {
+      if (typed === void 0) {
+        return null;
+      }
+      const parsed = Number(typed);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      return field.integer && !Number.isInteger(parsed) ? null : { [name]: parsed };
+    }
+  }
+}
+function planConfirmation(message) {
+  const payload = {
+    kind: "user_question",
+    questions: [
+      {
+        id: CONFIRM_QUESTION_ID,
+        prompt: message ?? "The agent is asking you to confirm.",
+        multiSelect: false,
+        options: [
+          { value: CONFIRM_ACCEPT_VALUE, label: "Accept" },
+          { value: CONFIRM_DECLINE_VALUE, label: "Decline" }
+        ],
+        allowFreeText: false,
+        required: true
+      }
+    ]
+  };
+  return {
+    kind: "questions",
+    payload,
+    toResponse(resolution) {
+      return resolution.answers[CONFIRM_QUESTION_ID]?.selected[0] === CONFIRM_ACCEPT_VALUE ? { action: "accept", content: {} } : { action: "decline" };
+    }
+  };
+}
+function planAcpElicitation(params) {
+  if (!isJsonObject(params)) {
+    return { kind: "unsupported", reason: "the request was malformed" };
+  }
+  const mode = readString(params, "mode");
+  if (mode !== "form") {
+    return {
+      kind: "unsupported",
+      reason: `bb does not offer the "${mode ?? "unknown"}" elicitation mode`
+    };
+  }
+  const message = readString(params, "message")?.trim() || void 0;
+  const schema = params["requestedSchema"];
+  const properties = isJsonObject(schema) ? schema["properties"] : void 0;
+  const entries = isJsonObject(properties) ? Object.entries(properties) : [];
+  if (entries.length === 0) {
+    return planConfirmation(message);
+  }
+  const requiredNames = readRequiredNames(schema);
+  const fields = [];
+  for (const [name, fieldSchema] of entries) {
+    const field = isJsonObject(fieldSchema) ? readField(fieldSchema) : null;
+    if (name.trim() === "" || !isJsonObject(fieldSchema) || !field) {
+      return {
+        kind: "unsupported",
+        reason: `bb cannot show the field "${name}"`
+      };
+    }
+    fields.push({
+      name,
+      schema: fieldSchema,
+      field,
+      required: requiredNames.has(name)
+    });
+  }
+  const fieldsByName = new Map(fields.map((entry) => [entry.name, entry]));
+  const companions = /* @__PURE__ */ new Map();
+  const foldedNames = /* @__PURE__ */ new Set();
+  for (const entry of fields) {
+    if (foldedNames.has(entry.name)) {
+      continue;
+    }
+    const other = otherCompanionFor(entry, fieldsByName);
+    if (other !== null && !foldedNames.has(other.name)) {
+      companions.set(entry.name, other);
+      foldedNames.add(other.name);
+    }
+  }
+  const shown = fields.filter((entry) => !foldedNames.has(entry.name));
+  if (shown.length > USER_QUESTION_MAX_QUESTIONS) {
+    return {
+      kind: "unsupported",
+      reason: `bb shows at most ${USER_QUESTION_MAX_QUESTIONS} questions and this form has ${shown.length}`
+    };
+  }
+  const planned = [];
+  for (const entry of shown) {
+    const other = companions.get(entry.name) ?? null;
+    const field = shownField(entry.field, other);
+    if (!field) {
+      return {
+        kind: "unsupported",
+        reason: `bb cannot show the field "${entry.name}"`
+      };
+    }
+    planned.push({
+      name: entry.name,
+      field,
+      required: entry.required,
+      other,
+      question: questionFor(
+        entry.name,
+        entry.schema,
+        field,
+        entry.required,
+        other,
+        planned.length === 0 ? message : void 0
+      )
+    });
+  }
+  const payload = userQuestionPendingInteractionPayloadSchema.safeParse({
+    kind: "user_question",
+    questions: planned.map((entry) => entry.question)
+  });
+  if (!payload.success) {
+    return { kind: "unsupported", reason: "the form could not be shown" };
+  }
+  return {
+    kind: "questions",
+    payload: payload.data,
+    toResponse(resolution) {
+      const content = {};
+      for (const entry of planned) {
+        const answered = contentFor(entry, resolution.answers[entry.name]);
+        if (!answered) {
+          return { action: "decline" };
+        }
+        Object.assign(content, answered);
+      }
+      return { action: "accept", content };
+    }
+  };
+}
+
+// ../provider-bridge-acp/src/interactions.ts
+function classifyAcpPermission(toolCall, options) {
+  const own = classifyAcpToolCall(toolCall, options);
+  if (own.kind !== "generic" || !toolCall.startedToolCall) {
+    return own;
+  }
+  return classifyAcpToolCall(toolCall.startedToolCall, options);
+}
+function permissionToolCallEvent(toolCall) {
+  return {
+    sessionUpdate: "tool_call",
+    toolCallId: toolCall.toolCallId,
+    ...toolCall.title !== void 0 ? { title: toolCall.title } : {},
+    ...toolCall.kind !== void 0 ? { kind: toolCall.kind } : {},
+    ...toolCall.rawKind !== void 0 ? { rawKind: toolCall.rawKind } : {},
+    ...toolCall.content !== void 0 ? { content: [...toolCall.content] } : {},
+    ...toolCall.locations !== void 0 ? { locations: [...toolCall.locations] } : {},
+    ...toolCall.rawInput !== void 0 ? { rawInput: toolCall.rawInput } : {}
+  };
+}
+function buildToolUseSubject(toolCall, options, dialectClassify) {
+  if (toolCall === void 0) {
+    return {
+      kind: "tool_use",
+      itemId: "acp-permission",
+      tool: "tool",
+      presentation: toolKindPresentation({
+        kind: void 0,
+        title: "ACP permission request"
+      })
+    };
+  }
+  const classify = (event) => (toolCall.injectedTool === void 0 ? dialectClassify?.(event) : void 0) ?? classifyAcpToolCall2(event, toolCall.injectedTool, options);
+  const own = classify(permissionToolCallEvent(toolCall));
+  const described = own.presentation.title === void 0 && toolCall.startedToolCall ? classify(toolCall.startedToolCall) : own;
+  return {
+    kind: "tool_use",
+    itemId: toolCall.toolCallId,
+    tool: described.item.type === "tool" ? described.item.tool : toolCall.kind ?? toolCall.startedToolCall?.kind ?? described.item.type,
+    presentation: described.presentation
+  };
+}
+function permissionReason(toolCall) {
+  if (toolCall === void 0 || toolCall.content === void 0) {
+    return void 0;
+  }
+  return extractAcpToolCallOutputText({
+    sessionUpdate: "tool_call",
+    toolCallId: toolCall.toolCallId,
+    content: [...toolCall.content]
+  });
+}
+function buildAcpApprovalDecisions(options) {
+  const kinds = new Set(options.map((option) => option.kind));
+  const decisions = [];
+  if (kinds.has("allow_once")) {
+    decisions.push("allow_once");
+  }
+  if (kinds.has("allow_always")) {
+    decisions.push("allow_for_session");
+  }
+  if (kinds.has("reject_once") || kinds.has("reject_always")) {
+    decisions.push("deny");
+  }
+  return decisions.length > 0 ? decisions : ["deny"];
+}
+function buildAcpPermissionInteractionPayload(args) {
+  const toolCall = args.toolCall;
+  const pathOptions = { cwd: args.cwd };
+  const availableDecisions = buildAcpApprovalDecisions(args.options);
+  const reason = permissionReason(toolCall) ?? null;
+  const operation = toolCall ? classifyAcpPermission(toolCall, pathOptions) : void 0;
+  if (toolCall && operation?.kind === "file_change") {
+    const ownPaths = extractAcpToolCallPaths(toolCall, pathOptions);
+    return {
+      kind: "approval",
+      subject: {
+        kind: "file_change",
+        itemId: toolCall.toolCallId,
+        writeScope: resolveAcpFileChangeWriteScope(
+          ownPaths.length > 0 ? ownPaths : operation.paths
+        ),
+        sessionGrant: null
+      },
+      reason,
+      availableDecisions
+    };
+  }
+  if (toolCall && operation?.kind === "command") {
+    return {
+      kind: "approval",
+      subject: {
+        kind: "command",
+        itemId: toolCall.toolCallId,
+        command: operation.command,
+        cwd: null,
+        actions: [{ type: "unknown", command: operation.command }],
+        sessionGrant: null
+      },
+      reason,
+      availableDecisions
+    };
+  }
+  return {
+    kind: "approval",
+    subject: buildToolUseSubject(toolCall, pathOptions, args.classifyToolCall),
+    reason,
+    availableDecisions
+  };
+}
+function resolveAcpPermissionDecision(args) {
+  if (!isApprovalPendingInteractionPayload(args.payload) || !isApprovalPendingInteractionResolution(args.resolution)) {
+    return null;
+  }
+  return { decision: args.resolution.decision };
+}
+
+// ../provider-bridge-acp/src/session-params.ts
+import path11 from "node:path";
+
+// ../provider-bridge-acp/src/bridge/model-catalog.ts
+function findAcpFastConfigOption(configOptions) {
+  return (configOptions ?? []).find(
+    (option) => option.id === "fast" && option.type === "select"
+  );
+}
+var MODEL_LINE_PATTERN = /^(\S+) - (.+)$/;
+var BARE_PROVIDER_MODEL_LINE_PATTERN = /^\S+\/\S+$/;
+var BULLETED_MODEL_LINE_PATTERN = /^[*-]\s+(\S+)(?:\s+\([^)]*\))?$/u;
+var EFFORT_TOKENS = [
+  ["extra-high", "xhigh"],
+  ["medium", "medium"],
+  ["xhigh", "xhigh"],
+  ["high", "high"],
+  ["low", "low"],
+  ["max", "max"],
+  ["none", "none"]
+];
+var FAST_TAIL = "-fast";
+var FAST_SERVICE_TIER = "fast";
+var THINKING_TOKEN = "thinking";
+function parseAgentModelLines(stdout) {
+  const models = [];
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    const match = MODEL_LINE_PATTERN.exec(trimmed);
+    if (!match) {
+      const bulletMatch = BULLETED_MODEL_LINE_PATTERN.exec(trimmed);
+      if (bulletMatch) {
+        const [, id2] = bulletMatch;
+        models.push({ id: id2, displayName: id2 });
+        continue;
+      }
+      if (BARE_PROVIDER_MODEL_LINE_PATTERN.test(trimmed)) {
+        models.push({ id: trimmed, displayName: trimmed });
+      }
+      continue;
+    }
+    const [, id, displayName] = match;
+    models.push({ id, displayName });
+  }
+  return models;
+}
+function findAcpModelConfigOption(configOptions) {
+  const options = configOptions ?? [];
+  return options.find((option) => option.category === "model") ?? options.find((option) => option.id === "model");
+}
+function findAcpThoughtLevelConfigOption(configOptions) {
+  return (configOptions ?? []).find(
+    (option) => option.category === "thought_level"
+  );
+}
+var ACP_NATIVE_REASONING_VALUE_ALIASES_BY_LEVEL = {
+  low: ["minimal"],
+  ultracode: ["xhigh"],
+  max: ["xhigh"],
+  ultra: ["max"]
+};
+function acpNativeReasoningLevelToValue(level, thoughtLevelOption) {
+  const values = new Set(
+    (thoughtLevelOption.options ?? []).map((o2) => o2.value)
+  );
+  if (values.has(level)) {
+    return level;
+  }
+  return (ACP_NATIVE_REASONING_VALUE_ALIASES_BY_LEVEL[level] ?? []).find(
+    (value) => values.has(value)
+  );
+}
+function readOptionDescription(option) {
+  const description = Reflect.get(option, "description");
+  return typeof description === "string" && description.trim() !== "" ? description : void 0;
+}
+function buildAcpNativeReasoningSupport(thoughtLevelOption) {
+  const seen = /* @__PURE__ */ new Set();
+  const supportedReasoningEfforts = [];
+  for (const option of thoughtLevelOption?.options ?? []) {
+    if (option.value === "" || seen.has(option.value)) {
+      continue;
+    }
+    seen.add(option.value);
+    const name = option.name !== void 0 && option.name.trim() !== "" ? option.name : void 0;
+    supportedReasoningEfforts.push({
+      reasoningEffort: option.value,
+      ...name !== void 0 && name !== option.value ? { label: name } : {},
+      description: readOptionDescription(option) ?? name ?? option.value
+    });
+  }
+  if (supportedReasoningEfforts.length === 0) {
+    return {
+      reasoningDiscovery: "known",
+      supportedReasoningEfforts: [],
+      defaultReasoningEffort: "medium"
+    };
+  }
+  const currentValue = thoughtLevelOption?.currentValue;
+  return {
+    reasoningDiscovery: "known",
+    supportedReasoningEfforts,
+    defaultReasoningEffort: currentValue !== void 0 && seen.has(currentValue) ? currentValue : supportedReasoningEfforts[0].reasoningEffort
+  };
+}
+function buildModelCatalogFromConfigOptions(modelOption, supportByModel) {
+  const options = modelOption?.options ?? [];
+  if (options.length === 0) {
+    return [];
+  }
+  const currentValue = modelOption?.currentValue;
+  const models = options.map((option, index) => {
+    const isDefault = currentValue !== void 0 ? option.value === currentValue : index === 0;
+    const reasoning = supportByModel?.get(option.value) ?? {
+      reasoningDiscovery: "unknown",
+      supportedReasoningEfforts: [],
+      defaultReasoningEffort: "medium"
+    };
+    return {
+      id: option.value,
+      model: option.value,
+      displayName: option.name ?? option.value,
+      description: readOptionDescription(option) ?? "",
+      reasoningDiscovery: reasoning.reasoningDiscovery,
+      supportedReasoningEfforts: reasoning.supportedReasoningEfforts,
+      defaultReasoningEffort: reasoning.defaultReasoningEffort,
+      supportedServiceTiers: supportByModel?.get(option.value)?.supportedServiceTiers ?? [],
+      isDefault
+    };
+  });
+  return models.some((model) => model.isDefault) ? models : models.map(
+    (model, index) => index === 0 ? { ...model, isDefault: true } : model
+  );
+}
+function buildModelCatalogFromSessionModels(sessionModels) {
+  const availableModels = sessionModels?.availableModels ?? [];
+  if (availableModels.length === 0) {
+    return [];
+  }
+  const currentModelId = sessionModels?.currentModelId;
+  const models = availableModels.map((model, index) => {
+    const isDefault = currentModelId !== void 0 ? model.modelId === currentModelId : index === 0;
+    return {
+      id: model.modelId,
+      model: model.modelId,
+      displayName: model.name ?? model.modelId,
+      description: model.description ?? "",
+      reasoningDiscovery: "unknown",
+      supportedReasoningEfforts: [],
+      defaultReasoningEffort: "medium",
+      supportedServiceTiers: [],
+      isDefault
+    };
+  });
+  return models.some((model) => model.isDefault) ? models : models.map(
+    (model, index) => index === 0 ? { ...model, isDefault: true } : model
+  );
+}
+function splitVariant(id) {
+  let rest = id;
+  let fast = false;
+  if (rest.endsWith(FAST_TAIL)) {
+    fast = true;
+    rest = rest.slice(0, -FAST_TAIL.length);
+  }
+  let thinking = false;
+  if (rest.endsWith(`-${THINKING_TOKEN}`)) {
+    thinking = true;
+    rest = rest.slice(0, -(THINKING_TOKEN.length + 1));
+  } else if (rest.includes(`-${THINKING_TOKEN}-`)) {
+    thinking = true;
+    rest = rest.replace(`-${THINKING_TOKEN}-`, "-");
+  }
+  for (const [token, effort] of EFFORT_TOKENS) {
+    if (rest.endsWith(`-${token}`)) {
+      return {
+        familyKey: rest.slice(0, -(token.length + 1)),
+        effort,
+        effortToken: token,
+        fast,
+        thinking
+      };
+    }
+  }
+  return {
+    familyKey: rest,
+    effort: "medium",
+    effortToken: void 0,
+    fast,
+    thinking
+  };
+}
+function agentModelFamilyId(id) {
+  return splitVariant(id).familyKey;
+}
+var EFFORT_DISPLAY_WORDS = {
+  "extra-high": "Extra High",
+  medium: "Medium",
+  xhigh: "Extra High",
+  high: "High",
+  low: "Low",
+  max: "Max",
+  ultra: "Ultra",
+  none: "None"
+};
+function familyDisplayName(displayName, effortToken) {
+  const word = effortToken ? EFFORT_DISPLAY_WORDS[effortToken] : void 0;
+  if (!word) {
+    return cleanDisplayName(displayName);
+  }
+  return cleanDisplayName(
+    displayName.replace(new RegExp(`(^|\\s)${word}(?=\\s|$)`), "$1")
+  );
+}
+function cleanDisplayName(name) {
+  return name.replace(/\s*\((?:NO ZDR|default|current)\)/gi, "").replace(/(^|\s)(?:1M|Thinking)(?=\s|$)/g, "$1").replace(/\s{2,}/g, " ").trim();
+}
+function buildAgentModelCatalog(rawModels) {
+  const families = /* @__PURE__ */ new Map();
+  for (const raw of rawModels) {
+    const { familyKey, effort, effortToken, fast, thinking } = splitVariant(
+      raw.id
+    );
+    const members = families.get(familyKey) ?? [];
+    members.push({ ...raw, effort, effortToken, fast, thinking });
+    families.set(familyKey, members);
+  }
+  if (families.size === 0) {
+    return null;
+  }
+  const models = [];
+  const variantsByFamilyId = /* @__PURE__ */ new Map();
+  const defaultEffortByFamilyId = /* @__PURE__ */ new Map();
+  for (const members of families.values()) {
+    const hasThinking = members.some((m) => m.thinking);
+    const leveled = members.map((member) => ({
+      member,
+      level: member.thinking ? member.effort : hasThinking ? "none" : member.effort
+    }));
+    const byLevel = /* @__PURE__ */ new Map();
+    const repEffortByCell = /* @__PURE__ */ new Map();
+    for (const { member, level } of leveled) {
+      const slot = member.fast ? "fast" : "normal";
+      const tier = byLevel.get(level) ?? {};
+      const cellKey = `${level}:${slot}`;
+      const upgradesNoneRep = level === "none" && member.effort === "medium" && repEffortByCell.get(cellKey) !== "medium";
+      if (tier[slot] === void 0 || upgradesNoneRep) {
+        tier[slot] = member.id;
+        repEffortByCell.set(cellKey, member.effort);
+        byLevel.set(level, tier);
+      }
+    }
+    const nonFast = leveled.filter((entry) => !entry.member.fast);
+    const pool = nonFast.length > 0 ? nonFast : leveled;
+    const defaultEntry = pool.find((entry) => entry.level === "medium") ?? pool.find((entry) => entry.level !== "none") ?? pool[0];
+    const defaultVariant = defaultEntry.member;
+    const levelsInLadderOrder = [...byLevel.keys()].sort(
+      compareReasoningLevels
+    );
+    const nameByLevel = /* @__PURE__ */ new Map();
+    for (const { member, level } of leveled) {
+      if (!nameByLevel.has(level)) {
+        nameByLevel.set(level, member.displayName);
+      }
+    }
+    models.push({
+      id: defaultVariant.id,
+      model: defaultVariant.id,
+      displayName: familyDisplayName(
+        defaultVariant.displayName,
+        defaultVariant.effortToken
+      ),
+      description: "",
+      reasoningDiscovery: "known",
+      supportedReasoningEfforts: levelsInLadderOrder.map((level) => ({
+        reasoningEffort: level,
+        description: nameByLevel.get(level) ?? ""
+      })),
+      defaultReasoningEffort: defaultEntry.level,
+      supportedServiceTiers: [...byLevel.values()].some(
+        (tier) => tier.fast !== void 0
+      ) ? [{ id: FAST_SERVICE_TIER }] : [],
+      isDefault: models.length === 0
+    });
+    variantsByFamilyId.set(defaultVariant.id, byLevel);
+    defaultEffortByFamilyId.set(defaultVariant.id, defaultEntry.level);
+  }
+  return {
+    models,
+    resolveVariant({ model, reasoningLevel, serviceTier }) {
+      const byLevel = variantsByFamilyId.get(model);
+      if (!byLevel) {
+        return void 0;
+      }
+      const level = reasoningLevel ?? defaultEffortByFamilyId.get(model);
+      const tier = level === void 0 ? void 0 : byLevel.get(level);
+      if (!tier) {
+        return void 0;
+      }
+      if (serviceTier === "fast" && tier.fast !== void 0) {
+        return tier.fast;
+      }
+      return tier.normal ?? tier.fast;
+    }
+  };
+}
+function splitPrimaryModels(catalogModels, primaryModels) {
+  const primaryIds = new Set(primaryModels);
+  const modelsById = new Map(catalogModels.map((model) => [model.id, model]));
+  const models = primaryModels.flatMap((id) => {
+    const model = modelsById.get(id);
+    return model ? [model] : [];
+  });
+  if (models.length === 0) {
+    return { models: [...catalogModels], selectedOnlyModels: [] };
+  }
+  const selectedOnlyModels = catalogModels.filter(
+    (model) => !primaryIds.has(model.id)
+  );
+  if (models.some((model) => model.isDefault)) {
+    return {
+      models,
+      selectedOnlyModels: selectedOnlyModels.map(
+        (model) => model.isDefault ? { ...model, isDefault: false } : model
+      )
+    };
+  }
+  return {
+    models: models.map(
+      (model, index) => index === 0 ? { ...model, isDefault: true } : model
+    ),
+    selectedOnlyModels: selectedOnlyModels.map(
+      (model) => model.isDefault ? { ...model, isDefault: false } : model
+    )
+  };
+}
+
+// ../provider-bridge-acp/src/cursor-model-selection.ts
+var CURSOR_LEGACY_FAMILY_SELECTIONS = {
+  "claude-4-sonnet": { modelId: "claude-sonnet-4" },
+  "claude-4.5-opus": { modelId: "claude-opus-4-5" },
+  "claude-4.5-sonnet": { modelId: "claude-sonnet-4-5" },
+  "claude-4.6-opus": { modelId: "claude-opus-4-6" },
+  "claude-4.6-sonnet": { modelId: "claude-sonnet-4-6" },
+  "gemini-3.6-flash-minimal": {
+    modelId: "gemini-3.6-flash",
+    reasoningLevel: "low"
+  },
+  "gpt-5.1-codex-max": { modelId: "gpt-5.1" }
+};
+function bareCursorFamilyId(model) {
+  const familyId = model === "auto" ? "default" : agentModelFamilyId(model);
+  return familyId.startsWith("cursor-") ? familyId.slice("cursor-".length) : familyId;
+}
+function cursorParameterizedSelection(model, reasoningLevel) {
+  const familyId = bareCursorFamilyId(model);
+  const selection = CURSOR_LEGACY_FAMILY_SELECTIONS[familyId] ?? {
+    modelId: familyId
+  };
+  return selection.reasoningLevel !== void 0 || reasoningLevel === void 0 ? selection : { ...selection, reasoningLevel };
+}
+function cursorCatalogModel(model) {
+  const selection = cursorParameterizedSelection(
+    model.id,
+    model.defaultReasoningEffort
+  );
+  const efforts = /* @__PURE__ */ new Map();
+  for (const effort of model.supportedReasoningEfforts) {
+    const level = cursorParameterizedSelection(model.id, effort.reasoningEffort).reasoningLevel ?? effort.reasoningEffort;
+    if (!efforts.has(level)) {
+      efforts.set(level, { ...effort, reasoningEffort: level });
+    }
+  }
+  return {
+    model: {
+      ...model,
+      id: selection.modelId,
+      model: selection.modelId,
+      supportedReasoningEfforts: [...efforts.values()].sort(
+        (a2, b) => compareReasoningLevels(a2.reasoningEffort, b.reasoningEffort)
+      ),
+      defaultReasoningEffort: selection.reasoningLevel ?? model.defaultReasoningEffort
+    },
+    directFamily: bareCursorFamilyId(model.id) === selection.modelId
+  };
+}
+function mergeSupportedServiceTiers(current, candidate) {
+  if (current.supportedServiceTiers === void 0 || candidate.supportedServiceTiers === void 0) {
+    return void 0;
+  }
+  const tiers = new Map(
+    [...current.supportedServiceTiers, ...candidate.supportedServiceTiers].map(
+      (tier) => [tier.id, tier]
+    )
+  );
+  return [...tiers.values()];
+}
+function buildCursorParameterizedModelCatalog(models) {
+  const normalized = /* @__PURE__ */ new Map();
+  for (const model of models) {
+    const candidate = cursorCatalogModel(model);
+    const current = normalized.get(candidate.model.id);
+    if (current === void 0) {
+      normalized.set(candidate.model.id, candidate);
+      continue;
+    }
+    const preferred = candidate.directFamily && !current.directFamily ? candidate : current;
+    const efforts = new Map(
+      preferred.model.supportedReasoningEfforts.map((effort) => [
+        effort.reasoningEffort,
+        effort
+      ])
+    );
+    for (const effort of [
+      ...current.model.supportedReasoningEfforts,
+      ...candidate.model.supportedReasoningEfforts
+    ]) {
+      if (!efforts.has(effort.reasoningEffort)) {
+        efforts.set(effort.reasoningEffort, effort);
+      }
+    }
+    const serviceTiers = mergeSupportedServiceTiers(
+      current.model,
+      candidate.model
+    );
+    normalized.set(candidate.model.id, {
+      model: {
+        ...preferred.model,
+        supportedReasoningEfforts: [...efforts.values()].sort(
+          (a2, b) => compareReasoningLevels(a2.reasoningEffort, b.reasoningEffort)
+        ),
+        ...serviceTiers === void 0 ? {} : { supportedServiceTiers: serviceTiers },
+        isDefault: current.model.isDefault || candidate.model.isDefault
+      },
+      directFamily: preferred.directFamily
+    });
+  }
+  return [...normalized.values()].map((entry) => entry.model);
+}
+
+// ../provider-bridge-acp/src/session-params.ts
+function sanitizeAcpSkillDescription(description) {
+  const sanitized = description.replace(/[\r\n]+/gu, " ").replace(/\s+/gu, " ").replace(/[<>]/gu, "").trim();
+  return sanitized.length > 0 ? sanitized : "(description unavailable)";
+}
+function buildAcpSkillsInstructions(skillRoots) {
+  if (!skillRoots || skillRoots.length === 0) {
+    return void 0;
+  }
+  const skillLines = skillRoots.flatMap((skillRoot) => {
+    return skillRoot.skills.map((skill) => {
+      const skillFilePath = path11.join(
+        skillRoot.skillDirectoryRootPath,
+        skill.name,
+        "SKILL.md"
+      );
+      return `- ${skill.name}: ${sanitizeAcpSkillDescription(skill.description)} (SKILL.md: ${skillFilePath})`;
+    });
+  });
+  if (skillLines.length === 0) {
+    return void 0;
+  }
+  return [
+    "bb skills are reusable instruction folders. When the current task matches a listed skill description, read that skill's SKILL.md at the absolute path before proceeding; you may read supporting files in the same skill directory that SKILL.md references. If a listed path does not exist, the list is stale and should be ignored.",
+    "",
+    "Available bb skills:",
+    ...skillLines
+  ].join("\n");
+}
+function buildAcpSessionInstructions(options) {
+  const baseInstructions = options.instructions?.trim();
+  const skillsInstructions = buildAcpSkillsInstructions(options.skillRoots);
+  const instructions = [baseInstructions, skillsInstructions].filter(
+    (value) => value !== void 0 && value.length > 0
+  );
+  return instructions.length > 0 ? instructions.join("\n\n") : void 0;
+}
+function launchEnvVars(launchSpec) {
+  return Object.keys(launchSpec.env).length > 0 ? { envVars: launchSpec.env } : {};
+}
+function buildAcpModelListCommand(launchSpec) {
+  if (!launchSpec.modelCli || launchSpec.modelCli.listArgs.length === 0) {
+    return void 0;
+  }
+  return {
+    command: launchSpec.command,
+    args: [...launchSpec.modelCli.listArgs],
+    ...launchSpec.cwd !== void 0 ? { cwd: launchSpec.cwd } : {},
+    ...launchEnvVars(launchSpec)
+  };
+}
+function buildAcpAgentCommand(launchSpec) {
+  return {
+    command: launchSpec.command,
+    args: [...launchSpec.args],
+    ...launchSpec.cwd !== void 0 ? { cwd: launchSpec.cwd } : {},
+    ...launchEnvVars(launchSpec)
+  };
+}
+function buildAcpModelDiscoveryAgentCommand(launchSpec) {
+  return buildAcpModelListCommand(launchSpec) !== void 0 ? void 0 : buildAcpAgentCommand(launchSpec);
+}
+function buildAcpModelListParams(launchSpec, options) {
+  const primaryModels = [
+    ...options.primaryModels ?? launchSpec?.modelCli?.primaryModels ?? []
+  ];
+  const reasoningProbePriorityModelIds = [
+    ...options.reasoningProbePriorityModelIds
+  ];
+  if (launchSpec === null) {
+    return {
+      primaryModels,
+      reasoningProbePriorityModelIds,
+      parameterizedModelPicker: options.parameterizedModelPicker
+    };
+  }
+  const listCommand = buildAcpModelListCommand(launchSpec);
+  const agent = buildAcpModelDiscoveryAgentCommand(launchSpec);
+  return {
+    ...listCommand !== void 0 ? { listCommand } : {},
+    ...agent !== void 0 ? { agent } : {},
+    optionsAgent: buildAcpAgentCommand(launchSpec),
+    primaryModels,
+    reasoningProbePriorityModelIds,
+    parameterizedModelPicker: options.parameterizedModelPicker,
+    ...launchSpec.reasoningCli !== void 0 ? { reasoningCli: launchSpec.reasoningCli } : {},
+    ...launchSpec.nativeReasoning !== void 0 ? { nativeReasoning: launchSpec.nativeReasoning } : {}
+  };
+}
+function buildAcpModelSelectionParams(launchSpec, options, parameterizedModelPicker, dialectId) {
+  const modelSelection = buildAcpModelSelection(
+    launchSpec,
+    options,
+    parameterizedModelPicker,
+    dialectId
+  );
+  return {
+    ...modelSelection !== void 0 ? { modelSelection } : {},
+    ...launchSpec.reasoningCli !== void 0 && options.reasoningLevel !== void 0 ? { launchReasoningLevel: options.reasoningLevel } : {}
+  };
+}
+function buildAcpModelSelection(launchSpec, options, parameterizedModelPicker, dialectId) {
+  const model = options.model;
+  const listCommand = buildAcpModelListCommand(launchSpec);
+  if (!model || model === ACP_DEFAULT_MODEL_ID) {
+    return void 0;
+  }
+  if (parameterizedModelPicker || !listCommand || !launchSpec.modelCli?.selectFlag) {
+    const modelSelection = parameterizedModelPicker && dialectId === "cursor" ? cursorParameterizedSelection(model, options.reasoningLevel) : {
+      modelId: model,
+      ...options.reasoningLevel !== void 0 ? { reasoningLevel: options.reasoningLevel } : {}
+    };
+    return {
+      ...modelSelection,
+      ...parameterizedModelPicker && options.serviceTier !== void 0 ? { serviceTier: options.serviceTier } : {}
+    };
+  }
+  return {
+    listCommand,
+    selectFlag: launchSpec.modelCli.selectFlag,
+    model,
+    ...options.reasoningLevel !== void 0 ? { reasoningLevel: options.reasoningLevel } : {},
+    ...options.serviceTier === "fast" ? { serviceTier: options.serviceTier } : {}
+  };
+}
+function buildAcpSessionParams(args) {
+  const { options, launchSpec } = args;
+  const instructions = buildAcpSessionInstructions(options);
+  const cwd = launchSpec.cwd ?? args.cwd;
+  const envVars = {
+    ...launchSpec.env,
+    ...options.envVars ?? {}
+  };
+  if (options.permissionMode === "auto") {
+    throw new Error(
+      `Provider "${args.providerLabel}" does not support permission mode "auto".`
+    );
+  }
+  return {
+    threadId: args.threadId,
+    cwd,
+    agent: {
+      command: launchSpec.command,
+      args: [...launchSpec.args]
+    },
+    ...args.dialectId === void 0 ? {} : { dialectId: args.dialectId },
+    ...buildAcpModelSelectionParams(
+      launchSpec,
+      options,
+      args.parameterizedModelPicker,
+      args.dialectId
+    ),
+    parameterizedModelPicker: args.parameterizedModelPicker,
+    ...launchSpec.reasoningCli !== void 0 ? { reasoningCli: launchSpec.reasoningCli } : {},
+    ...launchSpec.nativeReasoning !== void 0 ? { nativeReasoning: launchSpec.nativeReasoning } : {},
+    ...launchSpec.permissionCli !== void 0 ? { permissionCli: launchSpec.permissionCli } : {},
+    permissionMode: options.permissionMode,
+    workspaceWriteRoots: [cwd, ...args.additionalWorkspaceWriteRoots],
+    ...Object.keys(envVars).length > 0 ? { envVars } : {},
+    ...instructions ? { instructions } : {},
+    ...args.dynamicTools && args.dynamicTools.length > 0 ? { dynamicTools: args.dynamicTools } : {}
+  };
+}
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/schema/index.js
+var AGENT_METHODS = {
+  initialize: "initialize",
+  authenticate: "authenticate",
+  providers_list: "providers/list",
+  providers_set: "providers/set",
+  providers_disable: "providers/disable",
+  session_new: "session/new",
+  session_load: "session/load",
+  session_set_mode: "session/set_mode",
+  session_set_config_option: "session/set_config_option",
+  session_prompt: "session/prompt",
+  session_cancel: "session/cancel",
+  mcp_message: "mcp/message",
+  session_list: "session/list",
+  session_delete: "session/delete",
+  session_fork: "session/fork",
+  session_resume: "session/resume",
+  session_close: "session/close",
+  logout: "logout"
+};
+var CLIENT_METHODS = {
+  session_request_permission: "session/request_permission",
+  session_update: "session/update",
+  fs_write_text_file: "fs/write_text_file",
+  fs_read_text_file: "fs/read_text_file",
+  terminal_create: "terminal/create",
+  terminal_output: "terminal/output",
+  terminal_release: "terminal/release",
+  terminal_wait_for_exit: "terminal/wait_for_exit",
+  terminal_kill: "terminal/kill",
+  mcp_message: "mcp/message",
+  elicitation_create: "elicitation/create",
+  elicitation_complete: "elicitation/complete"
+};
+var PROTOCOL_METHODS = {
+  cancel_request: "$/cancel_request"
+};
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/schema-deserialize.js
+import { z as z46 } from "zod/v4";
+var skippedItem = /* @__PURE__ */ Symbol("skippedItem");
+function defaultOnError(schema, fallback) {
+  return schema.catch(fallback);
+}
+function requiredDefaultOnError(schema, fallback) {
+  const schemaWithCatch = schema.catch(fallback);
+  return z46.unknown().transform((value, context) => {
+    if (value !== void 0)
+      return schemaWithCatch.parse(value);
+    context.addIssue({
+      code: "custom",
+      message: "Required value is missing"
+    });
+    return z46.NEVER;
+  });
+}
+function stringTag(value, key) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  const tag = value[key];
+  return typeof tag === "string" ? tag : void 0;
+}
+function excludeKnownTags(schema, key, knownTags) {
+  return schema.superRefine((value, context) => {
+    const tag = stringTag(value, key);
+    if (tag !== void 0 && knownTags.includes(tag)) {
+      context.addIssue({
+        code: "custom",
+        path: [key],
+        message: `${key} ${JSON.stringify(tag)} is reserved by a known variant, but the value does not match that variant's schema`
+      });
+    }
+  });
+}
+function preserveCustomPayload(schema, key, knownTags) {
+  return z46.unknown().transform((value, context) => {
+    const result = schema.safeParse(value);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        context.addIssue({ ...issue, input: value });
+      }
+      return z46.NEVER;
+    }
+    const output = result.data;
+    const tag = stringTag(value, key);
+    if (tag !== void 0 && !knownTags.includes(tag)) {
+      const raw = value;
+      for (const [property, rawValue] of Object.entries(raw)) {
+        if (property === "__proto__")
+          continue;
+        if (!Object.hasOwn(output, property))
+          output[property] = rawValue;
+      }
+    }
+    return output;
+  });
+}
+function defaultOnErrorOptionalStringTag(schema, key) {
+  return z46.preprocess((value) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+    const record2 = value;
+    const tag = record2[key];
+    if (tag === void 0 || tag === null || typeof tag === "string") {
+      return value;
+    }
+    const normalized = { ...record2 };
+    delete normalized[key];
+    return normalized;
+  }, schema);
+}
+function vecSkipError(itemSchema) {
+  return z46.array(itemSchema.catch(skippedItem)).transform((items) => items.filter((item) => item !== skippedItem));
+}
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/schema/zod.gen.js
+import * as z47 from "zod/v4";
+var zRequestId = z47.union([z47.number(), z47.string()]).nullable();
+var zSessionId = z47.string();
+var zWriteTextFileRequest = z47.object({
+  sessionId: zSessionId,
+  path: z47.string(),
+  content: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zReadTextFileRequest = z47.object({
+  sessionId: zSessionId,
+  path: z47.string(),
+  line: z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(),
+  limit: z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zToolCallId = z47.string();
+var zToolKind = z47.union([
+  z47.literal("read"),
+  z47.literal("edit"),
+  z47.literal("delete"),
+  z47.literal("move"),
+  z47.literal("search"),
+  z47.literal("execute"),
+  z47.literal("think"),
+  z47.literal("fetch"),
+  z47.literal("switch_mode"),
+  z47.literal("other")
+]);
+var zToolCallStatus = z47.union([
+  z47.literal("pending"),
+  z47.literal("in_progress"),
+  z47.literal("completed"),
+  z47.literal("failed")
+]);
+var zRole = z47.union([z47.literal("assistant"), z47.literal("user")]);
+var zAnnotations = z47.object({
+  audience: defaultOnError(vecSkipError(zRole).nullish(), () => void 0),
+  lastModified: defaultOnError(z47.string().nullish(), () => void 0),
+  priority: defaultOnError(z47.number().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTextContent = z47.object({
+  annotations: defaultOnError(zAnnotations.nullish(), () => void 0),
+  text: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zImageContent = z47.object({
+  annotations: defaultOnError(zAnnotations.nullish(), () => void 0),
+  data: z47.string(),
+  mimeType: z47.string(),
+  uri: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAudioContent = z47.object({
+  annotations: defaultOnError(zAnnotations.nullish(), () => void 0),
+  data: z47.string(),
+  mimeType: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zResourceLink = z47.object({
+  annotations: defaultOnError(zAnnotations.nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  mimeType: defaultOnError(z47.string().nullish(), () => void 0),
+  name: z47.string(),
+  size: defaultOnError(z47.number().nullish(), () => void 0),
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  uri: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTextResourceContents = z47.object({
+  mimeType: defaultOnError(z47.string().nullish(), () => void 0),
+  text: z47.string(),
+  uri: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zBlobResourceContents = z47.object({
+  blob: z47.string(),
+  mimeType: defaultOnError(z47.string().nullish(), () => void 0),
+  uri: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zEmbeddedResourceResource = z47.union([
+  zTextResourceContents,
+  zBlobResourceContents
+]);
+var zEmbeddedResource = z47.object({
+  annotations: defaultOnError(zAnnotations.nullish(), () => void 0),
+  resource: zEmbeddedResourceResource,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zContentBlock = z47.union([
+  zTextContent.and(z47.object({
+    type: z47.literal("text")
+  })),
+  zImageContent.and(z47.object({
+    type: z47.literal("image")
+  })),
+  zAudioContent.and(z47.object({
+    type: z47.literal("audio")
+  })),
+  zResourceLink.and(z47.object({
+    type: z47.literal("resource_link")
+  })),
+  zEmbeddedResource.and(z47.object({
+    type: z47.literal("resource")
+  }))
+]);
+var zContent = z47.object({
+  content: zContentBlock,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zDiff = z47.object({
+  path: z47.string(),
+  oldText: defaultOnError(z47.string().nullish(), () => void 0),
+  newText: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTerminalId = z47.string();
+var zTerminal = z47.object({
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zToolCallContent = z47.union([
+  zContent.and(z47.object({
+    type: z47.literal("content")
+  })),
+  zDiff.and(z47.object({
+    type: z47.literal("diff")
+  })),
+  zTerminal.and(z47.object({
+    type: z47.literal("terminal")
+  }))
+]);
+var zToolCallLocation = z47.object({
+  path: z47.string(),
+  line: defaultOnError(z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zToolCallUpdate = z47.object({
+  toolCallId: zToolCallId,
+  kind: defaultOnError(zToolKind.nullish(), () => void 0),
+  status: defaultOnError(zToolCallStatus.nullish(), () => void 0),
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  name: defaultOnError(z47.string().nullish(), () => void 0),
+  content: defaultOnError(vecSkipError(zToolCallContent).nullish(), () => void 0),
+  locations: defaultOnError(vecSkipError(zToolCallLocation).nullish(), () => void 0),
+  rawInput: defaultOnError(z47.unknown().optional(), () => void 0),
+  rawOutput: defaultOnError(z47.unknown().optional(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPermissionOptionId = z47.string();
+var zPermissionOptionKind = z47.union([
+  z47.literal("allow_once"),
+  z47.literal("allow_always"),
+  z47.literal("reject_once"),
+  z47.literal("reject_always")
+]);
+var zPermissionOption = z47.object({
+  optionId: zPermissionOptionId,
+  name: z47.string(),
+  kind: zPermissionOptionKind,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zRequestPermissionRequest = z47.object({
+  sessionId: zSessionId,
+  toolCall: zToolCallUpdate,
+  options: z47.array(zPermissionOption),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zEnvVariable = z47.object({
+  name: z47.string(),
+  value: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCreateTerminalRequest = z47.object({
+  sessionId: zSessionId,
+  command: z47.string(),
+  args: z47.array(z47.string()).optional(),
+  env: z47.array(zEnvVariable).optional(),
+  cwd: z47.string().nullish(),
+  outputByteLimit: z47.number().nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTerminalOutputRequest = z47.object({
+  sessionId: zSessionId,
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zReleaseTerminalRequest = z47.object({
+  sessionId: zSessionId,
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zWaitForTerminalExitRequest = z47.object({
+  sessionId: zSessionId,
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zKillTerminalRequest = z47.object({
+  sessionId: zSessionId,
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationSessionScope = z47.object({
+  sessionId: zSessionId,
+  toolCallId: defaultOnError(zToolCallId.nullish(), () => void 0)
+});
+var zElicitationRequestScope = z47.object({
+  requestId: zRequestId
+});
+var zElicitationSchemaType = z47.literal("object");
+var zStringFormat = z47.union([
+  z47.literal("email"),
+  z47.literal("uri"),
+  z47.literal("date"),
+  z47.literal("date-time")
+]);
+var zEnumOption = z47.object({
+  const: z47.string(),
+  title: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zStringPropertySchema = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  minLength: z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(),
+  maxLength: z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(),
+  pattern: z47.string().nullish(),
+  format: zStringFormat.nullish(),
+  default: defaultOnError(z47.string().nullish(), () => void 0),
+  enum: z47.array(z47.string()).nullish(),
+  oneOf: z47.array(zEnumOption).nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zNumberPropertySchema = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  minimum: z47.number().nullish(),
+  maximum: z47.number().nullish(),
+  default: defaultOnError(z47.number().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zIntegerPropertySchema = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  minimum: z47.number().nullish(),
+  maximum: z47.number().nullish(),
+  default: defaultOnError(z47.number().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zBooleanPropertySchema = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  default: defaultOnError(z47.boolean().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zStringMultiSelectItems = z47.object({
+  enum: z47.array(z47.string()),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTitledMultiSelectItems = z47.object({
+  anyOf: z47.array(zEnumOption),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMultiSelectItems = preserveCustomPayload(z47.union([
+  zStringMultiSelectItems.and(z47.object({
+    type: z47.literal("string")
+  })),
+  excludeKnownTags(z47.object({
+    type: z47.string()
+  }), "type", ["string"]),
+  zTitledMultiSelectItems
+]), "type", ["string"]);
+var zMultiSelectPropertySchema = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  minItems: z47.number().nullish(),
+  maxItems: z47.number().nullish(),
+  items: zMultiSelectItems,
+  default: defaultOnError(vecSkipError(z47.string()).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationPropertySchema = preserveCustomPayload(z47.union([
+  zStringPropertySchema.and(z47.object({
+    type: z47.literal("string")
+  })),
+  zNumberPropertySchema.and(z47.object({
+    type: z47.literal("number")
+  })),
+  zIntegerPropertySchema.and(z47.object({
+    type: z47.literal("integer")
+  })),
+  zBooleanPropertySchema.and(z47.object({
+    type: z47.literal("boolean")
+  })),
+  zMultiSelectPropertySchema.and(z47.object({
+    type: z47.literal("array")
+  })),
+  excludeKnownTags(z47.object({
+    type: z47.string()
+  }), "type", ["array", "boolean", "integer", "number", "string"])
+]), "type", ["array", "boolean", "integer", "number", "string"]);
+var zElicitationSchema = z47.object({
+  type: defaultOnError(zElicitationSchemaType.optional().default("object"), () => "object"),
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  properties: z47.record(z47.string(), zElicitationPropertySchema).optional().default({}),
+  required: z47.array(z47.string()).nullish(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationFormMode = z47.intersection(z47.union([zElicitationSessionScope, zElicitationRequestScope]), z47.object({
+  requestedSchema: zElicitationSchema
+}));
+var zElicitationId = z47.string();
+var zElicitationUrlMode = z47.intersection(z47.union([zElicitationSessionScope, zElicitationRequestScope]), z47.object({
+  elicitationId: zElicitationId,
+  url: z47.url()
+}));
+var zCreateElicitationRequest = preserveCustomPayload(z47.intersection(z47.union([
+  zElicitationFormMode.and(z47.object({
+    mode: z47.literal("form")
+  })),
+  zElicitationUrlMode.and(z47.object({
+    mode: z47.literal("url")
+  })),
+  excludeKnownTags(z47.intersection(z47.union([zElicitationSessionScope, zElicitationRequestScope]), z47.object({
+    mode: z47.string()
+  })), "mode", ["form", "url"])
+]), z47.object({
+  message: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+})), "mode", ["form", "url"]);
+var zMcpServerAcpId = z47.string();
+var zMcpRequestId = z47.string();
+var zMessageMcpRequest = z47.object({
+  serverId: zMcpServerAcpId,
+  requestId: zMcpRequestId,
+  method: z47.string(),
+  params: z47.record(z47.string(), z47.unknown()).nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zExtRequest = z47.unknown();
+var zAgentRequest = z47.object({
+  id: zRequestId,
+  method: z47.string(),
+  params: z47.union([
+    zWriteTextFileRequest,
+    zReadTextFileRequest,
+    zRequestPermissionRequest,
+    zCreateTerminalRequest,
+    zTerminalOutputRequest,
+    zReleaseTerminalRequest,
+    zWaitForTerminalExitRequest,
+    zKillTerminalRequest,
+    zCreateElicitationRequest,
+    zMessageMcpRequest,
+    zExtRequest
+  ]).nullish()
+});
+var zProtocolVersion = z47.int().gte(0).lte(65535);
+var zPromptCapabilities = z47.object({
+  image: defaultOnError(z47.boolean().optional().default(false), () => false),
+  audio: defaultOnError(z47.boolean().optional().default(false), () => false),
+  embeddedContext: defaultOnError(z47.boolean().optional().default(false), () => false),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpCapabilities = z47.object({
+  http: defaultOnError(z47.boolean().optional().default(false), () => false),
+  sse: defaultOnError(z47.boolean().optional().default(false), () => false),
+  acp: defaultOnError(z47.boolean().optional().default(false), () => false),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionListCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionDeleteCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionAdditionalDirectoriesCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionSystemPromptOverrideCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionSystemPromptModeCapabilities = z47.object({
+  override: defaultOnError(zSessionSystemPromptOverrideCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionSystemPromptCapabilities = z47.object({
+  mode: defaultOnError(zSessionSystemPromptModeCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionForkCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionResumeCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionCloseCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionCapabilities = z47.object({
+  list: defaultOnError(zSessionListCapabilities.nullish(), () => void 0),
+  delete: defaultOnError(zSessionDeleteCapabilities.nullish(), () => void 0),
+  additionalDirectories: defaultOnError(zSessionAdditionalDirectoriesCapabilities.nullish(), () => void 0),
+  systemPrompt: defaultOnError(zSessionSystemPromptCapabilities.nullish(), () => void 0),
+  fork: defaultOnError(zSessionForkCapabilities.nullish(), () => void 0),
+  resume: defaultOnError(zSessionResumeCapabilities.nullish(), () => void 0),
+  close: defaultOnError(zSessionCloseCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zLogoutCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAgentAuthCapabilities = z47.object({
+  logout: defaultOnError(zLogoutCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zProvidersCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAgentCapabilities = z47.object({
+  loadSession: defaultOnError(z47.boolean().optional().default(false), () => false),
+  promptCapabilities: defaultOnError(zPromptCapabilities.optional().default({
+    image: false,
+    audio: false,
+    embeddedContext: false
+  }), () => ({
+    image: false,
+    audio: false,
+    embeddedContext: false
+  })),
+  mcpCapabilities: defaultOnError(zMcpCapabilities.optional().default({
+    http: false,
+    sse: false,
+    acp: false
+  }), () => ({
+    http: false,
+    sse: false,
+    acp: false
+  })),
+  sessionCapabilities: defaultOnError(zSessionCapabilities.optional().default({}), () => ({})),
+  auth: defaultOnError(zAgentAuthCapabilities.optional().default({}), () => ({})),
+  providers: defaultOnError(zProvidersCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthMethodId = z47.string();
+var zAuthMethodTerminal = z47.object({
+  id: zAuthMethodId,
+  name: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  args: z47.array(z47.string()).optional(),
+  env: z47.record(z47.string(), z47.string()).optional(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthMethodAgent = z47.object({
+  id: zAuthMethodId,
+  name: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthMethod = z47.union([
+  zAuthMethodTerminal.and(z47.object({
+    type: z47.literal("terminal")
+  })),
+  zAuthMethodAgent
+]);
+var zImplementation = z47.object({
+  name: z47.string(),
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  version: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zInitializeResponse = z47.object({
+  protocolVersion: zProtocolVersion,
+  agentCapabilities: defaultOnError(zAgentCapabilities.optional().default({
+    loadSession: false,
+    promptCapabilities: {
+      image: false,
+      audio: false,
+      embeddedContext: false
+    },
+    mcpCapabilities: {
+      http: false,
+      sse: false,
+      acp: false
+    },
+    sessionCapabilities: {},
+    auth: {}
+  }), () => ({
+    loadSession: false,
+    promptCapabilities: {
+      image: false,
+      audio: false,
+      embeddedContext: false
+    },
+    mcpCapabilities: {
+      http: false,
+      sse: false,
+      acp: false
+    },
+    sessionCapabilities: {},
+    auth: {}
+  })),
+  authMethods: defaultOnError(vecSkipError(zAuthMethod).optional().default([]), () => []),
+  agentInfo: defaultOnError(zImplementation.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthenticateResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zProviderId = z47.string();
+var zLlmProtocol = z47.union([
+  z47.literal("anthropic"),
+  z47.literal("openai"),
+  z47.literal("azure"),
+  z47.literal("vertex"),
+  z47.literal("bedrock"),
+  z47.string()
+]);
+var zProviderCurrentConfig = z47.object({
+  apiType: zLlmProtocol,
+  baseUrl: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zProviderInfo = z47.object({
+  providerId: zProviderId,
+  supported: requiredDefaultOnError(vecSkipError(zLlmProtocol), () => []),
+  required: z47.boolean(),
+  current: zProviderCurrentConfig.nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zListProvidersResponse = z47.object({
+  providers: z47.array(zProviderInfo),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetProviderResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zDisableProviderResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zLogoutResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionModeId = z47.string();
+var zSessionMode = z47.object({
+  id: zSessionModeId,
+  name: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionModeState = z47.object({
+  currentModeId: zSessionModeId,
+  availableModes: requiredDefaultOnError(vecSkipError(zSessionMode), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionConfigId = z47.string();
+var zSessionConfigOptionCategory = z47.union([
+  z47.literal("mode"),
+  z47.literal("model"),
+  z47.literal("model_config"),
+  z47.literal("thought_level"),
+  z47.string()
+]);
+var zSessionConfigValueId = z47.string();
+var zSessionConfigSelectOption = z47.object({
+  value: zSessionConfigValueId,
+  name: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionConfigGroupId = z47.string();
+var zSessionConfigSelectGroup = z47.object({
+  group: zSessionConfigGroupId,
+  name: z47.string(),
+  options: requiredDefaultOnError(vecSkipError(zSessionConfigSelectOption), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionConfigSelectOptions = z47.union([
+  z47.array(zSessionConfigSelectOption),
+  z47.array(zSessionConfigSelectGroup)
+]);
+var zSessionConfigSelect = z47.object({
+  currentValue: zSessionConfigValueId,
+  options: zSessionConfigSelectOptions
+});
+var zSessionConfigBoolean = z47.object({
+  currentValue: z47.boolean()
+});
+var zSessionConfigOption = z47.intersection(z47.union([
+  zSessionConfigSelect.and(z47.object({
+    type: z47.literal("select")
+  })),
+  zSessionConfigBoolean.and(z47.object({
+    type: z47.literal("boolean")
+  }))
+]), z47.object({
+  id: zSessionConfigId,
+  name: z47.string(),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  category: defaultOnError(zSessionConfigOptionCategory.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+}));
+var zNewSessionResponse = z47.object({
+  sessionId: zSessionId,
+  modes: defaultOnError(zSessionModeState.nullish(), () => void 0),
+  configOptions: defaultOnError(vecSkipError(zSessionConfigOption).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zLoadSessionResponse = z47.object({
+  modes: defaultOnError(zSessionModeState.nullish(), () => void 0),
+  configOptions: defaultOnError(vecSkipError(zSessionConfigOption).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionInfo = z47.object({
+  sessionId: zSessionId,
+  cwd: z47.string(),
+  additionalDirectories: defaultOnError(vecSkipError(z47.string()).optional(), () => []),
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  updatedAt: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zListSessionsResponse = z47.object({
+  sessions: requiredDefaultOnError(vecSkipError(zSessionInfo), () => []),
+  nextCursor: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zDeleteSessionResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zForkSessionResponse = z47.object({
+  sessionId: zSessionId,
+  modes: defaultOnError(zSessionModeState.nullish(), () => void 0),
+  configOptions: defaultOnError(vecSkipError(zSessionConfigOption).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zResumeSessionResponse = z47.object({
+  modes: defaultOnError(zSessionModeState.nullish(), () => void 0),
+  configOptions: defaultOnError(vecSkipError(zSessionConfigOption).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCloseSessionResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetSessionModeResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetSessionConfigOptionResponse = z47.object({
+  configOptions: requiredDefaultOnError(vecSkipError(zSessionConfigOption), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zStopReason = z47.union([
+  z47.literal("end_turn"),
+  z47.literal("max_tokens"),
+  z47.literal("max_turn_requests"),
+  z47.literal("refusal"),
+  z47.literal("cancelled")
+]);
+var zUsage = z47.object({
+  totalTokens: z47.number(),
+  inputTokens: z47.number(),
+  outputTokens: z47.number(),
+  thoughtTokens: defaultOnError(z47.number().nullish(), () => void 0),
+  cachedReadTokens: defaultOnError(z47.number().nullish(), () => void 0),
+  cachedWriteTokens: defaultOnError(z47.number().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPromptResponse = z47.object({
+  stopReason: zStopReason,
+  usage: defaultOnError(zUsage.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zExtResponse = z47.unknown();
+var zErrorCode = z47.union([
+  z47.literal(-32700),
+  z47.literal(-32600),
+  z47.literal(-32601),
+  z47.literal(-32602),
+  z47.literal(-32603),
+  z47.literal(-32800),
+  z47.literal(-32e3),
+  z47.literal(-32002),
+  z47.int().min(-2147483648, {
+    error: "Invalid value: Expected int32 to be >= -2147483648"
+  }).max(2147483647, {
+    error: "Invalid value: Expected int32 to be <= 2147483647"
+  })
+]);
+var zError = z47.object({
+  code: zErrorCode,
+  message: z47.string(),
+  data: defaultOnError(z47.unknown().optional(), () => void 0)
+});
+var zAgentResponse = z47.union([
+  z47.object({
+    id: zRequestId,
+    result: z47.union([
+      zInitializeResponse,
+      zAuthenticateResponse,
+      zListProvidersResponse,
+      zSetProviderResponse,
+      zDisableProviderResponse,
+      zLogoutResponse,
+      zNewSessionResponse,
+      zLoadSessionResponse,
+      zListSessionsResponse,
+      zDeleteSessionResponse,
+      zForkSessionResponse,
+      zResumeSessionResponse,
+      zCloseSessionResponse,
+      zSetSessionModeResponse,
+      zSetSessionConfigOptionResponse,
+      zPromptResponse,
+      zExtResponse
+    ])
+  }),
+  z47.object({
+    id: zRequestId,
+    error: zError
+  })
+]);
+var zMessageId = z47.string();
+var zContentChunk = z47.object({
+  content: zContentBlock,
+  messageId: defaultOnError(zMessageId.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zToolCall = z47.object({
+  toolCallId: zToolCallId,
+  title: z47.string(),
+  name: defaultOnError(z47.string().nullish(), () => void 0),
+  kind: defaultOnError(zToolKind.optional(), () => void 0),
+  status: defaultOnError(zToolCallStatus.optional(), () => void 0),
+  content: defaultOnError(vecSkipError(zToolCallContent).optional(), () => []),
+  locations: defaultOnError(vecSkipError(zToolCallLocation).optional(), () => []),
+  rawInput: defaultOnError(z47.unknown().optional(), () => void 0),
+  rawOutput: defaultOnError(z47.unknown().optional(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanEntryPriority = z47.union([
+  z47.literal("high"),
+  z47.literal("medium"),
+  z47.literal("low")
+]);
+var zPlanEntryStatus = z47.union([
+  z47.literal("pending"),
+  z47.literal("in_progress"),
+  z47.literal("completed")
+]);
+var zPlanEntry = z47.object({
+  content: z47.string(),
+  priority: zPlanEntryPriority,
+  status: zPlanEntryStatus,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlan = z47.object({
+  entries: requiredDefaultOnError(vecSkipError(zPlanEntry), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanId = z47.string();
+var zPlanItems = z47.object({
+  planId: zPlanId,
+  entries: requiredDefaultOnError(vecSkipError(zPlanEntry), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanFile = z47.object({
+  planId: zPlanId,
+  uri: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanMarkdown = z47.object({
+  planId: zPlanId,
+  content: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanUpdateContent = z47.union([
+  zPlanItems.and(z47.object({
+    type: z47.literal("items")
+  })),
+  zPlanFile.and(z47.object({
+    type: z47.literal("file")
+  })),
+  zPlanMarkdown.and(z47.object({
+    type: z47.literal("markdown")
+  }))
+]);
+var zPlanUpdate = z47.object({
+  plan: zPlanUpdateContent,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanRemoved = z47.object({
+  planId: zPlanId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zUnstructuredCommandInput = z47.object({
+  hint: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAvailableCommandInput = zUnstructuredCommandInput;
+var zAvailableCommand = z47.object({
+  name: z47.string(),
+  description: z47.string(),
+  input: defaultOnError(zAvailableCommandInput.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAvailableCommandsUpdate = z47.object({
+  availableCommands: requiredDefaultOnError(vecSkipError(zAvailableCommand), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCurrentModeUpdate = z47.object({
+  currentModeId: zSessionModeId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zConfigOptionUpdate = z47.object({
+  configOptions: requiredDefaultOnError(vecSkipError(zSessionConfigOption), () => []),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionInfoUpdate = z47.object({
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  updatedAt: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCost = z47.object({
+  amount: z47.number(),
+  currency: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zUsageUpdate = z47.object({
+  used: z47.number(),
+  size: z47.number(),
+  cost: defaultOnError(zCost.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zNoticeSeverity = z47.union([
+  z47.literal("info"),
+  z47.literal("warning"),
+  z47.literal("error"),
+  z47.string()
+]);
+var zNotice = z47.object({
+  severity: zNoticeSeverity,
+  title: z47.string().min(1),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCompactionId = z47.string();
+var zCompactionStatus = z47.union([
+  z47.literal("in_progress"),
+  z47.literal("completed"),
+  z47.literal("failed"),
+  z47.literal("cancelled"),
+  z47.string()
+]);
+var zCompactionUpdate = z47.object({
+  compactionId: zCompactionId,
+  status: zCompactionStatus,
+  summary: defaultOnError(vecSkipError(zContentBlock).nullish(), () => void 0),
+  error: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCompactionSummaryChunk = z47.object({
+  compactionId: zCompactionId,
+  content: zContentBlock,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionCancelCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSubagentSessionCapabilities = z47.object({
+  cancel: defaultOnError(zSessionCancelCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zRunningStateUpdate = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zErrorStopReason = z47.object({
+  error: defaultOnError(zError.nullish(), () => void 0)
+});
+var zIdleStateUpdate = defaultOnErrorOptionalStringTag(preserveCustomPayload(z47.intersection(z47.union([
+  z47.object({
+    stopReason: z47.literal("end_turn")
+  }),
+  z47.object({
+    stopReason: z47.literal("max_tokens")
+  }),
+  z47.object({
+    stopReason: z47.literal("max_turn_requests")
+  }),
+  z47.object({
+    stopReason: z47.literal("refusal")
+  }),
+  z47.object({
+    stopReason: z47.literal("cancelled")
+  }),
+  zErrorStopReason.and(z47.object({
+    stopReason: z47.literal("error")
+  })),
+  excludeKnownTags(z47.object({
+    stopReason: z47.string()
+  }), "stopReason", [
+    "cancelled",
+    "end_turn",
+    "error",
+    "max_tokens",
+    "max_turn_requests",
+    "refusal"
+  ]),
+  z47.object({
+    stopReason: z47.null().optional()
+  })
+]), z47.object({
+  usage: defaultOnError(zUsage.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0),
+  stopReason: defaultOnError(z47.string().nullish(), () => void 0)
+})), "stopReason", [
+  "cancelled",
+  "end_turn",
+  "error",
+  "max_tokens",
+  "max_turn_requests",
+  "refusal"
+]), "stopReason");
+var zRequiresActionStateUpdate = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zUnknownStateUpdate = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zStateUpdate = preserveCustomPayload(z47.union([
+  zRunningStateUpdate.and(z47.object({
+    state: z47.literal("running")
+  })),
+  zIdleStateUpdate.and(z47.object({
+    state: z47.literal("idle")
+  })),
+  zRequiresActionStateUpdate.and(z47.object({
+    state: z47.literal("requires_action")
+  })),
+  zUnknownStateUpdate.and(z47.object({
+    state: z47.literal("unknown")
+  })),
+  excludeKnownTags(z47.object({
+    state: z47.string()
+  }), "state", ["idle", "requires_action", "running", "unknown"])
+]), "state", ["idle", "requires_action", "running", "unknown"]);
+var zSubagentUpdate = z47.object({
+  sessionId: zSessionId,
+  title: defaultOnError(z47.string().nullish(), () => void 0),
+  description: defaultOnError(z47.string().nullish(), () => void 0),
+  capabilities: defaultOnError(zSubagentSessionCapabilities.nullish(), () => void 0),
+  state: defaultOnError(zStateUpdate.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionMessage = z47.object({
+  messageId: zMessageId,
+  senderSessionId: defaultOnError(zSessionId.nullish(), () => void 0),
+  recipientSessionId: defaultOnError(zSessionId.nullish(), () => void 0),
+  content: defaultOnError(vecSkipError(zContentBlock).nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionMessageChunk = z47.object({
+  messageId: zMessageId,
+  senderSessionId: defaultOnError(zSessionId.nullish(), () => void 0),
+  recipientSessionId: defaultOnError(zSessionId.nullish(), () => void 0),
+  content: zContentBlock,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionUpdate = z47.union([
+  zContentChunk.and(z47.object({
+    sessionUpdate: z47.literal("user_message_chunk")
+  })),
+  zContentChunk.and(z47.object({
+    sessionUpdate: z47.literal("agent_message_chunk")
+  })),
+  zContentChunk.and(z47.object({
+    sessionUpdate: z47.literal("agent_thought_chunk")
+  })),
+  zToolCall.and(z47.object({
+    sessionUpdate: z47.literal("tool_call")
+  })),
+  zToolCallUpdate.and(z47.object({
+    sessionUpdate: z47.literal("tool_call_update")
+  })),
+  zPlan.and(z47.object({
+    sessionUpdate: z47.literal("plan")
+  })),
+  zPlanUpdate.and(z47.object({
+    sessionUpdate: z47.literal("plan_update")
+  })),
+  zPlanRemoved.and(z47.object({
+    sessionUpdate: z47.literal("plan_removed")
+  })),
+  zAvailableCommandsUpdate.and(z47.object({
+    sessionUpdate: z47.literal("available_commands_update")
+  })),
+  zCurrentModeUpdate.and(z47.object({
+    sessionUpdate: z47.literal("current_mode_update")
+  })),
+  zConfigOptionUpdate.and(z47.object({
+    sessionUpdate: z47.literal("config_option_update")
+  })),
+  zSessionInfoUpdate.and(z47.object({
+    sessionUpdate: z47.literal("session_info_update")
+  })),
+  zUsageUpdate.and(z47.object({
+    sessionUpdate: z47.literal("usage_update")
+  })),
+  zNotice.and(z47.object({
+    sessionUpdate: z47.literal("notice")
+  })),
+  zCompactionUpdate.and(z47.object({
+    sessionUpdate: z47.literal("compaction_update")
+  })),
+  zCompactionSummaryChunk.and(z47.object({
+    sessionUpdate: z47.literal("compaction_summary_chunk")
+  })),
+  zSubagentUpdate.and(z47.object({
+    sessionUpdate: z47.literal("subagent_update")
+  })),
+  zSessionMessage.and(z47.object({
+    sessionUpdate: z47.literal("session_message")
+  })),
+  zSessionMessageChunk.and(z47.object({
+    sessionUpdate: z47.literal("session_message_chunk")
+  }))
+]);
+var zSessionNotification = z47.object({
+  sessionId: zSessionId,
+  update: zSessionUpdate,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCompleteElicitationNotification = z47.object({
+  elicitationId: zElicitationId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zExtNotification = z47.unknown();
+var zAgentNotification = z47.object({
+  method: z47.string(),
+  params: z47.union([
+    zSessionNotification,
+    zCompleteElicitationNotification,
+    zExtNotification
+  ]).nullish()
+});
+var zFileSystemCapabilities = z47.object({
+  readTextFile: defaultOnError(z47.boolean().optional().default(false), () => false),
+  writeTextFile: defaultOnError(z47.boolean().optional().default(false), () => false),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCompactionCapabilities = z47.record(z47.string(), z47.unknown());
+var zBooleanConfigOptionCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSessionConfigOptionsCapabilities = z47.object({
+  boolean: defaultOnError(zBooleanConfigOptionCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zNoticeCapabilities = z47.record(z47.string(), z47.unknown());
+var zClientSessionCapabilities = z47.object({
+  compaction: defaultOnError(zCompactionCapabilities.nullish(), () => void 0),
+  configOptions: defaultOnError(zSessionConfigOptionsCapabilities.nullish(), () => void 0),
+  notices: defaultOnError(zNoticeCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSubagentCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zPlanCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthCapabilities = z47.object({
+  terminal: defaultOnError(z47.boolean().optional().default(false), () => false),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationFormCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationUrlCapabilities = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationCapabilities = z47.object({
+  form: defaultOnError(zElicitationFormCapabilities.nullish(), () => void 0),
+  url: defaultOnError(zElicitationUrlCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zClientCapabilities = z47.object({
+  fs: defaultOnError(zFileSystemCapabilities.optional().default({ readTextFile: false, writeTextFile: false }), () => ({ readTextFile: false, writeTextFile: false })),
+  terminal: defaultOnError(z47.boolean().optional().default(false), () => false),
+  session: defaultOnError(zClientSessionCapabilities.nullish(), () => void 0),
+  subagents: defaultOnError(zSubagentCapabilities.nullish(), () => void 0),
+  plan: defaultOnError(zPlanCapabilities.nullish(), () => void 0),
+  auth: defaultOnError(zAuthCapabilities.optional().default({ terminal: false }), () => ({ terminal: false })),
+  elicitation: defaultOnError(zElicitationCapabilities.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zInitializeRequest = z47.object({
+  protocolVersion: zProtocolVersion,
+  clientCapabilities: defaultOnError(zClientCapabilities.optional().default({
+    fs: { readTextFile: false, writeTextFile: false },
+    terminal: false,
+    auth: { terminal: false }
+  }), () => ({
+    fs: { readTextFile: false, writeTextFile: false },
+    terminal: false,
+    auth: { terminal: false }
+  })),
+  clientInfo: defaultOnError(zImplementation.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zAuthenticateRequest = z47.object({
+  methodId: zAuthMethodId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zListProvidersRequest = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetProviderRequest = z47.object({
+  providerId: zProviderId,
+  apiType: zLlmProtocol,
+  baseUrl: z47.string(),
+  headers: z47.record(z47.string(), z47.string()).optional(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zDisableProviderRequest = z47.object({
+  providerId: zProviderId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zLogoutRequest = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zHttpHeader = z47.object({
+  name: z47.string(),
+  value: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpServerHttp = z47.object({
+  name: z47.string(),
+  url: z47.string(),
+  headers: z47.array(zHttpHeader),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpServerSse = z47.object({
+  name: z47.string(),
+  url: z47.string(),
+  headers: z47.array(zHttpHeader),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpServerAcp = z47.object({
+  name: z47.string(),
+  serverId: zMcpServerAcpId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpServerStdio = z47.object({
+  name: z47.string(),
+  command: z47.string(),
+  args: z47.array(z47.string()),
+  env: z47.array(zEnvVariable),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMcpServer = z47.union([
+  zMcpServerHttp.and(z47.object({
+    type: z47.literal("http")
+  })),
+  zMcpServerSse.and(z47.object({
+    type: z47.literal("sse")
+  })),
+  zMcpServerAcp.and(z47.object({
+    type: z47.literal("acp")
+  })),
+  zMcpServerStdio
+]);
+var zSystemPromptMode = z47.union([
+  z47.literal("append"),
+  z47.literal("override"),
+  z47.string()
+]);
+var zSystemPrompt = z47.object({
+  mode: zSystemPromptMode,
+  content: z47.array(zContentBlock),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zNewSessionRequest = z47.object({
+  cwd: z47.string(),
+  additionalDirectories: z47.array(z47.string()).optional(),
+  mcpServers: z47.array(zMcpServer),
+  systemPrompt: zSystemPrompt.nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zLoadSessionRequest = z47.object({
+  mcpServers: z47.array(zMcpServer),
+  cwd: z47.string(),
+  additionalDirectories: z47.array(z47.string()).optional(),
+  sessionId: zSessionId,
+  systemPrompt: zSystemPrompt.nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zListSessionsRequest = z47.object({
+  cwd: z47.string().nullish(),
+  cursor: z47.string().nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zDeleteSessionRequest = z47.object({
+  sessionId: zSessionId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zForkSessionRequest = z47.object({
+  sessionId: zSessionId,
+  cwd: z47.string(),
+  additionalDirectories: z47.array(z47.string()).optional(),
+  mcpServers: z47.array(zMcpServer).optional(),
+  systemPrompt: zSystemPrompt.nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zResumeSessionRequest = z47.object({
+  sessionId: zSessionId,
+  cwd: z47.string(),
+  additionalDirectories: z47.array(z47.string()).optional(),
+  mcpServers: z47.array(zMcpServer).optional(),
+  systemPrompt: zSystemPrompt.nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCloseSessionRequest = z47.object({
+  sessionId: zSessionId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetSessionModeRequest = z47.object({
+  sessionId: zSessionId,
+  modeId: zSessionModeId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSetSessionConfigOptionRequest = z47.intersection(z47.union([
+  z47.object({
+    value: z47.boolean(),
+    type: z47.literal("boolean")
+  }),
+  z47.object({
+    value: zSessionConfigValueId
+  })
+]), z47.object({
+  sessionId: zSessionId,
+  configId: zSessionConfigId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+}));
+var zPromptRequest = z47.object({
+  sessionId: zSessionId,
+  prompt: z47.array(zContentBlock),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zClientRequest = z47.object({
+  id: zRequestId,
+  method: z47.string(),
+  params: z47.union([
+    zInitializeRequest,
+    zAuthenticateRequest,
+    zListProvidersRequest,
+    zSetProviderRequest,
+    zDisableProviderRequest,
+    zLogoutRequest,
+    zNewSessionRequest,
+    zLoadSessionRequest,
+    zListSessionsRequest,
+    zDeleteSessionRequest,
+    zForkSessionRequest,
+    zResumeSessionRequest,
+    zCloseSessionRequest,
+    zSetSessionModeRequest,
+    zSetSessionConfigOptionRequest,
+    zPromptRequest,
+    zExtRequest
+  ]).nullish()
+});
+var zWriteTextFileResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zReadTextFileResponse = z47.object({
+  content: z47.string(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zSelectedPermissionOutcome = z47.object({
+  optionId: zPermissionOptionId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zRequestPermissionOutcome = z47.union([
+  z47.object({
+    outcome: z47.literal("cancelled")
+  }),
+  zSelectedPermissionOutcome.and(z47.object({
+    outcome: z47.literal("selected")
+  }))
+]);
+var zRequestPermissionResponse = z47.object({
+  outcome: zRequestPermissionOutcome,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zCreateTerminalResponse = z47.object({
+  terminalId: zTerminalId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTerminalExitStatus = z47.object({
+  exitCode: defaultOnError(z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(), () => void 0),
+  signal: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zTerminalOutputResponse = z47.object({
+  output: z47.string(),
+  truncated: z47.boolean(),
+  exitStatus: defaultOnError(zTerminalExitStatus.nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zReleaseTerminalResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zWaitForTerminalExitResponse = z47.object({
+  exitCode: defaultOnError(z47.int().gte(0).max(4294967295, {
+    error: "Invalid value: Expected uint32 to be <= 4294967295"
+  }).nullish(), () => void 0),
+  signal: defaultOnError(z47.string().nullish(), () => void 0),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zKillTerminalResponse = z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zElicitationContentValue = z47.union([
+  z47.string(),
+  z47.number(),
+  z47.number(),
+  z47.boolean(),
+  z47.array(z47.string())
+]);
+var zElicitationAcceptAction = z47.object({
+  content: z47.record(z47.string(), zElicitationContentValue).nullish()
+});
+var zCreateElicitationResponse = preserveCustomPayload(z47.intersection(z47.union([
+  zElicitationAcceptAction.and(z47.object({
+    action: z47.literal("accept")
+  })),
+  z47.object({
+    action: z47.literal("decline")
+  }),
+  z47.object({
+    action: z47.literal("cancel")
+  }),
+  excludeKnownTags(z47.object({
+    action: z47.string()
+  }), "action", ["accept", "cancel", "decline"])
+]), z47.object({
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+})), "action", ["accept", "cancel", "decline"]);
+var zMcpError = z47.looseObject({
+  code: z47.int().min(-2147483648, {
+    error: "Invalid value: Expected int32 to be >= -2147483648"
+  }).max(2147483647, {
+    error: "Invalid value: Expected int32 to be <= 2147483647"
+  }),
+  message: z47.string(),
+  data: z47.unknown().optional()
+});
+var zMessageMcpResponse = z47.union([
+  z47.object({
+    result: z47.unknown(),
+    _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+  }),
+  z47.object({
+    error: zMcpError,
+    _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+  })
+]);
+var zClientResponse = z47.union([
+  z47.object({
+    id: zRequestId,
+    result: z47.union([
+      zWriteTextFileResponse,
+      zReadTextFileResponse,
+      zRequestPermissionResponse,
+      zCreateTerminalResponse,
+      zTerminalOutputResponse,
+      zReleaseTerminalResponse,
+      zWaitForTerminalExitResponse,
+      zKillTerminalResponse,
+      zCreateElicitationResponse,
+      zMessageMcpResponse,
+      zExtResponse
+    ])
+  }),
+  z47.object({
+    id: zRequestId,
+    error: zError
+  })
+]);
+var zCancelNotification = z47.object({
+  sessionId: zSessionId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zMessageMcpNotification = z47.object({
+  serverId: zMcpServerAcpId,
+  requestId: zMcpRequestId,
+  method: z47.string(),
+  params: z47.record(z47.string(), z47.unknown()).nullish(),
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+var zClientNotification = z47.object({
+  method: z47.string(),
+  params: z47.union([zCancelNotification, zMessageMcpNotification, zExtNotification]).nullish()
+});
+var zCancelRequestNotification = z47.object({
+  requestId: zRequestId,
+  _meta: defaultOnError(z47.record(z47.string(), z47.unknown()).nullish(), () => void 0)
+});
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/jsonrpc.js
+var CANCEL_REQUEST_METHOD = "$/cancel_request";
+function isRequestMessage(value) {
+  return isJsonRpcEnvelope(value) && "id" in value && typeof value["method"] === "string" && isJsonRpcId(value["id"]);
+}
+function isResponseMessage(value) {
+  if (!isJsonRpcEnvelope(value) || "method" in value) {
+    return false;
+  }
+  if (!("id" in value) || !isJsonRpcId(value["id"])) {
+    return false;
+  }
+  const hasResult = Object.hasOwn(value, "result");
+  const hasError = Object.hasOwn(value, "error");
+  if (hasResult === hasError) {
+    return false;
+  }
+  return !hasError || isErrorResponse(value["error"]);
+}
+function isNotificationMessage(value) {
+  return isJsonRpcEnvelope(value) && !("id" in value) && typeof value["method"] === "string";
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null;
+}
+function isJsonRpcEnvelope(value) {
+  return isRecord2(value) && value["jsonrpc"] === "2.0";
+}
+function isJsonRpcId(value) {
+  return value === null || typeof value === "string" || typeof value === "number" && Number.isFinite(value);
+}
+function isResponseShapedMessage(value) {
+  return isRecord2(value) && !("method" in value) && ("id" in value || "result" in value || "error" in value);
+}
+function isResponseBatch(batch) {
+  let hasValidCall = false;
+  let hasValidResponse = false;
+  let hasCallShape = false;
+  let hasResponseShape = false;
+  for (const entry of batch) {
+    hasValidCall ||= isRequestMessage(entry) || isNotificationMessage(entry);
+    hasValidResponse ||= isResponseMessage(entry);
+    if (!isRecord2(entry)) {
+      continue;
+    }
+    hasCallShape ||= "method" in entry;
+    hasResponseShape ||= "result" in entry || "error" in entry;
+  }
+  if (hasValidCall) {
+    return false;
+  }
+  if (hasValidResponse) {
+    return true;
+  }
+  return hasResponseShape && !hasCallShape;
+}
+function cancelRequestId(params) {
+  if (!isRecord2(params) || !isJsonRpcId(params["requestId"])) {
+    return void 0;
+  }
+  return params["requestId"];
+}
+function isErrorResponse(value) {
+  return isRecord2(value) && typeof value["code"] === "number" && Number.isInteger(value["code"]) && typeof value["message"] === "string";
+}
+var Handled = {
+  /**
+   * Marks a message as handled.
+   */
+  yes() {
+    return { handled: true };
+  },
+  /**
+   * Leaves a message unhandled so later handlers can process it.
+   */
+  no(message, retry = false) {
+    return { handled: false, message, retry };
+  }
+};
+function rejectedPromise(error) {
+  const promise = Promise.reject(error);
+  promise.catch(() => {
+  });
+  return promise;
+}
+function errorDetails(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error != null && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return void 0;
+}
+function isZodError(error) {
+  return typeof error === "object" && error !== null && "name" in error && error.name === "ZodError" && "issues" in error && Array.isArray(error.issues) && "format" in error && typeof error.format === "function";
+}
+function errorToResult(error) {
+  if (error instanceof RequestError) {
+    return error.toResult();
+  }
+  if (isZodError(error)) {
+    return RequestError.invalidParams(error.format()).toResult();
+  }
+  const details = errorDetails(error);
+  try {
+    return RequestError.internalError(details ? JSON.parse(details) : {}).toResult();
+  } catch {
+    return RequestError.internalError({ details }).toResult();
+  }
+}
+function requestCancelledError(reason) {
+  if (reason instanceof RequestError && reason.code === -32800) {
+    return reason;
+  }
+  return RequestError.requestCancelled(reason);
+}
+function errorToRequestResult(error, signal) {
+  const requestCancelled = abortErrorToRequestCancelled(error, signal);
+  return requestCancelled ? requestCancelled.toResult() : errorToResult(error);
+}
+function abortErrorToRequestCancelled(error, signal) {
+  if (!signal.aborted || !isAbortError2(error)) {
+    return void 0;
+  }
+  return requestCancelledError(signal.reason);
+}
+function isAbortError2(error) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const maybeAbortError = error;
+  return maybeAbortError.name === "AbortError" || maybeAbortError.code === "ABORT_ERR";
+}
+var RequestResponder = class {
+  id;
+  sendResult;
+  signal;
+  finishRequest;
+  didRespond = false;
+  constructor(id, sendResult2, signal = new AbortController().signal, finishRequest) {
+    this.id = id;
+    this.sendResult = sendResult2;
+    this.signal = signal;
+    this.finishRequest = finishRequest;
+  }
+  /**
+   * Whether this request has already received a response.
+   */
+  get responded() {
+    return this.didRespond;
+  }
+  /**
+   * Sends a successful JSON-RPC response.
+   */
+  respond(response) {
+    return this.respondWithResult({ result: response ?? null });
+  }
+  /**
+   * Sends an error JSON-RPC response.
+   */
+  respondWithError(error) {
+    const errorResponse = error instanceof RequestError ? error.toErrorResponse() : error;
+    return this.respondWithResult({ error: errorResponse });
+  }
+  /**
+   * Sends a complete JSON-RPC result payload.
+   */
+  respondWithResult(result) {
+    if (this.didRespond) {
+      return rejectedPromise(new Error("JSON-RPC request already responded"));
+    }
+    this.didRespond = true;
+    return this.sendResult(result).finally(() => {
+      this.finishRequest?.();
+    });
+  }
+};
+var requestBatchSizes = /* @__PURE__ */ new WeakMap();
+var HandlerRegistration = class {
+  disposeHandler;
+  active = true;
+  constructor(disposeHandler) {
+    this.disposeHandler = disposeHandler;
+  }
+  /**
+   * Unregisters the associated handler.
+   */
+  dispose() {
+    if (!this.active) {
+      return;
+    }
+    this.active = false;
+    this.disposeHandler();
+  }
+  /**
+   * Supports explicit resource management with `using`.
+   */
+  [Symbol.dispose]() {
+    this.dispose();
+  }
+  /**
+   * Returns this registration for call sites that intentionally keep it active.
+   */
+  runIndefinitely() {
+    return this;
+  }
+};
+var ConnectionContext = class {
+  connection;
+  constructor(connection) {
+    this.connection = connection;
+  }
+  /**
+   * Sends a request over the connection.
+   */
+  sendRequest(method, params, mapResponse, options) {
+    return this.connection.sendRequest(method, params, mapResponse, options);
+  }
+  /**
+   * Sends a notification over the connection.
+   */
+  sendNotification(method, params) {
+    return this.connection.sendNotification(method, params);
+  }
+  /**
+   * Sends a non-empty JSON-RPC batch in one transport message.
+   */
+  sendBatch(entries) {
+    return this.connection.sendBatch(entries);
+  }
+  /**
+   * Sends a protocol-level request cancellation notification.
+   */
+  sendCancelRequest(requestId) {
+    return this.connection.sendCancelRequest(requestId);
+  }
+  /**
+   * Registers a handler that can be disposed independently.
+   */
+  addDynamicHandler(handler) {
+    return this.connection.addDynamicHandler(handler);
+  }
+  /**
+   * AbortSignal that aborts when the connection closes.
+   */
+  get signal() {
+    return this.connection.signal;
+  }
+  /**
+   * Promise that resolves when the connection closes.
+   */
+  get closed() {
+    return this.connection.closed;
+  }
+};
+var Connection = class {
+  pendingResponses = /* @__PURE__ */ new Map();
+  incomingRequests = /* @__PURE__ */ new Map();
+  nextRequestId = 0;
+  staticHandlers = [];
+  dynamicHandlers = /* @__PURE__ */ new Set();
+  stream;
+  writeQueue = Promise.resolve();
+  abortController = new AbortController();
+  closedPromise;
+  retryQueue = [];
+  context = new ConnectionContext(this);
+  receiveReader;
+  allowBatches = true;
+  constructor(requestHandlerOrStream, notificationHandlerOrHandlers, streamOrOptions, options) {
+    if (typeof requestHandlerOrStream === "function") {
+      const requestHandler = requestHandlerOrStream;
+      const notificationHandler = notificationHandlerOrHandlers;
+      const stream2 = streamOrOptions;
+      this.initialize(stream2, [
+        ...options?.handlers ?? [],
+        this.legacyHandler(requestHandler, notificationHandler)
+      ], options);
+      return;
+    }
+    const stream = requestHandlerOrStream;
+    const handlers = notificationHandlerOrHandlers;
+    const connectionOptions = streamOrOptions;
+    this.initialize(stream, [...connectionOptions?.handlers ?? [], ...handlers], connectionOptions);
+  }
+  /**
+   * Creates a builder for configuring a handler-based connection.
+   */
+  static builder() {
+    return new ConnectionBuilder();
+  }
+  /**
+   * Runs an operation while the connection is open, then closes the connection.
+   *
+   * If the stream closes before `op` settles, the returned promise rejects with
+   * the connection close reason.
+   */
+  runUntil(op) {
+    let opSettled = false;
+    const opPromise = Promise.resolve().then(() => op(this.context)).finally(() => {
+      opSettled = true;
+    });
+    const closedPromise = this.closed.then(() => {
+      if (opSettled) {
+        return new Promise(() => {
+        });
+      }
+      throw this.closedReason();
+    });
+    return Promise.race([opPromise, closedPromise]).finally(() => {
+      opSettled = true;
+      this.close();
+    });
+  }
+  /**
+   * Adds a handler after the connection has started.
+   *
+   * Any messages queued with `Handled.no(message, true)` are retried after the
+   * handler is added.
+   */
+  addDynamicHandler(handler) {
+    this.dynamicHandlers.add(handler);
+    if (this.retryQueue.length > 0) {
+      for (const message of this.retryQueue.splice(0)) {
+        void this.processIncomingMessage(message).catch((error) => this.close(error));
+      }
+    }
+    return new HandlerRegistration(() => {
+      this.dynamicHandlers.delete(handler);
+    });
+  }
+  /**
+   * AbortSignal that aborts when the connection closes.
+   */
+  get signal() {
+    return this.abortController.signal;
+  }
+  /**
+   * Promise that resolves when the connection closes.
+   */
+  get closed() {
+    return this.closedPromise;
+  }
+  /** @internal */
+  getContext() {
+    return this.context;
+  }
+  /**
+   * Sends a JSON-RPC request.
+   *
+   * `mapResponse` can convert the raw result before the returned promise
+   * resolves.
+   */
+  sendRequest(method, params, mapResponse, options = {}) {
+    if (this.abortController.signal.aborted) {
+      return rejectedPromise(this.closedReason());
+    }
+    const request = this.prepareRequest(method, params, mapResponse, options);
+    const requestSent = this.sendWireMessage(request.message);
+    void requestSent.catch(() => {
+    });
+    if (options.cancellationSignal?.aborted) {
+      request.cancel();
+    }
+    return request.response;
+  }
+  /**
+   * Sends a non-empty JSON-RPC batch in one transport message.
+   *
+   * Requests and notifications are processed independently by the peer. The
+   * returned tuple preserves the input order: request entries resolve to their
+   * mapped response, while notification entries resolve to `undefined`.
+   */
+  sendBatch(entries) {
+    if (this.abortController.signal.aborted) {
+      return rejectedPromise(this.closedReason());
+    }
+    if (!this.allowBatches) {
+      return rejectedPromise(new TypeError("JSON-RPC batches are not supported on this connection"));
+    }
+    if (entries.length === 0) {
+      return rejectedPromise(new TypeError("JSON-RPC batch must contain at least one entry"));
+    }
+    const messages = [];
+    const cancellations = [];
+    const outputs = [];
+    for (const entry of entries) {
+      if (entry.kind === "notification") {
+        messages.push({
+          jsonrpc: "2.0",
+          method: entry.method,
+          params: entry.params
+        });
+        outputs.push(Promise.resolve(void 0));
+        continue;
+      }
+      const request = this.prepareRequest(entry.method, entry.params, entry.mapResponse, entry.options);
+      messages.push(request.message);
+      outputs.push(request.response);
+      cancellations.push({
+        signal: entry.options?.cancellationSignal,
+        cancel: request.cancel
+      });
+    }
+    const batch = messages;
+    const batchSent = this.sendWireMessage(batch);
+    for (const cancellation of cancellations) {
+      if (cancellation.signal?.aborted) {
+        cancellation.cancel();
+      }
+    }
+    const response = Promise.all([batchSent, ...outputs]).then(([, ...resolved]) => resolved);
+    response.catch(() => {
+    });
+    return response;
+  }
+  /**
+   * Sends a protocol-level request cancellation notification.
+   */
+  sendCancelRequest(requestId) {
+    return this.sendNotification(CANCEL_REQUEST_METHOD, { requestId });
+  }
+  /**
+   * Sends a JSON-RPC notification.
+   */
+  sendNotification(method, params) {
+    if (this.abortController.signal.aborted) {
+      return rejectedPromise(this.closedReason());
+    }
+    return this.sendWireMessage({ jsonrpc: "2.0", method, params });
+  }
+  prepareRequest(method, params, mapResponse, options = {}) {
+    const id = this.nextRequestId++;
+    let cancel = () => {
+    };
+    const response = new Promise((resolve5, reject) => {
+      const pendingResponse = {
+        resolve: (value) => {
+          try {
+            resolve5(mapResponse ? mapResponse(value) : value);
+          } catch (error) {
+            reject(error);
+          }
+        },
+        reject
+      };
+      cancel = () => {
+        if (pendingResponse.cancellationSent) {
+          return;
+        }
+        pendingResponse.cancellationSent = true;
+        pendingResponse.cleanup?.();
+        void this.sendCancelRequest(id).catch(() => {
+        });
+      };
+      options.cancellationSignal?.addEventListener("abort", cancel, {
+        once: true
+      });
+      pendingResponse.cleanup = () => {
+        options.cancellationSignal?.removeEventListener("abort", cancel);
+      };
+      this.pendingResponses.set(id, pendingResponse);
+    });
+    response.catch(() => {
+    });
+    return {
+      message: { jsonrpc: "2.0", id, method, params },
+      response,
+      cancel: () => cancel()
+    };
+  }
+  /**
+   * Closes the connection and rejects pending requests.
+   */
+  close(error) {
+    if (this.abortController.signal.aborted) {
+      return;
+    }
+    const closeError = error ?? new Error("ACP connection closed");
+    this.abortController.abort(closeError);
+    for (const pendingResponse of this.pendingResponses.values()) {
+      pendingResponse.cleanup?.();
+      pendingResponse.reject(closeError);
+    }
+    this.pendingResponses.clear();
+    for (const controller of this.incomingRequests.values()) {
+      controller.abort(closeError);
+    }
+    this.incomingRequests.clear();
+    void this.receiveReader?.cancel(closeError).catch(() => {
+    });
+  }
+  initialize(stream, handlers, options) {
+    this.stream = stream;
+    this.staticHandlers = handlers;
+    this.allowBatches = options?.allowBatches ?? true;
+    this.closedPromise = new Promise((resolve5) => {
+      this.abortController.signal.addEventListener("abort", () => resolve5());
+    });
+    void this.receive();
+  }
+  legacyHandler(requestHandler, notificationHandler) {
+    return {
+      handleMessage: async (message, cx) => {
+        if (message.kind === "request") {
+          const result = await requestHandler(message.method, message.params, cx);
+          await message.responder.respond(result);
+        } else {
+          await notificationHandler(message.method, message.params, cx);
+        }
+        return Handled.yes();
+      }
+    };
+  }
+  async receive() {
+    let closeError = void 0;
+    try {
+      const reader = this.stream.readable.getReader();
+      this.receiveReader = reader;
+      try {
+        while (!this.abortController.signal.aborted) {
+          const { value: message, done } = await reader.read();
+          if (this.abortController.signal.aborted) {
+            break;
+          }
+          if (done) {
+            break;
+          }
+          this.receiveWireMessage(message);
+        }
+      } finally {
+        if (this.receiveReader === reader) {
+          this.receiveReader = void 0;
+        }
+        reader.releaseLock();
+      }
+    } catch (error) {
+      closeError = error;
+    } finally {
+      this.close(closeError);
+    }
+  }
+  receiveWireMessage(message) {
+    if (Array.isArray(message)) {
+      if (!this.allowBatches) {
+        this.close(new TypeError("JSON-RPC batches are not supported on this connection"));
+        return;
+      }
+      this.receiveBatch(message);
+      return;
+    }
+    if (!isRequestMessage(message) && !isNotificationMessage(message) && !isResponseShapedMessage(message)) {
+      void this.sendWireMessage(protocolErrorResponse(RequestError.invalidRequest(message))).catch(() => {
+      });
+      return;
+    }
+    this.receiveMessage(message);
+  }
+  receiveBatch(batch) {
+    if (batch.length === 0) {
+      void this.sendWireMessage(protocolErrorResponse(RequestError.invalidRequest(batch))).catch(() => {
+      });
+      return;
+    }
+    const responseBatch = isResponseBatch(batch);
+    const responseCount = responseBatch ? 0 : batch.reduce((count2, message) => count2 + (isNotificationMessage(message) ? 0 : 1), 0);
+    let remaining = responseCount;
+    let remainingNotifications = batch.reduce((count2, message) => count2 + (isNotificationMessage(message) ? 1 : 0), 0);
+    let responseSent = false;
+    const responses = [];
+    const sendResponsesIfReady = async () => {
+      if (responseSent || remaining !== 0 || remainingNotifications !== 0 || responses.length === 0) {
+        return;
+      }
+      responseSent = true;
+      await this.sendWireMessage(responses);
+    };
+    const collectResponse = async (response) => {
+      responses.push(response);
+      remaining -= 1;
+      await sendResponsesIfReady();
+    };
+    for (const message of batch) {
+      if (responseBatch) {
+        if (isResponseShapedMessage(message)) {
+          this.receiveMessage(message);
+        }
+        continue;
+      }
+      if (!isRequestMessage(message) && !isNotificationMessage(message)) {
+        void collectResponse(protocolErrorResponse(RequestError.invalidRequest(message))).catch(() => {
+        });
+        continue;
+      }
+      const processing = this.receiveMessage(message, isRequestMessage(message) ? collectResponse : void 0, batch.length);
+      if (isNotificationMessage(message)) {
+        void processing.finally(() => {
+          remainingNotifications -= 1;
+          void sendResponsesIfReady().catch((error) => this.close(error));
+        });
+      }
+    }
+  }
+  receiveMessage(message, sendResponse, batchSize) {
+    if (this.abortController.signal.aborted) {
+      return Promise.resolve();
+    }
+    if (!isRecord2(message)) {
+      console.error("Invalid message", { message });
+      return Promise.resolve();
+    }
+    if ("method" in message) {
+      if (!("id" in message)) {
+        this.handleProtocolNotification(message);
+      }
+      return this.processIncomingMessage(this.toIncomingMessage(message, sendResponse, batchSize)).catch((error) => this.close(error));
+    } else if ("id" in message) {
+      this.handleResponse(message);
+    } else {
+      console.error("Invalid message", { message });
+    }
+    return Promise.resolve();
+  }
+  async processIncomingMessage(message) {
+    if (this.abortController.signal.aborted) {
+      return;
+    }
+    let current = message;
+    let retry = false;
+    try {
+      for (const handler of [
+        ...this.staticHandlers,
+        ...this.dynamicHandlers.values()
+      ]) {
+        if (this.abortController.signal.aborted) {
+          return;
+        }
+        const result = await handler.handleMessage(current, this.context) ?? {
+          handled: true
+        };
+        if (result.handled) {
+          return;
+        }
+        current = result.message ?? current;
+        retry = retry || Boolean(result.retry);
+      }
+      if (retry) {
+        this.retryQueue.push(current);
+      } else if (current.kind === "request") {
+        await current.responder.respondWithError(RequestError.methodNotFound(current.method));
+      }
+    } catch (error) {
+      if (this.abortController.signal.aborted) {
+        return;
+      }
+      if (current.kind === "request" && !current.responder.responded) {
+        await current.responder.respondWithResult(errorToRequestResult(error, current.responder.signal));
+      } else {
+        const response = errorToResult(error);
+        if ("error" in response) {
+          console.error("Error handling notification", message.raw, response.error);
+        }
+      }
+    }
+  }
+  toIncomingMessage(message, sendResponse, batchSize) {
+    if ("id" in message) {
+      const abortController = new AbortController();
+      this.incomingRequests.set(message.id, abortController);
+      const finishRequest = () => {
+        if (this.incomingRequests.get(message.id) === abortController) {
+          this.incomingRequests.delete(message.id);
+        }
+      };
+      const responder = new RequestResponder(message.id, (result) => {
+        const response = {
+          jsonrpc: "2.0",
+          id: message.id,
+          ...result
+        };
+        return sendResponse ? sendResponse(response) : this.sendWireMessage(response);
+      }, abortController.signal, finishRequest);
+      if (batchSize !== void 0) {
+        requestBatchSizes.set(responder, batchSize);
+      }
+      return {
+        kind: "request",
+        method: message.method,
+        params: message.params,
+        raw: message,
+        signal: abortController.signal,
+        responder
+      };
+    }
+    return {
+      kind: "notification",
+      method: message.method,
+      params: message.params,
+      raw: message
+    };
+  }
+  handleResponse(response) {
+    const pendingResponse = this.pendingResponses.get(response.id);
+    if (pendingResponse) {
+      this.pendingResponses.delete(response.id);
+      pendingResponse.cleanup?.();
+      if (!isResponseMessage(response)) {
+        pendingResponse.reject(RequestError.invalidRequest(response));
+      } else if ("result" in response) {
+        pendingResponse.resolve(response.result);
+      } else {
+        const { code, message, data } = response.error;
+        pendingResponse.reject(new RequestError(code, message, data));
+      }
+    } else {
+      console.error("Got response to unknown request", response.id);
+    }
+  }
+  handleProtocolNotification(message) {
+    if (message.method !== CANCEL_REQUEST_METHOD) {
+      return;
+    }
+    const requestId = cancelRequestId(message.params);
+    if (requestId === void 0) {
+      return;
+    }
+    const controller = this.incomingRequests.get(requestId);
+    if (!controller || controller.signal.aborted) {
+      return;
+    }
+    controller.abort(RequestError.requestCancelled({ requestId }));
+  }
+  closedReason() {
+    return this.abortController.signal.reason ?? new Error("ACP connection closed");
+  }
+  async sendWireMessage(message) {
+    if (this.abortController.signal.aborted) {
+      return rejectedPromise(this.closedReason());
+    }
+    this.writeQueue = this.writeQueue.then(async () => {
+      if (this.abortController.signal.aborted) {
+        throw this.closedReason();
+      }
+      const writer = this.stream.writable.getWriter();
+      try {
+        await writer.write(message);
+      } finally {
+        writer.releaseLock();
+      }
+    }).catch((error) => {
+      this.close(error);
+      throw error;
+    });
+    return this.writeQueue;
+  }
+};
+var ConnectionBuilder = class {
+  handlers = [];
+  connectionName;
+  /**
+   * Sets a diagnostic name used by handlers created from this builder.
+   */
+  name(name) {
+    this.connectionName = name;
+    return this;
+  }
+  /**
+   * Adds a raw JSON-RPC handler to the handler chain.
+   */
+  withHandler(handler) {
+    this.handlers.push(handler);
+    return this;
+  }
+  /**
+   * Adds a handler that can inspect every incoming request or notification.
+   *
+   * Observer callbacks that return void pass the message through to later
+   * handlers. Return `Handled.yes()` to stop dispatch explicitly.
+   */
+  onReceiveMessage(handler) {
+    return this.withHandler({
+      handleMessage: async (message, cx) => await handler(message, cx) ?? Handled.no(message),
+      describe: () => this.connectionName ?? "onReceiveMessage"
+    });
+  }
+  /**
+   * Adds a typed request handler for one method.
+   */
+  onReceiveRequest(method, parse2, handler) {
+    return this.withHandler({
+      handleMessage: async (message, cx) => {
+        if (message.kind !== "request" || message.method !== method) {
+          return Handled.no(message);
+        }
+        const request = parse2(message.params);
+        return await handler(request, message.responder, cx) ?? Handled.yes();
+      },
+      describe: () => `${this.connectionName ?? "request"}:${method}`
+    });
+  }
+  /**
+   * Adds a typed notification handler for one method.
+   */
+  onReceiveNotification(method, parse2, handler) {
+    return this.withHandler({
+      handleMessage: async (message, cx) => {
+        if (message.kind !== "notification" || message.method !== method) {
+          return Handled.no(message);
+        }
+        const notification = parse2(message.params);
+        return await handler(notification, cx) ?? Handled.yes();
+      },
+      describe: () => `${this.connectionName ?? "notification"}:${method}`
+    });
+  }
+  /**
+   * Connects the configured handlers to a stream.
+   */
+  connect(stream, options) {
+    return new Connection(stream, this.handlers, options);
+  }
+  /**
+   * Connects to a stream for the lifetime of `op`, then closes the connection.
+   */
+  connectWith(stream, op, options) {
+    return this.connect(stream, options).runUntil(op);
+  }
+};
+var RequestError = class _RequestError extends Error {
+  code;
+  /**
+   * Additional JSON-RPC error data.
+   */
+  data;
+  constructor(code, message, data) {
+    super(message);
+    this.code = code;
+    this.name = "RequestError";
+    this.data = data;
+  }
+  /**
+   * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+   */
+  static parseError(data, additionalMessage) {
+    return new _RequestError(-32700, `Parse error${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * The JSON sent is not a valid Request object.
+   */
+  static invalidRequest(data, additionalMessage) {
+    return new _RequestError(-32600, `Invalid request${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * The method does not exist / is not available.
+   */
+  static methodNotFound(method) {
+    return new _RequestError(-32601, `"Method not found": ${method}`, {
+      method
+    });
+  }
+  /**
+   * Invalid method parameter(s).
+   */
+  static invalidParams(data, additionalMessage) {
+    return new _RequestError(-32602, `Invalid params${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * Internal JSON-RPC error.
+   */
+  static internalError(data, additionalMessage) {
+    return new _RequestError(-32603, `Internal error${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * Execution of the request was aborted.
+   */
+  static requestCancelled(data, additionalMessage) {
+    return new _RequestError(-32800, `Request cancelled${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * Authentication required.
+   */
+  static authRequired(data, additionalMessage) {
+    return new _RequestError(-32e3, `Authentication required${additionalMessage ? `: ${additionalMessage}` : ""}`, data);
+  }
+  /**
+   * Resource, such as a file, was not found
+   */
+  static resourceNotFound(uri) {
+    return new _RequestError(-32002, `Resource not found${uri ? `: ${uri}` : ""}`, uri && { uri });
+  }
+  static unsupportedProtocolVersion(requested, supported) {
+    return new _RequestError(-32022, "Unsupported protocol version", {
+      requested,
+      supported: [...supported]
+    });
+  }
+  /**
+   * Converts this error to a JSON-RPC result object.
+   */
+  toResult() {
+    return {
+      error: {
+        code: this.code,
+        message: this.message,
+        data: this.data
+      }
+    };
+  }
+  /**
+   * Converts this error to a JSON-RPC error response payload.
+   */
+  toErrorResponse() {
+    return {
+      code: this.code,
+      message: this.message,
+      data: this.data
+    };
+  }
+};
+function protocolErrorResponse(error) {
+  return {
+    jsonrpc: "2.0",
+    id: null,
+    error: error.toErrorResponse()
+  };
+}
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/stream-limits.js
+var DEFAULT_MAX_MESSAGE_BYTES = 32 * 1024 * 1024;
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/schema/guards.gen.js
+import * as z48 from "zod/v4";
+var zGuardCreateElicitationRequestForm = zElicitationFormMode.and(z48.object({ mode: z48.literal("form") })).and(z48.object({ message: z48.string() }));
+var zGuardCreateElicitationRequestUrl = zElicitationUrlMode.and(z48.object({ mode: z48.literal("url") })).and(z48.object({ message: z48.string() }));
+var zGuardCreateElicitationRequestCustom = z48.union([zElicitationSessionScope, zElicitationRequestScope]).and(z48.object({ message: z48.string() }));
+var zGuardElicitationPropertySchemaString = zStringPropertySchema.and(z48.object({ type: z48.literal("string") }));
+var zGuardElicitationPropertySchemaNumber = zNumberPropertySchema.and(z48.object({ type: z48.literal("number") }));
+var zGuardElicitationPropertySchemaInteger = zIntegerPropertySchema.and(z48.object({ type: z48.literal("integer") }));
+var zGuardElicitationPropertySchemaBoolean = zBooleanPropertySchema.and(z48.object({ type: z48.literal("boolean") }));
+var zGuardElicitationPropertySchemaArray = zMultiSelectPropertySchema.and(z48.object({ type: z48.literal("array") }));
+var zGuardMultiSelectItemsString = zStringMultiSelectItems.and(z48.object({ type: z48.literal("string") }));
+var zGuardStateUpdateRunning = zRunningStateUpdate.and(z48.object({ state: z48.literal("running") }));
+var zGuardStateUpdateIdle = zIdleStateUpdate.and(z48.object({ usage: zUsage.nullish() })).and(z48.object({ state: z48.literal("idle") }));
+var zGuardStateUpdateRequiresAction = zRequiresActionStateUpdate.and(z48.object({ state: z48.literal("requires_action") }));
+var zGuardStateUpdateUnknown = zUnknownStateUpdate.and(z48.object({ state: z48.literal("unknown") }));
+var zGuardIdleStateUpdateEndTurn = z48.object({
+  stopReason: z48.literal("end_turn")
+});
+var zGuardIdleStateUpdateMaxTokens = z48.object({
+  stopReason: z48.literal("max_tokens")
+});
+var zGuardIdleStateUpdateMaxTurnRequests = z48.object({
+  stopReason: z48.literal("max_turn_requests")
+});
+var zGuardIdleStateUpdateRefusal = z48.object({
+  stopReason: z48.literal("refusal")
+});
+var zGuardIdleStateUpdateCancelled = z48.object({
+  stopReason: z48.literal("cancelled")
+});
+var zGuardIdleStateUpdateError = zErrorStopReason.and(z48.object({ error: zError.nullish() })).and(z48.object({ stopReason: z48.literal("error") }));
+var zGuardIdleStateUpdateNone = z48.object({ stopReason: z48.null().optional() });
+var zGuardCreateElicitationResponseAccept = zElicitationAcceptAction.and(z48.object({ action: z48.literal("accept") }));
+var zGuardCreateElicitationResponseDecline = z48.object({
+  action: z48.literal("decline")
+});
+var zGuardCreateElicitationResponseCancel = z48.object({
+  action: z48.literal("cancel")
+});
+
+// ../../node_modules/.pnpm/@agentclientprotocol+sdk@1.9.0_zod@4.6.7/node_modules/@agentclientprotocol/sdk/dist/acp.js
+function emptyObjectResponse(response) {
+  return response ?? {};
+}
+function isStream2(value) {
+  return typeof value === "object" && value !== null && "readable" in value && "writable" in value;
+}
+function memoryStreamPair() {
+  const leftToRight = new TransformStream();
+  const rightToLeft = new TransformStream();
+  return [
+    {
+      readable: rightToLeft.readable,
+      writable: leftToRight.writable
+    },
+    {
+      readable: leftToRight.readable,
+      writable: rightToLeft.writable
+    }
+  ];
+}
+var methods = {
+  agent: {
+    initialize: AGENT_METHODS.initialize,
+    authenticate: AGENT_METHODS.authenticate,
+    logout: AGENT_METHODS.logout,
+    providers: {
+      list: AGENT_METHODS.providers_list,
+      set: AGENT_METHODS.providers_set,
+      disable: AGENT_METHODS.providers_disable
+    },
+    session: {
+      new: AGENT_METHODS.session_new,
+      load: AGENT_METHODS.session_load,
+      list: AGENT_METHODS.session_list,
+      delete: AGENT_METHODS.session_delete,
+      fork: AGENT_METHODS.session_fork,
+      resume: AGENT_METHODS.session_resume,
+      close: AGENT_METHODS.session_close,
+      setMode: AGENT_METHODS.session_set_mode,
+      setConfigOption: AGENT_METHODS.session_set_config_option,
+      prompt: AGENT_METHODS.session_prompt,
+      cancel: AGENT_METHODS.session_cancel
+    }
+  },
+  client: {
+    session: {
+      requestPermission: CLIENT_METHODS.session_request_permission,
+      update: CLIENT_METHODS.session_update
+    },
+    fs: {
+      writeTextFile: CLIENT_METHODS.fs_write_text_file,
+      readTextFile: CLIENT_METHODS.fs_read_text_file
+    },
+    terminal: {
+      create: CLIENT_METHODS.terminal_create,
+      output: CLIENT_METHODS.terminal_output,
+      release: CLIENT_METHODS.terminal_release,
+      waitForExit: CLIENT_METHODS.terminal_wait_for_exit,
+      kill: CLIENT_METHODS.terminal_kill
+    },
+    elicitation: {
+      create: CLIENT_METHODS.elicitation_create,
+      complete: CLIENT_METHODS.elicitation_complete
+    }
+  },
+  protocol: {
+    cancelRequest: PROTOCOL_METHODS.cancel_request
+  }
+};
+var startActiveSession = /* @__PURE__ */ Symbol("startActiveSession");
+var AcpContext = class {
+  cx;
+  currentRequestId;
+  /** @internal */
+  constructor(cx, currentRequestId) {
+    this.cx = cx;
+    this.currentRequestId = currentRequestId;
+  }
+  /**
+   * JSON-RPC id of the request currently being handled.
+   *
+   * This is `undefined` for notification handlers and for contexts created
+   * outside an inbound request, such as `connect(...)` and `connectWith(...)`.
+   */
+  get requestId() {
+    return this.currentRequestId;
+  }
+  /** @internal */
+  get connectionContext() {
+    return this.cx;
+  }
+  /** @internal */
+  sendRequest(method, params, mapResponse, options) {
+    return this.cx.sendRequest(method, params, mapResponse, options);
+  }
+  /** @internal */
+  sendNotification(method, params) {
+    return this.cx.sendNotification(method, params);
+  }
+  /** @internal */
+  addDynamicHandler(handler) {
+    return this.cx.addDynamicHandler(handler);
+  }
+};
+var AgentContext = class _AgentContext extends AcpContext {
+  constructor(cx, requestId) {
+    super(cx, requestId);
+  }
+  /** @internal */
+  static create(cx, requestId) {
+    return new _AgentContext(cx, requestId);
+  }
+  request(method, params, options) {
+    const spec = clientRequestSpecsByMethod[method];
+    return this.sendRequest(method, params, spec?.mapResponse, options);
+  }
+  notify(method, params) {
+    return this.sendNotification(method, params);
+  }
+};
+var ClientContext = class _ClientContext extends AcpContext {
+  constructor(cx, requestId) {
+    super(cx, requestId);
+  }
+  /** @internal */
+  static create(cx, requestId) {
+    return new _ClientContext(cx, requestId);
+  }
+  /** @internal */
+  [startActiveSession](params, options) {
+    return this.sendRequest(AGENT_METHODS.session_new, params, (response) => this.attachSession(response), options);
+  }
+  buildSession(cwdOrRequest) {
+    if (typeof cwdOrRequest === "string") {
+      return SessionBuilder.create(this, {
+        cwd: cwdOrRequest,
+        mcpServers: []
+      });
+    }
+    return SessionBuilder.create(this, cwdOrRequest);
+  }
+  /**
+   * Builds active-session helpers around a `session/new` response.
+   */
+  attachSession(response) {
+    const updates = new AsyncQueue();
+    const closeSignal = this.connectionContext.signal;
+    const failUpdatesOnClose = () => {
+      updates.fail(closeSignal.reason ?? new Error("ACP connection closed"));
+    };
+    if (closeSignal.aborted) {
+      failUpdatesOnClose();
+    } else {
+      closeSignal.addEventListener("abort", failUpdatesOnClose);
+    }
+    const sessionRegistration = sessionUpdateRouter(this.connectionContext).attach(response, updates);
+    const closeRegistration = new HandlerRegistration(() => {
+      closeSignal.removeEventListener("abort", failUpdatesOnClose);
+    });
+    return ActiveSession.create(this, response, updates, [
+      sessionRegistration,
+      closeRegistration
+    ]);
+  }
+  request(method, params, options) {
+    const spec = agentRequestSpecsByMethod[method];
+    return this.sendRequest(method, params, spec?.mapResponse, options);
+  }
+  notify(method, params) {
+    return this.sendNotification(method, params);
+  }
+};
+var AcpConnectionHandle = class {
+  connection;
+  constructor(connection) {
+    this.connection = connection;
+  }
+  get signal() {
+    return this.connection.signal;
+  }
+  get closed() {
+    return this.connection.closed;
+  }
+  close(error) {
+    this.connection.close(error);
+  }
+};
+var AgentConnectionHandle = class extends AcpConnectionHandle {
+  connectHandlers;
+  client;
+  didStartConnectHandlers = false;
+  constructor(connection, connectHandlers = []) {
+    super(connection);
+    this.connectHandlers = connectHandlers;
+    this.client = AgentContext.create(connection.getContext());
+  }
+  /** @internal */
+  startConnectHandlers() {
+    if (this.didStartConnectHandlers) {
+      return;
+    }
+    this.didStartConnectHandlers = true;
+    runConnectHandlers(this, this.connectHandlers);
+  }
+};
+var ClientConnectionHandle = class extends AcpConnectionHandle {
+  connectHandlers;
+  agent;
+  didStartConnectHandlers = false;
+  constructor(connection, connectHandlers = []) {
+    super(connection);
+    this.connectHandlers = connectHandlers;
+    this.agent = ClientContext.create(connection.getContext());
+  }
+  /** @internal */
+  startConnectHandlers() {
+    if (this.didStartConnectHandlers) {
+      return;
+    }
+    this.didStartConnectHandlers = true;
+    runConnectHandlers(this, this.connectHandlers);
+  }
+};
+function agentConnection(connection, connectHandlers = []) {
+  return new AgentConnectionHandle(connection, connectHandlers);
+}
+function clientConnection(connection, connectHandlers = []) {
+  return new ClientConnectionHandle(connection, connectHandlers);
+}
+var AsyncQueue = class {
+  values = [];
+  waiters = [];
+  failed = false;
+  failure;
+  enqueue(value) {
+    if (this.failed) {
+      return;
+    }
+    const waiter = this.waiters.shift();
+    if (waiter) {
+      waiter.resolve(value);
+    } else {
+      this.values.push({ kind: "value", value });
+    }
+  }
+  reject(error) {
+    if (this.failed) {
+      return;
+    }
+    if (this.waiters.length > 0) {
+      for (const waiter of this.waiters.splice(0)) {
+        waiter.reject(error);
+      }
+      return;
+    }
+    this.values.push({ kind: "error", error });
+  }
+  clearErrors() {
+    this.values = this.values.filter((entry) => entry.kind === "value");
+  }
+  fail(error) {
+    if (this.failed) {
+      return;
+    }
+    this.failed = true;
+    this.failure = error;
+    for (const waiter of this.waiters.splice(0)) {
+      waiter.reject(error);
+    }
+  }
+  next() {
+    if (this.values.length > 0) {
+      const entry = this.values.shift();
+      if (entry.kind === "error") {
+        return Promise.reject(entry.error);
+      }
+      return Promise.resolve(entry.value);
+    }
+    if (this.failed) {
+      return Promise.reject(this.failure);
+    }
+    return new Promise((resolve5, reject) => {
+      this.waiters.push({ resolve: resolve5, reject });
+    });
+  }
+};
+function cloneNewSessionRequest(request) {
+  return {
+    ...request,
+    additionalDirectories: request.additionalDirectories ? [...request.additionalDirectories] : void 0,
+    mcpServers: [...request.mcpServers]
+  };
+}
+var SessionBuilder = class _SessionBuilder {
+  cx;
+  request;
+  constructor(cx, request) {
+    this.cx = cx;
+    this.request = cloneNewSessionRequest(request);
+  }
+  /** @internal */
+  static create(cx, request) {
+    return new _SessionBuilder(cx, request);
+  }
+  /**
+   * Returns the `session/new` request that will be sent.
+   *
+   * The returned object is a defensive copy, so mutating it does not change the
+   * builder.
+   */
+  toRequest() {
+    return cloneNewSessionRequest(this.request);
+  }
+  /**
+   * Replaces the additional workspace roots for this session.
+   *
+   * `additionalDirectories` expand the session's file-system scope without
+   * changing `cwd`. Each path should be absolute.
+   */
+  withAdditionalDirectories(additionalDirectories) {
+    this.request = {
+      ...this.request,
+      additionalDirectories: [...additionalDirectories]
+    };
+    return this;
+  }
+  /**
+   * Adds one MCP server to the `session/new` request.
+   */
+  withMcpServer(mcpServer) {
+    this.request = {
+      ...this.request,
+      mcpServers: [...this.request.mcpServers, mcpServer]
+    };
+    return this;
+  }
+  /**
+   * Starts the session and returns an `ActiveSession` for prompting and reading
+   * updates.
+   *
+   * Call `dispose()` on the returned session when you no longer need update
+   * routing, or use `withSession(...)` to scope disposal automatically.
+   */
+  async start(options) {
+    return this.cx[startActiveSession](this.toRequest(), options);
+  }
+  /**
+   * Starts the session, runs `op`, and disposes the active-session update
+   * routing when `op` finishes or throws.
+   */
+  async withSession(op) {
+    const session = await this.start();
+    try {
+      return await op(session);
+    } finally {
+      session.dispose();
+    }
+  }
+};
+var ActiveSession = class _ActiveSession {
+  cx;
+  sessionResponse;
+  updates;
+  registrations;
+  constructor(cx, sessionResponse, updates, registrations) {
+    this.cx = cx;
+    this.sessionResponse = sessionResponse;
+    this.updates = updates;
+    this.registrations = registrations;
+  }
+  /** @internal */
+  static create(cx, sessionResponse, updates, registrations) {
+    return new _ActiveSession(cx, sessionResponse, updates, registrations);
+  }
+  /**
+   * Session ID returned by `session/new`.
+   */
+  get sessionId() {
+    return this.sessionResponse.sessionId;
+  }
+  /**
+   * Mode state returned when the session was created, if the agent provided it.
+   */
+  get modes() {
+    return this.sessionResponse.modes;
+  }
+  /**
+   * Metadata returned when the session was created.
+   */
+  get meta() {
+    return this.sessionResponse._meta;
+  }
+  /**
+   * Full response returned by `session/new`.
+   */
+  get newSessionResponse() {
+    return this.sessionResponse;
+  }
+  /**
+   * Sends a prompt to this session.
+   *
+   * Strings are converted to one text content block. A single content block is
+   * wrapped in an array. The returned promise resolves with the final
+   * `PromptResponse`, and the same completion is also queued as a `stop`
+   * message for `nextUpdate()`.
+   */
+  prompt(prompt, options) {
+    this.updates.clearErrors();
+    const response = this.cx.request(AGENT_METHODS.session_prompt, {
+      sessionId: this.sessionId,
+      prompt: this.promptBlocks(prompt)
+    }, options);
+    void response.then((value) => {
+      this.updates.enqueue({
+        kind: "stop",
+        response: value,
+        stopReason: value.stopReason
+      });
+    }, (error) => {
+      this.updates.reject(error);
+    });
+    return response;
+  }
+  /**
+   * Reads the next update or stop message for this session.
+   */
+  nextUpdate() {
+    return this.updates.next();
+  }
+  /**
+   * Reads text chunks until the current prompt turn stops.
+   *
+   * Only `agent_message_chunk` updates with text content are appended. Other
+   * update types are ignored by this helper; use `nextUpdate()` when you need
+   * tool calls, plans, or the final `PromptResponse`.
+   */
+  async readText() {
+    let output = "";
+    for (; ; ) {
+      const message = await this.nextUpdate();
+      if (message.kind === "stop") {
+        return output;
+      }
+      const { update } = message;
+      if (update.sessionUpdate === "agent_message_chunk" && update.content.type === "text") {
+        output += update.content.text;
+      }
+    }
+  }
+  /**
+   * Stops routing updates to this active-session helper.
+   *
+   * This does not close the ACP session on the agent. Use `ClientContext`
+   * session lifecycle methods when the protocol session itself should be closed
+   * or deleted.
+   */
+  dispose() {
+    for (const registration of this.registrations.splice(0)) {
+      registration.dispose();
+    }
+    this.updates.fail(new Error("Active session disposed"));
+  }
+  /**
+   * Supports explicit resource management with `using`.
+   */
+  [Symbol.dispose]() {
+    this.dispose();
+  }
+  promptBlocks(prompt) {
+    if (typeof prompt === "string") {
+      return [{ type: "text", text: prompt }];
+    }
+    if (Array.isArray(prompt)) {
+      return prompt;
+    }
+    return [prompt];
+  }
+};
+function parseParams(parser, params) {
+  if (!parser) {
+    return params;
+  }
+  if (typeof parser === "function") {
+    return parser(params);
+  }
+  return parser.parse(params);
+}
+function requestSpec(method, params, mapResponse) {
+  return {
+    method,
+    // Match Rust's empty-payload handling without bypassing required fields.
+    params: (value) => parseParams(params, value ?? {}),
+    mapResponse
+  };
+}
+function notificationSpec(method, params) {
+  return { method, params };
+}
+function registerAppRequest(builder, spec, context, handler) {
+  builder.onReceiveRequest(spec.method, (params) => parseParams(spec.params, params), async (params, responder, cx) => {
+    const response = await handler(context(params, cx, responder.signal, responder.id));
+    await responder.respond(spec.mapResponse ? spec.mapResponse(response) : response);
+  });
+}
+function registerAppNotification(builder, spec, context, handler) {
+  builder.onReceiveNotification(spec.method, (params) => parseParams(spec.params, params), (params, cx) => handler(context(params, cx, cx.signal)));
+}
+function specsByMethod(specs) {
+  const byMethod = {};
+  for (const spec of Object.values(specs)) {
+    byMethod[spec.method] = spec;
+  }
+  return byMethod;
+}
+var agentRequestSpecs = {
+  initialize: requestSpec(AGENT_METHODS.initialize, zInitializeRequest),
+  newSession: requestSpec(AGENT_METHODS.session_new, zNewSessionRequest),
+  loadSession: requestSpec(AGENT_METHODS.session_load, zLoadSessionRequest, emptyObjectResponse),
+  unstable_forkSession: requestSpec(AGENT_METHODS.session_fork, zForkSessionRequest),
+  listSessions: requestSpec(AGENT_METHODS.session_list, zListSessionsRequest),
+  deleteSession: requestSpec(AGENT_METHODS.session_delete, zDeleteSessionRequest, emptyObjectResponse),
+  resumeSession: requestSpec(AGENT_METHODS.session_resume, zResumeSessionRequest),
+  closeSession: requestSpec(AGENT_METHODS.session_close, zCloseSessionRequest, emptyObjectResponse),
+  setSessionMode: requestSpec(AGENT_METHODS.session_set_mode, zSetSessionModeRequest, emptyObjectResponse),
+  setSessionConfigOption: requestSpec(AGENT_METHODS.session_set_config_option, zSetSessionConfigOptionRequest),
+  authenticate: requestSpec(AGENT_METHODS.authenticate, zAuthenticateRequest, emptyObjectResponse),
+  unstable_listProviders: requestSpec(AGENT_METHODS.providers_list, zListProvidersRequest),
+  unstable_setProvider: requestSpec(AGENT_METHODS.providers_set, zSetProviderRequest, emptyObjectResponse),
+  unstable_disableProvider: requestSpec(AGENT_METHODS.providers_disable, zDisableProviderRequest, emptyObjectResponse),
+  logout: requestSpec(AGENT_METHODS.logout, zLogoutRequest, emptyObjectResponse),
+  prompt: requestSpec(AGENT_METHODS.session_prompt, zPromptRequest)
+};
+var agentNotificationSpecs = {
+  cancel: notificationSpec(AGENT_METHODS.session_cancel, zCancelNotification)
+};
+var clientRequestSpecs = {
+  requestPermission: requestSpec(CLIENT_METHODS.session_request_permission, zRequestPermissionRequest),
+  writeTextFile: requestSpec(CLIENT_METHODS.fs_write_text_file, zWriteTextFileRequest, emptyObjectResponse),
+  readTextFile: requestSpec(CLIENT_METHODS.fs_read_text_file, zReadTextFileRequest),
+  createTerminal: requestSpec(CLIENT_METHODS.terminal_create, zCreateTerminalRequest),
+  terminalOutput: requestSpec(CLIENT_METHODS.terminal_output, zTerminalOutputRequest),
+  releaseTerminal: requestSpec(CLIENT_METHODS.terminal_release, zReleaseTerminalRequest, emptyObjectResponse),
+  waitForTerminalExit: requestSpec(CLIENT_METHODS.terminal_wait_for_exit, zWaitForTerminalExitRequest),
+  killTerminal: requestSpec(CLIENT_METHODS.terminal_kill, zKillTerminalRequest, emptyObjectResponse),
+  createElicitation: requestSpec(CLIENT_METHODS.elicitation_create, zCreateElicitationRequest)
+};
+var clientNotificationSpecs = {
+  sessionUpdate: notificationSpec(CLIENT_METHODS.session_update, zSessionNotification),
+  completeElicitation: notificationSpec(CLIENT_METHODS.elicitation_complete, zCompleteElicitationNotification)
+};
+var agentRequestSpecsByMethod = specsByMethod(agentRequestSpecs);
+var agentNotificationSpecsByMethod = specsByMethod(agentNotificationSpecs);
+var clientRequestSpecsByMethod = specsByMethod(clientRequestSpecs);
+var clientNotificationSpecsByMethod = specsByMethod(clientNotificationSpecs);
+function agentRequestContext(params, client2, signal, requestId) {
+  return {
+    params,
+    requestId,
+    signal,
+    client: client2
+  };
+}
+function agentNotificationContext(params, client2, signal) {
+  return {
+    params,
+    signal,
+    client: client2
+  };
+}
+function clientRequestContext(params, agent, signal, requestId) {
+  return {
+    params,
+    requestId,
+    signal,
+    agent
+  };
+}
+function clientNotificationContext(params, agent, signal) {
+  return {
+    params,
+    signal,
+    agent
+  };
+}
+var SessionUpdateRouter = class {
+  activeSessions = /* @__PURE__ */ new Map();
+  handleMessage(message) {
+    if (message.kind !== "notification" || message.method !== CLIENT_METHODS.session_update) {
+      return Handled.no(message);
+    }
+    const notification = zSessionNotification.parse(message.params);
+    const update = {
+      kind: "session_update",
+      notification,
+      update: notification.update
+    };
+    const activeSessions = this.activeSessions.get(notification.sessionId);
+    if (activeSessions && activeSessions.size > 0) {
+      for (const session of activeSessions) {
+        session.enqueue(update);
+      }
+    }
+    return Handled.no(message);
+  }
+  attach(response, updates) {
+    const sessions = this.activeSessions.get(response.sessionId) ?? /* @__PURE__ */ new Set();
+    sessions.add(updates);
+    this.activeSessions.set(response.sessionId, sessions);
+    return new HandlerRegistration(() => {
+      sessions.delete(updates);
+      if (sessions.size === 0) {
+        this.activeSessions.delete(response.sessionId);
+      }
+    });
+  }
+};
+var sessionUpdateRouters = /* @__PURE__ */ new WeakMap();
+function sessionUpdateRouter(cx) {
+  let router = sessionUpdateRouters.get(cx);
+  if (!router) {
+    router = new SessionUpdateRouter();
+    sessionUpdateRouters.set(cx, router);
+  }
+  return router;
+}
+function runConnectHandlers(connection, handlers) {
+  for (const handler of handlers) {
+    let result;
+    try {
+      result = handler(connection);
+    } catch (error) {
+      connection.close(error);
+      throw error;
+    }
+    void Promise.resolve(result).catch((error) => {
+      connection.close(error);
+    });
+  }
+}
+var appBuilder = /* @__PURE__ */ Symbol("appBuilder");
+var runAgentConnectHandlers = /* @__PURE__ */ Symbol("runAgentConnectHandlers");
+var runClientConnectHandlers = /* @__PURE__ */ Symbol("runClientConnectHandlers");
+var stableConnectionOptions = { allowBatches: false };
+var AgentApp = class {
+  builder = Connection.builder();
+  connectHandlers = [];
+  constructor(options = {}) {
+    if (options.name) {
+      this.builder.name(options.name);
+    }
+  }
+  /** @internal */
+  [appBuilder]() {
+    return this.builder;
+  }
+  /** @internal */
+  [runAgentConnectHandlers](connection) {
+    runConnectHandlers(connection, this.connectHandlers);
+  }
+  connect(target, options = {}) {
+    return this.connectConnection(target, options).connection;
+  }
+  connectWith(target, op) {
+    const { rawConnection, connection } = this.connectConnection(target);
+    return rawConnection.runUntil(() => op(connection.client));
+  }
+  /**
+   * Registers a handler that runs when this agent app opens a connection.
+   *
+   * Use this for connection-scoped work that needs to call client-side ACP
+   * methods outside an inbound request handler, or to set up per-connection
+   * state that the request handlers use.
+   *
+   * Handlers are called synchronously in registration order and are not
+   * awaited. A handler that throws or rejects closes the connection. When they
+   * are called depends on who opens the connection:
+   *
+   * - `connect(...)` and `connectWith(...)` call them before the connection
+   *   handles its first inbound message, and so does the experimental
+   *   `AgentProtocolRouter`'s `connect(...)` when it routes to this app. Only
+   *   the work a handler does before its first `await` is guaranteed to come
+   *   first.
+   * - The experimental `AcpServer` calls them after the client has completed
+   *   `initialize`, so messages they send cannot replace the initialize
+   *   response. Request handlers, including `initialize`, can run before them.
+   */
+  onConnect(handler) {
+    this.connectHandlers.push(handler);
+    return this;
+  }
+  onRequest(method, handlerOrParams, handler) {
+    if (handler) {
+      return this.request({ method, params: handlerOrParams }, handler);
+    }
+    const spec = agentRequestSpecsByMethod[method];
+    if (!spec) {
+      throw new Error(`Unknown ACP request method '${method}'. Pass a params parser for custom methods.`);
+    }
+    return this.request(spec, handlerOrParams);
+  }
+  onNotification(method, handlerOrParams, handler) {
+    if (handler) {
+      return this.notification({ method, params: handlerOrParams }, handler);
+    }
+    const spec = agentNotificationSpecsByMethod[method];
+    if (!spec) {
+      throw new Error(`Unknown ACP notification method '${method}'. Pass a params parser for custom methods.`);
+    }
+    return this.notification(spec, handlerOrParams);
+  }
+  request(spec, handler) {
+    registerAppRequest(this.builder, spec, (params, cx, signal, requestId) => agentRequestContext(params, AgentContext.create(cx, requestId), signal, requestId), handler);
+    return this;
+  }
+  notification(spec, handler) {
+    registerAppNotification(this.builder, spec, (params, cx, signal) => agentNotificationContext(params, AgentContext.create(cx), signal), handler);
+    return this;
+  }
+  connectConnection(target, options = {}) {
+    if (isStream2(target)) {
+      const state2 = this.openStreamConnection(target);
+      if (!options.deferConnectHandlers) {
+        this[runAgentConnectHandlers](state2.connection);
+      }
+      return state2;
+    }
+    const [thisStream, peerStream] = memoryStreamPair();
+    const peerRawConnection = target[appBuilder]().connect(peerStream, stableConnectionOptions);
+    const peerConnection = clientConnection(peerRawConnection);
+    const state = this.openStreamConnection(thisStream);
+    void state.rawConnection.closed.then(() => peerConnection.close());
+    void peerRawConnection.closed.then(() => state.connection.close());
+    try {
+      target[runClientConnectHandlers](peerConnection);
+      this[runAgentConnectHandlers](state.connection);
+    } catch (error) {
+      peerConnection.close(error);
+      state.connection.close(error);
+      throw error;
+    }
+    return state;
+  }
+  openStreamConnection(stream) {
+    const rawConnection = this.builder.connect(stream, stableConnectionOptions);
+    return {
+      rawConnection,
+      connection: agentConnection(rawConnection, this.connectHandlers)
+    };
+  }
+};
+function client(options) {
+  return new ClientApp(options);
+}
+var ClientApp = class {
+  builder = Connection.builder();
+  connectHandlers = [];
+  constructor(options = {}) {
+    if (options.name) {
+      this.builder.name(options.name);
+    }
+    this.builder.withHandler({
+      handleMessage: (message, cx) => sessionUpdateRouter(cx).handleMessage(message),
+      describe: () => "client-session-update-router"
+    });
+  }
+  /** @internal */
+  [appBuilder]() {
+    return this.builder;
+  }
+  /** @internal */
+  [runClientConnectHandlers](connection) {
+    runConnectHandlers(connection, this.connectHandlers);
+  }
+  connect(target) {
+    return this.connectConnection(target).connection;
+  }
+  connectWith(target, op) {
+    const { rawConnection, connection } = this.connectConnection(target);
+    return rawConnection.runUntil(() => op(connection.agent));
+  }
+  /**
+   * Registers a handler that runs when this client app opens a connection.
+   *
+   * Use this for connection-scoped work that needs to call agent-side ACP
+   * methods outside an inbound request handler.
+   */
+  onConnect(handler) {
+    this.connectHandlers.push(handler);
+    return this;
+  }
+  onRequest(method, handlerOrParams, handler) {
+    if (handler) {
+      return this.request({ method, params: handlerOrParams }, handler);
+    }
+    const spec = clientRequestSpecsByMethod[method];
+    if (!spec) {
+      throw new Error(`Unknown ACP request method '${method}'. Pass a params parser for custom methods.`);
+    }
+    return this.request(spec, handlerOrParams);
+  }
+  onNotification(method, handlerOrParams, handler) {
+    if (handler) {
+      return this.notification({ method, params: handlerOrParams }, handler);
+    }
+    const spec = clientNotificationSpecsByMethod[method];
+    if (!spec) {
+      throw new Error(`Unknown ACP notification method '${method}'. Pass a params parser for custom methods.`);
+    }
+    return this.notification(spec, handlerOrParams);
+  }
+  request(spec, handler) {
+    registerAppRequest(this.builder, spec, (params, cx, signal, requestId) => clientRequestContext(params, ClientContext.create(cx, requestId), signal, requestId), handler);
+    return this;
+  }
+  notification(spec, handler) {
+    registerAppNotification(this.builder, spec, (params, cx, signal) => clientNotificationContext(params, ClientContext.create(cx), signal), handler);
+    return this;
+  }
+  connectConnection(target) {
+    if (isStream2(target)) {
+      const state2 = this.openStreamConnection(target);
+      this[runClientConnectHandlers](state2.connection);
+      return state2;
+    }
+    const [thisStream, peerStream] = memoryStreamPair();
+    const peerRawConnection = target[appBuilder]().connect(peerStream, stableConnectionOptions);
+    const peerConnection = agentConnection(peerRawConnection);
+    const state = this.openStreamConnection(thisStream);
+    void state.rawConnection.closed.then(() => peerConnection.close());
+    void peerRawConnection.closed.then(() => state.connection.close());
+    try {
+      target[runAgentConnectHandlers](peerConnection);
+      this[runClientConnectHandlers](state.connection);
+    } catch (error) {
+      peerConnection.close(error);
+      state.connection.close(error);
+      throw error;
+    }
+    return state;
+  }
+  openStreamConnection(stream) {
+    const rawConnection = this.builder.connect(stream, stableConnectionOptions);
+    return {
+      rawConnection,
+      connection: clientConnection(rawConnection, this.connectHandlers)
+    };
+  }
+};
+var legacyAgentRequestMethods = /* @__PURE__ */ new Set([
+  AGENT_METHODS.initialize,
+  AGENT_METHODS.authenticate,
+  AGENT_METHODS.providers_list,
+  AGENT_METHODS.providers_set,
+  AGENT_METHODS.providers_disable,
+  AGENT_METHODS.session_new,
+  AGENT_METHODS.session_load,
+  AGENT_METHODS.session_set_mode,
+  AGENT_METHODS.session_set_config_option,
+  AGENT_METHODS.session_prompt,
+  AGENT_METHODS.session_list,
+  AGENT_METHODS.session_delete,
+  AGENT_METHODS.session_fork,
+  AGENT_METHODS.session_resume,
+  AGENT_METHODS.session_close,
+  AGENT_METHODS.logout
+]);
+var legacyAgentNotificationMethods = /* @__PURE__ */ new Set([
+  AGENT_METHODS.session_cancel
+]);
+var legacyClientRequestMethods = /* @__PURE__ */ new Set([
+  CLIENT_METHODS.session_request_permission,
+  CLIENT_METHODS.fs_write_text_file,
+  CLIENT_METHODS.fs_read_text_file,
+  CLIENT_METHODS.terminal_create,
+  CLIENT_METHODS.terminal_output,
+  CLIENT_METHODS.terminal_release,
+  CLIENT_METHODS.terminal_wait_for_exit,
+  CLIENT_METHODS.terminal_kill,
+  CLIENT_METHODS.elicitation_create
+]);
+var legacyClientNotificationMethods = /* @__PURE__ */ new Set([
+  CLIENT_METHODS.session_update,
+  CLIENT_METHODS.elicitation_complete
+]);
+
+// ../provider-bridge-acp/src/bridge/agent-connection.ts
+import { createInterface as createInterface2 } from "node:readline";
+
+// ../provider-bridge-acp/src/client/message-stream.ts
+import { createInterface } from "node:readline";
+var SESSION_UPDATE_METHOD = "session/update";
+function readId(message) {
+  const id = message["id"];
+  return typeof id === "string" || typeof id === "number" ? id : void 0;
+}
+function createAcpMessageStream(options) {
+  const outstandingRequestIds = /* @__PURE__ */ new Set();
+  let closed = false;
+  let detach = () => {
+  };
+  function issuedRequestId(id) {
+    if (outstandingRequestIds.has(id)) {
+      return id;
+    }
+    if (typeof id === "string" && id.trim() !== "") {
+      const numericId = Number(id);
+      if (outstandingRequestIds.has(numericId)) {
+        return numericId;
+      }
+    }
+    return void 0;
+  }
+  const readable2 = new ReadableStream({
+    start(controller) {
+      const lines = createInterface({ input: options.input, terminal: false });
+      const close = () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        controller.close();
+      };
+      detach = () => lines.close();
+      lines.on("line", (line) => {
+        if (closed || line.trim() === "") {
+          return;
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          options.onDiscard("not-json", line);
+          return;
+        }
+        if (!isJsonObject(parsed)) {
+          options.onDiscard("not-a-message", line);
+          return;
+        }
+        const method = parsed["method"];
+        const id = readId(parsed);
+        if (typeof method !== "string") {
+          const issuedId = id === void 0 ? void 0 : issuedRequestId(id);
+          if (issuedId === void 0) {
+            options.onDiscard("unexpected-response", line);
+            return;
+          }
+          outstandingRequestIds.delete(issuedId);
+          parsed["id"] = issuedId;
+        } else if (id === void 0) {
+          options.onNotification?.(method, parsed["params"]);
+          if (method === SESSION_UPDATE_METHOD) {
+            options.onSessionUpdate(parsed["params"]);
+            return;
+          }
+        }
+        controller.enqueue(parsed);
+      });
+      if (options.closeOnInputEnd) {
+        lines.on("close", close);
+        options.input.on("error", close);
+      }
+    },
+    cancel() {
+      closed = true;
+      detach();
+    }
+  });
+  const writable2 = new WritableStream({
+    write(message) {
+      if (options.output.destroyed || !options.output.writable) {
+        throw new Error("ACP agent stdin is not writable");
+      }
+      if ("method" in message && "id" in message) {
+        const id = message.id;
+        if (typeof id === "string" || typeof id === "number") {
+          outstandingRequestIds.add(id);
+        }
+      }
+      options.output.write(`${JSON.stringify(message)}
+`);
+    }
+  });
+  return { readable: readable2, writable: writable2 };
+}
+
+// ../provider-bridge-acp/src/client/acp-client.ts
+var AcpRequestTimeoutError = class extends Error {
+  method;
+  timeoutMs;
+  constructor(method, timeoutMs) {
+    super(`ACP agent did not answer ${method} within ${timeoutMs} ms`);
+    this.name = "AcpRequestTimeoutError";
+    this.method = method;
+    this.timeoutMs = timeoutMs;
+  }
+};
+function connectAcpClient(options) {
+  const { handlers } = options;
+  const discarded = handlers.discarded ?? (() => {
+  });
+  const stream = createAcpMessageStream({
+    input: options.input,
+    output: options.output,
+    closeOnInputEnd: options.closeOnInputEnd,
+    onDiscard: discarded,
+    ...handlers.anyNotification ? { onNotification: handlers.anyNotification } : {},
+    onSessionUpdate(params) {
+      if (!isJsonObject(params)) {
+        discarded("malformed-update", JSON.stringify(params ?? null));
+        return;
+      }
+      const sessionId = readString(params, "sessionId");
+      if (sessionId === void 0) {
+        discarded("malformed-update", JSON.stringify(params));
+        return;
+      }
+      handlers.sessionUpdate({ sessionId, update: params["update"] });
+    }
+  });
+  const app = client({ name: "bb" });
+  for (const [method, handler] of Object.entries(handlers.requests ?? {})) {
+    app.onRequest(
+      method,
+      (params) => params,
+      async ({ params, signal }) => await handler(params, { signal }) ?? null
+    );
+  }
+  for (const [method, handler] of Object.entries(
+    handlers.notifications ?? {}
+  )) {
+    app.onNotification(
+      method,
+      (params) => params,
+      ({ params }) => handler(params)
+    );
+  }
+  const connection = app.connect(stream);
+  async function withDeadline(method, requestOptions, send2) {
+    const timeoutMs = requestOptions?.timeoutMs === void 0 ? options.requestTimeoutMs : requestOptions.timeoutMs;
+    if (timeoutMs === null) {
+      return send2(void 0);
+    }
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new AcpRequestTimeoutError(method, timeoutMs));
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([send2(controller.signal), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return {
+    request(method, params, requestOptions) {
+      return withDeadline(
+        method,
+        requestOptions,
+        (cancellationSignal) => connection.agent.request(
+          method,
+          params,
+          cancellationSignal ? { cancellationSignal } : void 0
+        )
+      );
+    },
+    extensionRequest(method, params, requestOptions) {
+      return withDeadline(
+        method,
+        requestOptions,
+        (cancellationSignal) => connection.agent.request(
+          method,
+          params,
+          cancellationSignal ? { cancellationSignal } : void 0
+        )
+      );
+    },
+    notify(method, params) {
+      return connection.agent.notify(method, params);
+    },
+    close(reason) {
+      connection.close(reason);
+    },
+    closed: connection.closed
+  };
+}
+
+// ../provider-bridge-acp/src/client/capabilities.ts
+var ACP_CLIENT_PROTOCOL_VERSION = 1;
+var AcpUnsupportedProtocolVersionError = class extends Error {
+  agentProtocolVersion;
+  constructor(agentProtocolVersion) {
+    super(
+      agentProtocolVersion === null ? "The ACP agent did not report a protocol version." : `The ACP agent speaks protocol version ${agentProtocolVersion}; bb speaks version ${ACP_CLIENT_PROTOCOL_VERSION}.`
+    );
+    this.name = "AcpUnsupportedProtocolVersionError";
+    this.agentProtocolVersion = agentProtocolVersion;
+  }
+};
+function objectAt(source, key) {
+  const value = source[key];
+  return isJsonObject(value) ? value : {};
+}
+function isTrue(source, key) {
+  return source[key] === true;
+}
+function isPresent(source, key) {
+  const value = source[key];
+  return value !== void 0 && value !== null && value !== false;
+}
+function decodeAuthMethods(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const methods2 = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+    const id = readString(entry, "id") ?? readString(entry, "methodId");
+    if (id === void 0) {
+      continue;
+    }
+    const description = readString(entry, "description");
+    const rawArgs = entry["args"];
+    const rawEnv = entry["env"];
+    const env = {};
+    if (isJsonObject(rawEnv)) {
+      for (const [name, envValue2] of Object.entries(rawEnv)) {
+        if (typeof envValue2 === "string") {
+          env[name] = envValue2;
+        }
+      }
+    }
+    methods2.push({
+      id,
+      name: readString(entry, "name") ?? id,
+      ...description !== void 0 ? { description } : {},
+      type: readString(entry, "type") ?? "agent",
+      args: Array.isArray(rawArgs) ? rawArgs.filter((arg) => typeof arg === "string") : [],
+      env
+    });
+  }
+  return methods2;
+}
+function decodeImplementation(value) {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+  const implementation = {};
+  for (const field of ["name", "title", "version"]) {
+    const fieldValue = readString(value, field);
+    if (fieldValue !== void 0) {
+      implementation[field] = fieldValue;
+    }
+  }
+  return implementation;
+}
+function readAcpAgentCapabilities(initializeResult) {
+  if (!isJsonObject(initializeResult)) {
+    throw new AcpUnsupportedProtocolVersionError(null);
+  }
+  const protocolVersion = initializeResult["protocolVersion"];
+  if (typeof protocolVersion !== "number") {
+    throw new AcpUnsupportedProtocolVersionError(null);
+  }
+  const answersInAnotherGeneration = isJsonObject(initializeResult["capabilities"]) && !("agentCapabilities" in initializeResult);
+  if (protocolVersion !== ACP_CLIENT_PROTOCOL_VERSION && answersInAnotherGeneration) {
+    throw new AcpUnsupportedProtocolVersionError(protocolVersion);
+  }
+  const agent = objectAt(initializeResult, "agentCapabilities");
+  const prompt = objectAt(agent, "promptCapabilities");
+  const mcp = objectAt(agent, "mcpCapabilities");
+  const session = objectAt(agent, "sessionCapabilities");
+  const auth = objectAt(agent, "auth");
+  return {
+    protocolVersion,
+    agentInfo: decodeImplementation(initializeResult["agentInfo"]),
+    prompt: {
+      image: isTrue(prompt, "image"),
+      audio: isTrue(prompt, "audio"),
+      embeddedContext: isTrue(prompt, "embeddedContext")
+    },
+    mcp: { http: isTrue(mcp, "http"), sse: isTrue(mcp, "sse") },
+    session: {
+      load: isTrue(agent, "loadSession"),
+      resume: isPresent(session, "resume"),
+      list: isPresent(session, "list"),
+      close: isPresent(session, "close"),
+      delete: isPresent(session, "delete"),
+      fork: isPresent(session, "fork"),
+      additionalDirectories: isPresent(session, "additionalDirectories")
+    },
+    logout: isPresent(auth, "logout"),
+    authMethods: decodeAuthMethods(initializeResult["authMethods"]),
+    meta: readMeta(agent) ?? {}
+  };
+}
+
+// ../provider-bridge-acp/src/bridge/agent-connection.ts
+import { z as z49 } from "zod";
+var STDERR_TAIL_MAX_CHUNKS = 40;
+var ACP_CORE_CLIENT_REQUEST_METHODS = [
+  "session/request_permission",
+  "fs/read_text_file",
+  "fs/write_text_file",
+  "elicitation/create"
+];
+var AcpAgentExitedError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "AcpAgentExitedError";
+  }
+};
+var AcpAgentResponseError = class extends Error {
+  code;
+  data;
+  constructor(message, code, data) {
+    super(message);
+    this.name = "AcpAgentResponseError";
+    this.code = code;
+    this.data = data;
+  }
+};
+function formatAgentError(error) {
+  const message = error.message ?? `ACP agent returned error code ${error.code ?? "unknown"}`;
+  const details = formatAgentErrorData(error.data);
+  return details === void 0 ? message : `${message}: ${details}`;
+}
+function formatAgentErrorData(data) {
+  if (data === void 0 || data === null) {
+    return void 0;
+  }
+  if (typeof data === "string") {
+    return data.trim() === "" ? void 0 : data;
+  }
+  if (typeof data === "object" && "details" in data && typeof data.details === "string" && data.details.trim() !== "") {
+    return data.details;
+  }
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return void 0;
+  }
+}
+function createAcpAgentConnection(options) {
+  const managed = spawnManagedProcess({
+    command: options.command,
+    args: options.args,
+    cwd: options.cwd,
+    env: options.env
+  });
+  const { child } = managed;
+  experimental_recordProviderChildIo(child, {
+    threadId: options.recordThreadId
+  });
+  const stderrChunks = [];
+  let client2;
+  let exited = false;
+  let stopping = false;
+  let stopPromise;
+  function stopAgent(gracePeriodMs = 1e3) {
+    stopPromise ??= managed.stop({ gracePeriodMs }).then((result) => {
+      if (result.treeTermination === "unverified") {
+        stderrChunks.push(
+          "ACP agent exited, but descendant cleanup could not be confirmed"
+        );
+      }
+    });
+    return stopPromise;
+  }
+  function rejectAllPending(error) {
+    client2?.close(error);
+  }
+  function notRunningError() {
+    return new AcpAgentExitedError(
+      `ACP agent "${options.command}" is not running`
+    );
+  }
+  function stdinIsWritable() {
+    const stdin = child.stdin;
+    return Boolean(stdin && !stdin.destroyed && stdin.writable);
+  }
+  function closeForAgentStdin(error) {
+    if (exited) {
+      return;
+    }
+    exited = true;
+    const code = "code" in error && typeof error.code === "string" ? ` (${error.code})` : "";
+    const detail = `stdin closed${code}: ${error.message}`;
+    rejectAllPending(
+      new AcpAgentExitedError(`ACP agent "${options.command}" ${detail}`)
+    );
+    const reportExit = (cleanupError) => {
+      const cleanupDetail = cleanupError === null ? [] : [`Agent cleanup failed: ${String(cleanupError)}`];
+      options.onExit({
+        code: null,
+        signal: null,
+        stderrTail: [...stderrChunks, detail, ...cleanupDetail].join("\n")
+      });
+    };
+    void stopAgent(0).then(() => reportExit(null), reportExit);
+  }
+  child.stdin?.on("error", (error) => {
+    if (!isClosedProcessStdinError(error)) {
+      throw error;
+    }
+    if (stopping) {
+      return;
+    }
+    closeForAgentStdin(error);
+  });
+  if (child.stdout && child.stdin) {
+    const requests = {};
+    for (const method of options.requestMethods ?? ACP_CORE_CLIENT_REQUEST_METHODS) {
+      requests[method] = (params) => new Promise((resolveResult, rejectResult) => {
+        if (stopping) {
+          return;
+        }
+        let settled = false;
+        options.onRequest(method, params, {
+          result(value) {
+            if (settled) return;
+            settled = true;
+            resolveResult(value ?? null);
+          },
+          error(code, errorMessage) {
+            if (settled) return;
+            settled = true;
+            rejectResult(new RequestError(code, errorMessage));
+          }
+        });
+      });
+    }
+    client2 = connectAcpClient({
+      input: child.stdout,
+      output: child.stdin,
+      requestTimeoutMs: null,
+      closeOnInputEnd: false,
+      handlers: {
+        sessionUpdate: () => {
+        },
+        anyNotification: (method, params) => {
+          if (stopping) {
+            return;
+          }
+          options.onNotification(method, params);
+        },
+        requests
+      }
+    });
+  }
+  if (child.stderr) {
+    const stderrLines = createInterface2({
+      input: child.stderr,
+      terminal: false
+    });
+    stderrLines.on("line", (line) => {
+      stderrChunks.push(line);
+      if (stderrChunks.length > STDERR_TAIL_MAX_CHUNKS) {
+        stderrChunks.shift();
+      }
+    });
+  }
+  child.on("error", (error) => {
+    if (exited) {
+      return;
+    }
+    exited = true;
+    rejectAllPending(
+      new AcpAgentExitedError(
+        `Failed to launch ACP agent "${options.command}": ${error.message}`
+      )
+    );
+    options.onExit({ code: null, signal: null, stderrTail: error.message });
+  });
+  child.on("exit", (code, signal) => {
+    if (exited) {
+      return;
+    }
+    exited = true;
+    const stderrTail = stderrChunks.join("\n");
+    rejectAllPending(
+      new AcpAgentExitedError(
+        `ACP agent "${options.command}" exited (code ${code ?? "null"}, signal ${signal ?? "null"})${stderrTail ? `: ${stderrTail}` : ""}`
+      )
+    );
+    const reportExit = (cleanupError) => {
+      const cleanupDetail = cleanupError === null ? [] : [`Agent cleanup failed: ${String(cleanupError)}`];
+      options.onExit({
+        code,
+        signal,
+        stderrTail: [...stderrChunks, ...cleanupDetail].join("\n")
+      });
+    };
+    void stopAgent().then(() => reportExit(null), reportExit);
+  });
+  return {
+    get exited() {
+      return stopping || exited;
+    },
+    request({ method, params, resultSchema, timeoutMs }) {
+      if (stopping || exited || !client2) {
+        return Promise.reject(notRunningError());
+      }
+      if (!stdinIsWritable()) {
+        closeForAgentStdin(new Error("stdin is not writable"));
+        return Promise.reject(notRunningError());
+      }
+      return client2.extensionRequest(method, params, { timeoutMs: timeoutMs ?? null }).then(
+        (value) => {
+          options.onResponse?.(method, value);
+          const parsed = resultSchema.safeParse(value);
+          if (parsed.success) {
+            return parsed.data;
+          }
+          throw new Error(
+            `ACP agent returned an unexpected ${method} result: ${parsed.error.message}`
+          );
+        },
+        (error) => {
+          if (error instanceof RequestError) {
+            throw new AcpAgentResponseError(
+              formatAgentError(error),
+              error.code,
+              error.data
+            );
+          }
+          throw error;
+        }
+      );
+    },
+    notify(method, params) {
+      if (stopping || exited || !client2) {
+        return;
+      }
+      if (!stdinIsWritable()) {
+        closeForAgentStdin(new Error("stdin is not writable"));
+        return;
+      }
+      void client2.notify(method, params).catch(() => {
+      });
+    },
+    kill() {
+      if (stopping || exited) return stopAgent();
+      stopping = true;
+      rejectAllPending(notRunningError());
+      return stopAgent();
+    }
+  };
+}
+function acpClientCapabilities(parameterizedModelPicker, fsAccess, elicitation) {
+  return {
+    fs: { readTextFile: fsAccess, writeTextFile: fsAccess },
+    terminal: false,
+    auth: { terminal: true },
+    ...elicitation ? { elicitation: { form: {} } } : {},
+    ...parameterizedModelPicker === true ? { _meta: { parameterizedModelPicker: true } } : {}
+  };
+}
+var ACP_INITIALIZE_TIMEOUT_MS = 6e4;
+async function requestAcpInitialize(connection, {
+  parameterizedModelPicker,
+  fsAccess,
+  elicitation = false
+}) {
+  const result = await connection.request({
+    method: "initialize",
+    params: {
+      protocolVersion: ACP_CLIENT_PROTOCOL_VERSION,
+      clientInfo: { name: "bb", version: "1.0.0" },
+      clientCapabilities: acpClientCapabilities(
+        parameterizedModelPicker,
+        fsAccess,
+        elicitation
+      )
+    },
+    resultSchema: z49.unknown(),
+    timeoutMs: ACP_INITIALIZE_TIMEOUT_MS
+  });
+  return readAcpAgentCapabilities(result);
+}
+
+// ../provider-bridge-acp/src/session/session-model.ts
+var DEFAULT_PLAN_ID = "default";
+var TERMINAL_TOOL_CALL_STATUSES = /* @__PURE__ */ new Set([
+  "completed",
+  "failed",
+  "cancelled"
+]);
+var MESSAGE_CHUNK_ROLES = {
+  user_message_chunk: "user",
+  agent_message_chunk: "agent",
+  agent_thought_chunk: "thought"
+};
+var MESSAGE_UPSERT_ROLES = {
+  user_message: "user",
+  agent_message: "agent",
+  agent_thought: "thought"
+};
+var TOOL_CALL_STRING_FIELDS = ["title", "name", "kind", "status"];
+function isTerminalToolCallStatus(status) {
+  return TERMINAL_TOOL_CALL_STATUSES.has(status);
+}
+function createAcpSessionModel(options) {
+  const nullClears = options.generation === 2;
+  const agentReportsState = options.generation === 2;
+  let work = {
+    state: "idle",
+    initiator: null,
+    stopReason: null,
+    error: null
+  };
+  let promptsInFlight = 0;
+  let agentWorking = false;
+  const pendingActions = /* @__PURE__ */ new Set();
+  const messages = /* @__PURE__ */ new Map();
+  const toolCalls = /* @__PURE__ */ new Map();
+  const plans = /* @__PURE__ */ new Map();
+  let agentConfigOptions = [];
+  let legacyMode = null;
+  let legacyModel = null;
+  let commands = [];
+  let info = { title: null, updatedAt: null };
+  let usage = null;
+  let replaying = false;
+  let currentMessage = null;
+  let synthesizedMessageCount = 0;
+  let legacyModeRepeatsThoughtLevels = false;
+  function noteLegacyModeOverlap() {
+    const mode = legacyMode;
+    if (legacyModeRepeatsThoughtLevels || mode === null || mode.type !== "select" || mode.values.length === 0) {
+      return;
+    }
+    legacyModeRepeatsThoughtLevels = agentConfigOptions.some(
+      (option) => option.category === "thought_level" && option.type === "select" && mode.values.every(
+        (modeValue) => option.values.some((level) => level.value === modeValue.value)
+      )
+    );
+  }
+  function effectiveConfigOptions() {
+    const hasCategory = (category) => agentConfigOptions.some((option) => option.category === category);
+    return [
+      ...agentConfigOptions,
+      ...legacyModel && !hasCategory("model") ? [legacyModel] : [],
+      ...legacyMode && !hasCategory("mode") && !legacyModeRepeatsThoughtLevels ? [legacyMode] : []
+    ];
+  }
+  function configOptionsEvent() {
+    return {
+      type: "configOptions",
+      replay: replaying,
+      configOptions: effectiveConfigOptions()
+    };
+  }
+  function setWork(next) {
+    if (next.state === work.state && next.initiator === work.initiator && next.stopReason === work.stopReason && next.error === work.error) {
+      return [];
+    }
+    const previous = work;
+    work = next;
+    if (next.state === "idle") {
+      currentMessage = null;
+    }
+    return [{ type: "work", replay: replaying, previous, work: next }];
+  }
+  function deriveWork(settlement) {
+    if (promptsInFlight === 0 && !agentWorking) {
+      return setWork({
+        state: "idle",
+        initiator: null,
+        stopReason: settlement?.stopReason ?? work.stopReason,
+        error: settlement ? settlement.error : work.error
+      });
+    }
+    return setWork({
+      state: pendingActions.size > 0 ? "requires_action" : "running",
+      initiator: promptsInFlight > 0 ? "client" : "agent",
+      stopReason: null,
+      error: null
+    });
+  }
+  function noteAgentActivity() {
+    if (agentReportsState || replaying) {
+      return [];
+    }
+    if (promptsInFlight > 0 || agentWorking) {
+      return [];
+    }
+    agentWorking = true;
+    return deriveWork(null);
+  }
+  function unhandled(reason, sessionUpdate, raw) {
+    return [
+      { type: "unhandled", replay: replaying, reason, sessionUpdate, raw }
+    ];
+  }
+  function toolCallEvent(toolCall, created, updated) {
+    return {
+      type: "toolCall",
+      replay: replaying,
+      created,
+      updated,
+      toolCall: {
+        ...toolCall,
+        content: [...toolCall.content],
+        locations: [...toolCall.locations]
+      }
+    };
+  }
+  function resolveMessage(role, messageId) {
+    if (messageId !== void 0) {
+      const existing = messages.get(messageId);
+      if (existing) {
+        return existing;
+      }
+      const created2 = {
+        messageId,
+        role,
+        content: [],
+        idSource: "agent"
+      };
+      messages.set(messageId, created2);
+      return created2;
+    }
+    if (currentMessage && currentMessage.role === role && currentMessage.idSource === "synthesized") {
+      return currentMessage;
+    }
+    synthesizedMessageCount += 1;
+    const created = {
+      messageId: `bb-message-${synthesizedMessageCount}`,
+      role,
+      content: [],
+      idSource: "synthesized"
+    };
+    messages.set(created.messageId, created);
+    return created;
+  }
+  function applyMessageChunk(role, sessionUpdate, update) {
+    const block = decodeContentBlock(update["content"]);
+    if (!block) {
+      return unhandled("malformed", sessionUpdate, update);
+    }
+    const activity = noteAgentActivity();
+    const message = resolveMessage(role, readString(update, "messageId"));
+    message.content.push(block);
+    currentMessage = message;
+    return [
+      ...activity,
+      {
+        type: "message",
+        replay: replaying,
+        change: "appended",
+        messageId: message.messageId,
+        role: message.role,
+        idSource: message.idSource,
+        appended: [block]
+      }
+    ];
+  }
+  function applyMessageUpsert(role, sessionUpdate, update) {
+    const messageId = readString(update, "messageId");
+    if (messageId === void 0) {
+      return unhandled("malformed", sessionUpdate, update);
+    }
+    const activity = noteAgentActivity();
+    const message = resolveMessage(role, messageId);
+    if ("content" in update) {
+      message.content = update["content"] === null ? [] : decodeContentBlocks(update["content"]) ?? message.content;
+    }
+    currentMessage = message;
+    return [
+      ...activity,
+      {
+        type: "message",
+        replay: replaying,
+        change: "replaced",
+        messageId: message.messageId,
+        role: message.role,
+        idSource: message.idSource,
+        content: [...message.content]
+      }
+    ];
+  }
+  function applyToolCallPatch(sessionUpdate, update) {
+    const toolCallId = readString(update, "toolCallId");
+    if (toolCallId === void 0) {
+      return unhandled("malformed", sessionUpdate, update);
+    }
+    const existing = toolCalls.get(toolCallId);
+    const toolCall = existing ?? {
+      toolCallId,
+      title: "",
+      status: "pending",
+      content: [],
+      locations: []
+    };
+    const updated = [];
+    for (const field of TOOL_CALL_STRING_FIELDS) {
+      if (!(field in update)) {
+        continue;
+      }
+      const value = update[field];
+      if (typeof value === "string") {
+        toolCall[field] = value;
+        updated.push(field);
+        continue;
+      }
+      if (value === null && nullClears) {
+        if (field === "title") {
+          toolCall.title = "";
+        } else if (field === "status") {
+          toolCall.status = "pending";
+        } else {
+          delete toolCall[field];
+        }
+        updated.push(field);
+      }
+    }
+    if ("content" in update) {
+      const content = decodeToolCallContent(update["content"]);
+      if (content) {
+        toolCall.content = content;
+        updated.push("content");
+      } else if (update["content"] === null && nullClears) {
+        toolCall.content = [];
+        updated.push("content");
+      }
+    }
+    if ("locations" in update) {
+      const locations = decodeToolCallLocations(update["locations"]);
+      if (locations) {
+        toolCall.locations = locations;
+        updated.push("locations");
+      } else if (update["locations"] === null && nullClears) {
+        toolCall.locations = [];
+        updated.push("locations");
+      }
+    }
+    for (const field of ["rawInput", "rawOutput"]) {
+      if (!(field in update)) {
+        continue;
+      }
+      const value = update[field];
+      if (value === null || value === void 0) {
+        if (nullClears && value === null && field in toolCall) {
+          delete toolCall[field];
+          updated.push(field);
+        }
+        continue;
+      }
+      toolCall[field] = value;
+      updated.push(field);
+    }
+    const meta = readMeta(update);
+    if (meta) {
+      toolCall.meta = { ...toolCall.meta, ...meta };
+      updated.push("meta");
+    }
+    const created = existing === void 0;
+    if (created) {
+      toolCalls.set(toolCallId, toolCall);
+      currentMessage = null;
+    }
+    const activity = created || !isTerminalToolCallStatus(toolCall.status) ? noteAgentActivity() : [];
+    return [...activity, toolCallEvent(toolCall, created, updated)];
+  }
+  function applyToolCallContentChunk(sessionUpdate, update) {
+    const toolCallId = readString(update, "toolCallId");
+    const item = decodeToolCallContentItem(update["content"]);
+    if (toolCallId === void 0 || !item) {
+      return unhandled("malformed", sessionUpdate, update);
+    }
+    const existing = toolCalls.get(toolCallId);
+    const toolCall = existing ?? {
+      toolCallId,
+      title: "",
+      status: "pending",
+      content: [],
+      locations: []
+    };
+    toolCall.content.push(item);
+    const created = existing === void 0;
+    if (created) {
+      toolCalls.set(toolCallId, toolCall);
+      currentMessage = null;
+    }
+    return [
+      ...noteAgentActivity(),
+      toolCallEvent(toolCall, created, ["content"])
+    ];
+  }
+  function applyPlan(sessionUpdate, planId, rawEntries, raw) {
+    const entries = decodePlanEntries(rawEntries);
+    if (!entries) {
+      return unhandled("malformed", sessionUpdate, raw);
+    }
+    const plan = { planId, entries };
+    plans.set(planId, plan);
+    return [{ type: "plan", replay: replaying, plan }];
+  }
+  function applyStateUpdate(sessionUpdate, update) {
+    const state = readString(update, "state");
+    if (state === "running" || state === "requires_action") {
+      return setWork({
+        state,
+        initiator: work.initiator ?? "agent",
+        stopReason: null,
+        error: null
+      });
+    }
+    if (state === "idle") {
+      return setWork({
+        state: "idle",
+        initiator: null,
+        stopReason: readString(update, "stopReason") ?? null,
+        error: decodeWorkError(update["error"])
+      });
+    }
+    return unhandled("malformed", sessionUpdate, update);
+  }
+  function applySessionUpdate(update) {
+    if (!isJsonObject(update)) {
+      return unhandled("malformed", null, update);
+    }
+    const sessionUpdate = readString(update, "sessionUpdate");
+    if (sessionUpdate === void 0) {
+      return unhandled("malformed", null, update);
+    }
+    const chunkRole = MESSAGE_CHUNK_ROLES[sessionUpdate];
+    if (chunkRole !== void 0) {
+      return applyMessageChunk(chunkRole, sessionUpdate, update);
+    }
+    const upsertRole = MESSAGE_UPSERT_ROLES[sessionUpdate];
+    if (upsertRole !== void 0) {
+      return applyMessageUpsert(upsertRole, sessionUpdate, update);
+    }
+    switch (sessionUpdate) {
+      case "tool_call":
+      case "tool_call_update":
+        return applyToolCallPatch(sessionUpdate, update);
+      case "tool_call_content_chunk":
+        return applyToolCallContentChunk(sessionUpdate, update);
+      case "plan":
+        return applyPlan(
+          sessionUpdate,
+          DEFAULT_PLAN_ID,
+          update["entries"],
+          update
+        );
+      case "plan_update": {
+        const plan = update["plan"];
+        if (!isJsonObject(plan) || readString(plan, "type") !== "items") {
+          return unhandled("unknown-variant", sessionUpdate, update);
+        }
+        return applyPlan(
+          sessionUpdate,
+          readString(plan, "planId") ?? DEFAULT_PLAN_ID,
+          plan["entries"],
+          update
+        );
+      }
+      case "available_commands_update": {
+        const decoded = decodeAvailableCommands(update["availableCommands"]);
+        if (!decoded) {
+          return unhandled("malformed", sessionUpdate, update);
+        }
+        commands = decoded;
+        return [{ type: "commands", replay: replaying, commands }];
+      }
+      case "config_option_update":
+        return applyConfigOptions(update["configOptions"]);
+      case "current_mode_update": {
+        const currentModeId = readString(update, "currentModeId");
+        if (currentModeId === void 0) {
+          return unhandled("malformed", sessionUpdate, update);
+        }
+        if (!legacyMode || legacyMode.type !== "select") {
+          return [];
+        }
+        legacyMode = { ...legacyMode, currentValue: currentModeId };
+        return [configOptionsEvent()];
+      }
+      case "session_info_update": {
+        const next = { ...info };
+        for (const field of ["title", "updatedAt"]) {
+          if (!(field in update)) {
+            continue;
+          }
+          const value = update[field];
+          if (typeof value === "string" || value === null) {
+            next[field] = value;
+          }
+        }
+        info = next;
+        return [{ type: "info", replay: replaying, info }];
+      }
+      case "usage_update": {
+        const counts = decodeUsageCounts(update);
+        if (!counts) {
+          return unhandled("malformed", sessionUpdate, update);
+        }
+        usage = {
+          ...counts,
+          cost: decodeUsageCost(update["cost"]) ?? usage?.cost ?? null
+        };
+        return [{ type: "usage", replay: replaying, usage }];
+      }
+      case "state_update":
+        return agentReportsState ? applyStateUpdate(sessionUpdate, update) : unhandled("unknown-variant", sessionUpdate, update);
+      default:
+        return unhandled("unknown-variant", sessionUpdate, update);
+    }
+  }
+  function applyConfigOptions(configOptions) {
+    const decoded = decodeConfigOptions(configOptions);
+    if (!decoded) {
+      return [];
+    }
+    agentConfigOptions = decoded;
+    noteLegacyModeOverlap();
+    return [configOptionsEvent()];
+  }
+  function pruneSettledEntities() {
+    for (const [toolCallId, toolCall] of toolCalls) {
+      if (isTerminalToolCallStatus(toolCall.status)) {
+        toolCalls.delete(toolCallId);
+      }
+    }
+    messages.clear();
+    currentMessage = null;
+  }
+  return {
+    snapshot() {
+      return {
+        work,
+        messages: [...messages.values()].map((message) => ({
+          ...message,
+          content: [...message.content]
+        })),
+        toolCalls: [...toolCalls.values()].map((toolCall) => ({
+          ...toolCall,
+          content: [...toolCall.content],
+          locations: [...toolCall.locations]
+        })),
+        plans: [...plans.values()],
+        configOptions: effectiveConfigOptions(),
+        commands,
+        info,
+        usage
+      };
+    },
+    applySessionUpdate,
+    applySessionSetup(setup) {
+      agentConfigOptions = decodeConfigOptions(setup.configOptions) ?? [];
+      legacyMode = decodeLegacyModes(setup.modes);
+      legacyModel = decodeLegacyModels(setup.models);
+      legacyModeRepeatsThoughtLevels = false;
+      noteLegacyModeOverlap();
+      return [configOptionsEvent()];
+    },
+    applyConfigOptions,
+    applyConfigOptionValue(optionId, value) {
+      const withValue = (option) => {
+        if (option.id !== optionId) {
+          return null;
+        }
+        if (option.type === "select" && typeof value === "string") {
+          return { ...option, currentValue: value };
+        }
+        if (option.type === "boolean" && typeof value === "boolean") {
+          return { ...option, currentValue: value };
+        }
+        return null;
+      };
+      const agentIndex = agentConfigOptions.findIndex(
+        (option) => withValue(option) !== null
+      );
+      if (agentIndex !== -1) {
+        agentConfigOptions = agentConfigOptions.map(
+          (option, index) => (index === agentIndex ? withValue(option) : null) ?? option
+        );
+        return [configOptionsEvent()];
+      }
+      const nextLegacyMode = legacyMode ? withValue(legacyMode) : null;
+      if (nextLegacyMode) {
+        legacyMode = nextLegacyMode;
+        return [configOptionsEvent()];
+      }
+      const nextLegacyModel = legacyModel ? withValue(legacyModel) : null;
+      if (nextLegacyModel) {
+        legacyModel = nextLegacyModel;
+        return [configOptionsEvent()];
+      }
+      return [];
+    },
+    beginReplay() {
+      replaying = true;
+      currentMessage = null;
+    },
+    endReplay() {
+      replaying = false;
+      pruneSettledEntities();
+    },
+    promptSubmitted() {
+      pruneSettledEntities();
+      promptsInFlight += 1;
+      return agentReportsState ? [] : deriveWork(null);
+    },
+    promptSettled(outcome) {
+      promptsInFlight = Math.max(0, promptsInFlight - 1);
+      if (agentReportsState) {
+        return [];
+      }
+      if (promptsInFlight === 0) {
+        agentWorking = false;
+        pendingActions.clear();
+      }
+      return deriveWork(
+        "error" in outcome ? { stopReason: "error", error: outcome.error } : { stopReason: outcome.stopReason, error: null }
+      );
+    },
+    actionRequested(key) {
+      pendingActions.add(key);
+      if (agentReportsState) {
+        return [];
+      }
+      if (promptsInFlight === 0) {
+        agentWorking = true;
+      }
+      return deriveWork(null);
+    },
+    actionResolved(key) {
+      pendingActions.delete(key);
+      return agentReportsState ? [] : deriveWork(null);
+    },
+    agentWorkSettled(stopReason) {
+      if (agentReportsState || !agentWorking) {
+        return [];
+      }
+      agentWorking = false;
+      if (promptsInFlight === 0) {
+        pendingActions.clear();
+      }
+      return deriveWork({ stopReason, error: null });
+    },
+    hasUnfinishedToolCalls() {
+      for (const toolCall of toolCalls.values()) {
+        if (!isTerminalToolCallStatus(toolCall.status)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    closeUnfinishedToolCalls(status) {
+      const events = [];
+      for (const toolCall of toolCalls.values()) {
+        if (isTerminalToolCallStatus(toolCall.status)) {
+          continue;
+        }
+        toolCall.status = status;
+        events.push(toolCallEvent(toolCall, false, ["status"]));
+      }
+      return events;
+    }
+  };
+}
+
+// ../provider-bridge-acp/src/session/thread-state.ts
+var MAX_COMMANDS = 500;
+var MAX_OPTIONS = 64;
+var MAX_OPTION_VALUES = 1e3;
+function toThreadProviderCommandsState(commands) {
+  return {
+    commands: commands.filter((command) => command.name.trim() !== "").slice(0, MAX_COMMANDS).map((command) => ({
+      name: command.name,
+      description: command.description,
+      ...command.inputHint ? { inputHint: command.inputHint } : {}
+    }))
+  };
+}
+function selectValues(option) {
+  const groupNameByValue = /* @__PURE__ */ new Map();
+  for (const group of option.groups) {
+    for (const value of group.options) {
+      groupNameByValue.set(value.value, group.name);
+    }
+  }
+  return option.values.filter((value) => value.value !== "").slice(0, MAX_OPTION_VALUES).map((value) => {
+    const group = groupNameByValue.get(value.value);
+    return {
+      id: value.value,
+      label: value.name.trim() === "" ? value.value : value.name,
+      ...value.description ? { description: value.description } : {},
+      ...group ? { group } : {}
+    };
+  });
+}
+var BRIDGE_MANAGED_OPTION_CATEGORIES = /* @__PURE__ */ new Set(["model", "thought_level"]);
+var BRIDGE_MANAGED_SERVICE_TIER_OPTION_ID = "fast";
+function isUserSelectableSessionOption(option) {
+  return option.type !== "unsupported" && !(option.category !== void 0 && BRIDGE_MANAGED_OPTION_CATEGORIES.has(option.category)) && !(option.type === "select" && option.id === BRIDGE_MANAGED_SERVICE_TIER_OPTION_ID);
+}
+function toThreadSessionOptionsState(options) {
+  const sessionOptions = [];
+  for (const option of options) {
+    if (!isUserSelectableSessionOption(option)) {
+      continue;
+    }
+    const base = {
+      id: option.id,
+      label: option.name.trim() === "" ? option.id : option.name,
+      ...option.description ? { description: option.description } : {},
+      ...option.category ? { category: option.category } : {}
+    };
+    sessionOptions.push(
+      option.type === "boolean" ? { ...base, type: "boolean", value: option.currentValue } : {
+        ...base,
+        type: "select",
+        value: option.currentValue,
+        values: selectValues(option)
+      }
+    );
+  }
+  return { options: sessionOptions.slice(0, MAX_OPTIONS) };
+}
+
+// ../provider-bridge-acp/src/bridge/cursor-mcp-approval.ts
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
+import { basename as basename4, dirname as dirname2, join as join3, resolve as resolve3 } from "node:path";
+
+// ../provider-bridge-acp/src/bridge/tool-proxy-mcp.ts
+import { createConnection } from "node:net";
+import { createInterface as createInterface3 } from "node:readline";
+import { z as z50 } from "zod";
+var ACP_BRIDGE_MCP_SERVER_NAME = "bb-bridge";
+var ENV_HOST = "BB_ACP_DYNAMIC_TOOL_HOST";
+var ENV_PORT = "BB_ACP_DYNAMIC_TOOL_PORT";
+var ENV_TOKEN = "BB_ACP_DYNAMIC_TOOL_TOKEN";
+var ENV_THREAD_ID = "BB_ACP_DYNAMIC_TOOL_THREAD_ID";
+var ENV_TOOLS = "BB_ACP_DYNAMIC_TOOLS";
+var ENV_PROGRESS_INTERVAL_MS = "BB_ACP_DYNAMIC_TOOL_PROGRESS_INTERVAL_MS";
+var dynamicToolBridgeRequestSchema = z50.discriminatedUnion("kind", [
+  z50.object({
+    kind: z50.literal("initialized"),
+    threadId: z50.string().min(1),
+    token: z50.string().min(1),
+    toolCount: z50.number().int().nonnegative()
+  }),
+  z50.object({
+    kind: z50.literal("toolCall"),
+    arguments: z50.record(z50.string(), z50.unknown()).default({}),
+    callId: z50.string().min(1),
+    threadId: z50.string().min(1),
+    token: z50.string().min(1),
+    tool: z50.string().min(1)
+  })
+]);
+var bridgeToolCallResponseSchema = z50.union([
+  z50.object({
+    ok: z50.literal(true),
+    content: z50.string(),
+    contentBlocks: z50.array(
+      z50.discriminatedUnion("type", [
+        z50.object({ type: z50.literal("text"), text: z50.string() }),
+        z50.object({
+          type: z50.literal("image"),
+          data: z50.string(),
+          mimeType: z50.string()
+        })
+      ])
+    ).optional(),
+    images: z50.array(z50.object({ data: z50.string(), mimeType: z50.string() })).default([]),
+    isError: z50.boolean().optional()
+  }),
+  z50.object({ ok: z50.literal(false), error: z50.string() })
+]);
+var jsonRpcMessageSchema = z50.object({
+  id: z50.union([z50.string(), z50.number().int()]).optional(),
+  method: z50.string().optional(),
+  params: z50.unknown().optional()
+});
+var nextMcpToolCallId = 0;
+var TOOL_CALL_PROGRESS_INTERVAL_MS = 15e3;
+function buildAcpMcpServerConfig(args) {
+  return {
+    name: ACP_BRIDGE_MCP_SERVER_NAME,
+    command: args.command,
+    args: args.bridgeArgs,
+    env: [
+      ...args.runtimeEnv,
+      { name: ENV_HOST, value: args.host },
+      { name: ENV_PORT, value: String(args.port) },
+      { name: ENV_TOKEN, value: args.token },
+      { name: ENV_THREAD_ID, value: args.threadId },
+      { name: ENV_TOOLS, value: JSON.stringify(args.dynamicTools) }
+    ]
+  };
+}
+function readEnvironment() {
+  const port = Number(process.env[ENV_PORT]);
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error(`${ENV_PORT} must be a positive integer`);
+  }
+  const host = process.env[ENV_HOST];
+  const token = process.env[ENV_TOKEN];
+  const threadId = process.env[ENV_THREAD_ID];
+  const toolsJson = process.env[ENV_TOOLS];
+  if (!host || !token || !threadId || !toolsJson) {
+    throw new Error("Missing ACP dynamic tool MCP server environment");
+  }
+  const parsedTools = JSON.parse(toolsJson);
+  const tools = dynamicToolSchema.array().parse(parsedTools);
+  const rawProgressInterval = process.env[ENV_PROGRESS_INTERVAL_MS];
+  const progressIntervalMs = rawProgressInterval !== void 0 && Number(rawProgressInterval) > 0 ? Number(rawProgressInterval) : void 0;
+  return {
+    host,
+    port,
+    progressIntervalMs,
+    threadId,
+    token,
+    tools
+  };
+}
+function writeJson(message) {
+  process.stdout.write(`${JSON.stringify(message)}
+`);
+}
+function writeResult(id, result) {
+  writeJson({ jsonrpc: "2.0", id, result });
+}
+function writeError(id, code, message) {
+  writeJson({ jsonrpc: "2.0", id, error: { code, message } });
+}
+function mcpToolCallId(toolName) {
+  nextMcpToolCallId += 1;
+  return `acp-mcp-${toolName}-${Date.now()}-${nextMcpToolCallId}`;
+}
+function callBridge(env, request, signal) {
+  return new Promise((resolve5, reject) => {
+    const socket = createConnection({ host: env.host, port: env.port });
+    const abort = () => {
+      socket.destroy();
+      reject(new Error("ACP dynamic tool call cancelled"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    socket.once("close", () => signal?.removeEventListener("abort", abort));
+    if (signal?.aborted) abort();
+    let buffer = "";
+    socket.setEncoding("utf8");
+    socket.on("connect", () => {
+      const payload = {
+        ...request,
+        threadId: env.threadId,
+        token: env.token
+      };
+      socket.write(`${JSON.stringify(payload)}
+`);
+    });
+    socket.on("data", (chunk) => {
+      buffer += chunk;
+      const newlineIndex = buffer.indexOf("\n");
+      if (newlineIndex === -1) {
+        return;
+      }
+      const line = buffer.slice(0, newlineIndex);
+      socket.end();
+      try {
+        resolve5(bridgeToolCallResponseSchema.parse(JSON.parse(line)));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    socket.on("error", reject);
+    socket.on("end", () => {
+      if (!buffer.includes("\n")) {
+        reject(new Error("ACP dynamic tool bridge closed without a response"));
+      }
+    });
+  });
+}
+function objectParams(params) {
+  return params && typeof params === "object" && !Array.isArray(params) ? params : {};
+}
+function readProgressToken(params) {
+  const meta = objectParams(objectParams(params)._meta).progressToken;
+  return typeof meta === "string" || typeof meta === "number" ? meta : null;
+}
+function startProgressHeartbeat(args) {
+  let progress = 0;
+  const timer = setInterval(() => {
+    progress += 1;
+    writeJson({
+      jsonrpc: "2.0",
+      method: "notifications/progress",
+      params: { progressToken: args.progressToken, progress }
+    });
+  }, args.intervalMs ?? TOOL_CALL_PROGRESS_INTERVAL_MS);
+  return () => clearInterval(timer);
+}
+async function handleRequest(env, message, pending) {
+  if (message.method === PROVIDER_TOOL_CALL_CANCELLED_METHOD) {
+    const cancellation = providerToolCallCancellationSchema.safeParse(
+      message.params
+    );
+    if (cancellation.success) pending.get(cancellation.data.requestId)?.abort();
+    return;
+  }
+  if (message.id === void 0 || message.method === void 0) {
+    return;
+  }
+  switch (message.method) {
+    case "initialize":
+      writeResult(message.id, {
+        protocolVersion: typeof objectParams(message.params).protocolVersion === "string" ? objectParams(message.params).protocolVersion : "2024-11-05",
+        capabilities: { tools: {} },
+        serverInfo: { name: ACP_BRIDGE_MCP_SERVER_NAME, version: "1.0.0" }
+      });
+      void callBridge(env, {
+        kind: "initialized",
+        toolCount: env.tools.length
+      }).catch((error) => {
+        process.stderr.write(
+          `bb-bridge MCP: failed to report initialize: ${error instanceof Error ? error.message : String(error)}
+`
+        );
+      });
+      return;
+    case "tools/list":
+      writeResult(message.id, {
+        tools: env.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema
+        }))
+      });
+      return;
+    case "tools/call": {
+      if (pending.has(message.id)) return;
+      const params = objectParams(message.params);
+      const name = typeof params.name === "string" ? params.name : "";
+      const tool = env.tools.find((candidate) => candidate.name === name);
+      if (!tool) {
+        writeError(message.id, -32602, `Unknown tool: ${name}`);
+        return;
+      }
+      const rawArguments = params.arguments;
+      const toolArguments = rawArguments && typeof rawArguments === "object" && !Array.isArray(rawArguments) ? rawArguments : {};
+      const controller = new AbortController();
+      pending.set(message.id, controller);
+      const progressToken = readProgressToken(message.params);
+      const stopHeartbeat = progressToken === null ? () => {
+      } : startProgressHeartbeat({
+        intervalMs: env.progressIntervalMs,
+        progressToken
+      });
+      controller.signal.addEventListener("abort", stopHeartbeat, {
+        once: true
+      });
+      try {
+        const result = await callBridge(
+          env,
+          {
+            kind: "toolCall",
+            arguments: toolArguments,
+            callId: mcpToolCallId(tool.name),
+            tool: tool.name
+          },
+          controller.signal
+        );
+        if (controller.signal.aborted) return;
+        if (!result.ok) {
+          writeResult(message.id, {
+            content: [{ type: "text", text: result.error }],
+            isError: true
+          });
+          return;
+        }
+        writeResult(message.id, {
+          content: buildBridgeToolCallContent(result),
+          ...result.isError ? { isError: true } : {}
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        writeResult(message.id, {
+          content: [
+            {
+              type: "text",
+              text: error instanceof Error ? error.message : String(error)
+            }
+          ],
+          isError: true
+        });
+      } finally {
+        stopHeartbeat();
+        controller.signal.removeEventListener("abort", stopHeartbeat);
+        pending.delete(message.id);
+      }
+      return;
+    }
+    default:
+      writeError(
+        message.id,
+        -32601,
+        `Unsupported MCP method: ${message.method}`
+      );
+  }
+}
+function runAcpDynamicToolMcpServer() {
+  const env = readEnvironment();
+  const pending = /* @__PURE__ */ new Map();
+  const rl = createInterface3({ input: process.stdin, terminal: false });
+  rl.on("close", () => {
+    for (const controller of pending.values()) controller.abort();
+  });
+  rl.on("line", (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+    let message;
+    try {
+      message = jsonRpcMessageSchema.parse(JSON.parse(trimmed));
+    } catch {
+      return;
+    }
+    void handleRequest(env, message, pending);
+  });
+}
+
+// ../provider-bridge-acp/src/bridge/cursor-mcp-approval.ts
+var CURSOR_MCP_APPROVAL_FILE = "mcp-approvals.json";
+var CURSOR_APPROVAL_LOCK_STALE_MS = 3e4;
+var CURSOR_APPROVAL_LOCK_TIMEOUT_MS = 5e3;
+function errorCode(error) {
+  return error instanceof Error && "code" in error ? error.code : void 0;
+}
+function cursorAgentCommand(command) {
+  return basename4(command).toLowerCase().replace(/\.(?:bat|cmd|exe)$/u, "") === "cursor-agent";
+}
+function cursorProjectSlug(projectRoot) {
+  return projectRoot.replace(/[^a-zA-Z0-9]/gu, "-").replace(/-+/gu, "-").replace(/^-+|-+$/gu, "");
+}
+function cursorDataDirectory(env) {
+  const configured = env.CURSOR_DATA_DIR?.trim();
+  if (configured) {
+    return configured;
+  }
+  const home = env.HOME?.trim() || env.USERPROFILE?.trim() || homedir2();
+  return join3(home, ".cursor");
+}
+function cursorMcpServerConfig(config) {
+  return {
+    command: config.command,
+    args: config.args,
+    env: Object.fromEntries(config.env.map(({ name, value }) => [name, value]))
+  };
+}
+function buildCursorMcpApprovalIdentifier(args) {
+  const fingerprint = createHash("sha256").update(
+    JSON.stringify({
+      path: args.projectRoot,
+      server: cursorMcpServerConfig(args.config)
+    })
+  ).digest("hex").slice(0, 16);
+  return `${args.config.name}-${fingerprint}`;
+}
+async function resolveCursorProjectRoot(args) {
+  return new Promise((resolveRoot) => {
+    execHostFileCallback(
+      "git",
+      ["rev-parse", "--show-toplevel"],
+      { cwd: args.cwd, env: args.env, windowsHide: true },
+      (error, stdout) => {
+        const root = stdout.trim();
+        resolveRoot(error === null && root !== "" ? root : resolve3(args.cwd));
+      }
+    );
+  });
+}
+async function readApprovals(path12) {
+  let text;
+  try {
+    text = await readFile(path12, "utf8");
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+  const value = JSON.parse(text);
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw new Error(`Cursor MCP approval file is not a string array: ${path12}`);
+  }
+  return value;
+}
+async function writeApprovals(path12, approvals) {
+  await mkdir(dirname2(path12), { recursive: true });
+  const tempPath = `${path12}.bb-${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(approvals, null, 2)}
+`, {
+      encoding: "utf8",
+      mode: 384
+    });
+    await rename(tempPath, path12);
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    throw error;
+  }
+}
+async function acquireApprovalLock(path12) {
+  const lockPath = `${path12}.bb-lock`;
+  const deadline = Date.now() + CURSOR_APPROVAL_LOCK_TIMEOUT_MS;
+  await mkdir(dirname2(path12), { recursive: true });
+  for (; ; ) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out updating Cursor MCP approvals: ${path12}`);
+    }
+    try {
+      await mkdir(lockPath, { mode: 448 });
+      return () => rm(lockPath, { recursive: true, force: true });
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST" && !(process.platform === "win32" && errorCode(error) === "EPERM")) {
+        throw error;
+      }
+    }
+    try {
+      const lockStat = await stat(lockPath);
+      if (Date.now() - lockStat.mtimeMs > CURSOR_APPROVAL_LOCK_STALE_MS) {
+        await rm(lockPath, { recursive: true, force: true });
+        continue;
+      }
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") {
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+        continue;
+      }
+      throw error;
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
+  }
+}
+async function mutateApprovals(path12, mutate) {
+  const releaseLock = await acquireApprovalLock(path12);
+  try {
+    const approvals = await readApprovals(path12);
+    const nextApprovals = mutate(approvals);
+    if (approvals.length !== nextApprovals.length || approvals.some((approval, index) => approval !== nextApprovals[index])) {
+      await writeApprovals(path12, nextApprovals);
+    }
+  } finally {
+    await releaseLock();
+  }
+}
+async function approveCursorSessionMcpServer(args) {
+  if (!cursorAgentCommand(args.agentCommand) || args.config.name !== ACP_BRIDGE_MCP_SERVER_NAME) {
+    return void 0;
+  }
+  const projectRoot = await resolveCursorProjectRoot({
+    cwd: args.cwd,
+    env: args.env
+  });
+  const path12 = join3(
+    cursorDataDirectory(args.env),
+    "projects",
+    cursorProjectSlug(projectRoot),
+    CURSOR_MCP_APPROVAL_FILE
+  );
+  const approval = buildCursorMcpApprovalIdentifier({
+    config: args.config,
+    projectRoot
+  });
+  let installedByBb = false;
+  await mutateApprovals(path12, (approvals) => {
+    if (approvals.includes(approval)) {
+      return approvals;
+    }
+    installedByBb = true;
+    return [...approvals, approval];
+  });
+  return { approval, installedByBb, path: path12 };
+}
+async function revokeCursorSessionMcpServer(approval) {
+  if (!approval.installedByBb) {
+    return;
+  }
+  await mutateApprovals(
+    approval.path,
+    (approvals) => approvals.filter((candidate) => candidate !== approval.approval)
+  );
+}
+
+// ../provider-bridge-acp/src/bridge/bridge.ts
+var sessionsByBbThreadId = /* @__PURE__ */ new Map();
+var agentConnections = /* @__PURE__ */ new Set();
+var shuttingDown = false;
+function createBridgeAgentConnection(options) {
+  if (shuttingDown) {
+    throw new Error("ACP bridge is shutting down");
+  }
+  const connection = createAcpAgentConnection({
+    ...options,
+    onExit: (info) => {
+      agentConnections.delete(connection);
+      options.onExit(info);
+    }
+  });
+  agentConnections.add(connection);
+  return connection;
+}
+var bbThreadIdByProviderThreadId = /* @__PURE__ */ new Map();
+var pendingRuntimeRequests = /* @__PURE__ */ new Map();
+var runtimeRequestIdCounter = 0;
+var dynamicToolBridgePromise = null;
+var THREAD_STOP_CANCEL_TIMEOUT_MS = 4e3;
+var SHUTDOWN_CANCEL_TIMEOUT_MS = 1500;
+var AGENT_TURN_QUIET_MS = 5e3;
+var SESSION_BUSY_QUIET_MS = 2e3;
+var SESSION_BUSY_MAX_WAITS = 300;
+var SESSION_BUSY_MAX_RETRIES = 3;
+var ACP_SESSION_BUSY_ERROR_CODE = -32003;
+var ACP_SESSION_SETUP_TIMEOUT_MS = 3e5;
+var ACP_SESSION_CONFIG_TIMEOUT_MS = 6e4;
+var ACP_AUTHENTICATE_TIMEOUT_MS = 12e4;
+var { send, sendResult, sendError } = createBridgeIo();
+function sendNotification(method, params) {
+  send({ jsonrpc: "2.0", method, params });
+}
+function sendRuntimeRequest(method, params, signal) {
+  signal?.throwIfAborted();
+  runtimeRequestIdCounter += 1;
+  const requestId = runtimeRequestIdCounter;
+  let abort;
+  const responsePromise = new Promise(
+    (resolveResponse, rejectResponse) => {
+      abort = () => {
+        pendingRuntimeRequests.delete(requestId);
+        sendNotification(PROVIDER_TOOL_CALL_CANCELLED_METHOD, { requestId });
+        rejectResponse(new Error("ACP dynamic tool call cancelled"));
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      pendingRuntimeRequests.set(requestId, (response) => {
+        if ("error" in response) {
+          rejectResponse(
+            new Error(response.error.message ?? "Runtime request failed")
+          );
+          return;
+        }
+        resolveResponse(response.result);
+      });
+    }
+  );
+  send({
+    jsonrpc: "2.0",
+    id: requestId,
+    method,
+    params
+  });
+  return responsePromise.finally(
+    () => signal?.removeEventListener("abort", abort)
+  );
+}
+var configuredSkillRoots = null;
+function sendThreadDeltas(threadId, deltas) {
+  if (deltas.length === 0) {
+    return;
+  }
+  sendNotification(THREAD_DELTA_NOTIFICATION_METHOD, {
+    threadId,
+    deltas: [...deltas]
+  });
+}
+function rememberGrokContextWindow(session, models) {
+  if (session.dialect.id !== "grok") {
+    return;
+  }
+  const size = grokContextWindowSizeFromSessionModels(models);
+  if (size !== void 0) {
+    session.grokContextWindowSize = size;
+  }
+}
+function emitGrokContextWindow(session, used) {
+  if (session.dialect.id !== "grok" || session.grokContextWindowSize === void 0) {
+    return;
+  }
+  const cost = session.model.snapshot().usage?.cost ?? void 0;
+  sendThreadDeltas(session.bbThreadId, [
+    {
+      kind: "contextWindow",
+      used,
+      size: session.grokContextWindowSize,
+      estimated: false,
+      attach: "open",
+      ...cost === void 0 ? {} : { cost }
+    }
+  ]);
+}
+function emitForSession(session, method, params) {
+  sendThreadDeltas(
+    session.bbThreadId,
+    session.translator.translateAcpEvent(
+      { jsonrpc: "2.0", method, params },
+      { threadId: session.bbThreadId }
+    )
+  );
+}
+function emitSessionError(session, message) {
+  for (const controller of session.pendingToolCalls) controller.abort();
+  if (session.activePromptKind !== null) {
+    emitForSession(session, "error", {
+      threadId: session.bbThreadId,
+      message
+    });
+  }
+  sendNotification(BRIDGE_NOTIFICATION_METHODS.error, {
+    threadId: session.bbThreadId,
+    ...session.providerThreadId !== "" ? { providerThreadId: session.providerThreadId } : {},
+    message
+  });
+}
+function resolveBridgeProcessArgsForMcpServer() {
+  return [...process.execArgv, fileURLToPath4(import.meta.url), "--mcp-stdio"];
+}
+function resolveBridgeProcessEnvForMcpServer() {
+  const electronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
+  if (electronRunAsNode === void 0) {
+    return [];
+  }
+  return [{ name: "ELECTRON_RUN_AS_NODE", value: electronRunAsNode }];
+}
+async function forwardDynamicToolCall(args, signal) {
+  const session = sessionsByBbThreadId.get(args.threadId);
+  if (!session || !session.providerThreadId || session.stopping || session.connection.exited) {
+    return { ok: false, error: "No active ACP session for dynamic tool call." };
+  }
+  const controller = new AbortController();
+  session.pendingToolCalls.add(controller);
+  session.translator.noteInjectedToolCall(session.bbThreadId, args.tool);
+  try {
+    const result = await sendRuntimeRequest(
+      "item/tool/call",
+      {
+        providerThreadId: session.providerThreadId,
+        threadId: session.bbThreadId,
+        turnId: null,
+        callId: args.callId,
+        tool: args.tool,
+        arguments: args.arguments
+      },
+      AbortSignal.any([signal, controller.signal])
+    );
+    return { ok: true, ...decodeToolCallResponsePayload(result) };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    session.pendingToolCalls.delete(controller);
+  }
+}
+function handleDynamicToolBridgeSocket(bridge, socket) {
+  const controller = new AbortController();
+  socket.once("close", () => controller.abort());
+  let handled = false;
+  let buffer = "";
+  socket.setEncoding("utf8");
+  socket.on("error", () => {
+  });
+  socket.on("data", (chunk) => {
+    if (handled) return;
+    buffer += chunk;
+    const newlineIndex = buffer.indexOf("\n");
+    if (newlineIndex === -1) {
+      return;
+    }
+    handled = true;
+    const line = buffer.slice(0, newlineIndex);
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      socket.end(`${JSON.stringify({ ok: false, error: "Invalid JSON" })}
+`);
+      return;
+    }
+    const request = dynamicToolBridgeRequestSchema.safeParse(parsed);
+    if (!request.success || request.data.token !== bridge.token) {
+      socket.end(
+        `${JSON.stringify({ ok: false, error: "Invalid dynamic tool request" })}
+`
+      );
+      return;
+    }
+    if (request.data.kind === "initialized") {
+      process.stderr.write(
+        `acp bridge: "${ACP_BRIDGE_MCP_SERVER_NAME}" answered initialize for thread "${request.data.threadId}" (${request.data.toolCount} tools)
+`
+      );
+      socket.end(`${JSON.stringify({ ok: true, content: "" })}
+`);
+      return;
+    }
+    void forwardDynamicToolCall(request.data, controller.signal).then(
+      (response) => {
+        if (controller.signal.aborted) return;
+        socket.end(`${JSON.stringify(response)}
+`);
+      }
+    );
+  });
+}
+async function ensureDynamicToolBridge() {
+  if (dynamicToolBridgePromise) {
+    return dynamicToolBridgePromise;
+  }
+  dynamicToolBridgePromise = new Promise((resolveBridge, rejectBridge) => {
+    const host = "127.0.0.1";
+    const server = createServer((socket) => {
+      socket.on("error", () => {
+      });
+      void dynamicToolBridgePromise?.then((bridge) => {
+        handleDynamicToolBridgeSocket(bridge, socket);
+      });
+    });
+    server.once("error", rejectBridge);
+    server.listen(0, host, () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        rejectBridge(
+          new Error("ACP dynamic tool bridge did not bind a TCP port")
+        );
+        return;
+      }
+      resolveBridge({
+        host,
+        port: address.port,
+        server,
+        token: randomBytes2(32).toString("hex")
+      });
+    });
+  });
+  return dynamicToolBridgePromise;
+}
+async function buildSessionMcpServers(params) {
+  const dynamicTools = params.dynamicTools ?? [];
+  if (dynamicTools.length === 0) {
+    return [];
+  }
+  const bridge = await ensureDynamicToolBridge();
+  const config = buildAcpMcpServerConfig({
+    bridgeArgs: resolveBridgeProcessArgsForMcpServer(),
+    command: process.execPath,
+    dynamicTools,
+    host: bridge.host,
+    port: bridge.port,
+    runtimeEnv: resolveBridgeProcessEnvForMcpServer(),
+    threadId: params.threadId,
+    token: bridge.token
+  });
+  process.stderr.write(
+    `acp bridge: built "${config.name}" session MCP config for thread "${params.threadId}" (${dynamicTools.length} tools)
+`
+  );
+  return [config];
+}
+var ACP_DEFAULT_MODEL = {
+  id: ACP_DEFAULT_MODEL_ID,
+  model: ACP_DEFAULT_MODEL_ID,
+  displayName: "Agent default",
+  description: "Model selection is managed by the connected ACP agent.",
+  reasoningDiscovery: "unknown",
+  supportedReasoningEfforts: [],
+  defaultReasoningEffort: "medium",
+  supportedServiceTiers: [],
+  isDefault: true
+};
+var MODEL_LIST_TIMEOUT_MS = 3e4;
+var ACP_NATIVE_REASONING_DISCOVERY_TIMEOUT_MS = 5e3;
+var AUTH_REQUIRED_MODEL_LIST_ERROR_MESSAGE = "ACP agent is not authenticated.";
+function reasoningSupportFromCli(reasoningCli) {
+  if (reasoningCli === void 0) {
+    return void 0;
+  }
+  const supportedLevels = reasoningCli.supportedLevels;
+  const defaultReasoningEffort = reasoningCli.defaultLevel !== void 0 && supportedLevels.includes(reasoningCli.defaultLevel) ? reasoningCli.defaultLevel : supportedLevels.includes("medium") ? "medium" : supportedLevels[0];
+  return {
+    reasoningDiscovery: "known",
+    supportedReasoningEfforts: reasoningEffortsForLevels(supportedLevels),
+    defaultReasoningEffort
+  };
+}
+function applyReasoningCliToModel(model, reasoningCli) {
+  const reasoningSupport = reasoningSupportFromCli(reasoningCli);
+  return reasoningSupport === void 0 ? model : {
+    ...model,
+    ...reasoningSupport
+  };
+}
+function modelHasNoAdvertisedReasoning(model) {
+  return model.supportedReasoningEfforts.length === 0;
+}
+function applyNativeReasoningHintToModel(model, nativeReasoning) {
+  const reasoningSupport = reasoningSupportFromCli(nativeReasoning);
+  return reasoningSupport === void 0 || !modelHasNoAdvertisedReasoning(model) ? model : {
+    ...model,
+    ...reasoningSupport
+  };
+}
+function applyConfiguredReasoningToModel(model, args) {
+  return args.reasoningCli !== void 0 ? applyReasoningCliToModel(model, args.reasoningCli) : applyNativeReasoningHintToModel(model, args.nativeReasoning);
+}
+function applyConfiguredReasoningToModels(models, args) {
+  return models.map((model) => applyConfiguredReasoningToModel(model, args));
+}
+function resolveHintReasoningValue(args) {
+  const override = args.hint.levelValues?.[args.reasoningLevel];
+  if (override !== void 0) {
+    return override;
+  }
+  return args.hint.supportedLevels.includes(args.reasoningLevel) ? args.reasoningLevel : void 0;
+}
+function nativeReasoningToThoughtLevelOption(nativeReasoning) {
+  if (nativeReasoning === void 0) {
+    return void 0;
+  }
+  const options = nativeReasoning.supportedLevels.flatMap((level) => {
+    const value = resolveHintReasoningValue({
+      hint: nativeReasoning,
+      reasoningLevel: level
+    });
+    return value === void 0 ? [] : [
+      {
+        value,
+        name: value
+      }
+    ];
+  });
+  const currentValue = nativeReasoning.defaultLevel === void 0 ? void 0 : resolveHintReasoningValue({
+    hint: nativeReasoning,
+    reasoningLevel: nativeReasoning.defaultLevel
+  });
+  return {
+    id: nativeReasoning.configId,
+    category: "thought_level",
+    type: "select",
+    ...currentValue !== void 0 ? { currentValue } : {},
+    options
+  };
+}
+function permissionCliArgsForMode(permissionCli, permissionMode) {
+  if (permissionCli === void 0) {
+    return [];
+  }
+  switch (permissionMode) {
+    case "full":
+      return permissionCli.full ?? [];
+    case "accept-edits":
+      return permissionCli.workspaceWrite ?? [];
+  }
+}
+function applyPermissionCliArgs(agentArgs, permissionCli, permissionMode) {
+  const permissionArgs = permissionCliArgsForMode(
+    permissionCli,
+    permissionMode
+  );
+  if (permissionArgs.length === 0) {
+    return [...agentArgs];
+  }
+  const insertAfterArgs = Math.min(
+    permissionCli?.insertAfterArgs ?? 0,
+    agentArgs.length
+  );
+  return [
+    ...agentArgs.slice(0, insertAfterArgs),
+    ...permissionArgs,
+    ...agentArgs.slice(insertAfterArgs)
+  ];
+}
+var cachedModelCatalog = null;
+var SESSION_MODEL_DISCOVERY_TTL_MS = 6e4;
+var cachedSessionDiscoveredModels = null;
+function resolveAcpAuthMethodId(authMethods, env) {
+  const methodIds = new Set(authMethods.map((method) => method.id));
+  if (methodIds.size === 0) {
+    return void 0;
+  }
+  if (env.XAI_API_KEY && methodIds.has("xai.api_key")) {
+    return "xai.api_key";
+  }
+  if (methodIds.has("cached_token")) {
+    return "cached_token";
+  }
+  return void 0;
+}
+async function authenticateAcpAgent(args) {
+  const methodId = resolveAcpAuthMethodId(
+    args.capabilities.authMethods,
+    args.env
+  );
+  if (methodId === void 0) {
+    return;
+  }
+  try {
+    await args.connection.request({
+      method: "authenticate",
+      params: { methodId, _meta: { headless: true } },
+      resultSchema: z51.unknown(),
+      timeoutMs: ACP_AUTHENTICATE_TIMEOUT_MS
+    });
+  } catch (error) {
+    throw new AcpAuthRequiredError(
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+async function loadAgentModelCatalog(listCommand) {
+  const stdout = await execPortableFile(listCommand.command, listCommand.args, {
+    cwd: listCommand.cwd ?? process.cwd(),
+    env: {
+      ...withoutBridgeRuntimeEnv(process.env),
+      ...listCommand.envVars ?? {}
+    },
+    maxBuffer: 1024 * 1024,
+    timeout: MODEL_LIST_TIMEOUT_MS
+  }).then(
+    ({ stdout: stdout2 }) => stdout2,
+    (error) => {
+      if (isMissingExecutableError(error)) throw error;
+      const output = z51.object({ stdout: z51.string(), stderr: z51.string() }).safeParse(error);
+      if (isAuthRequiredModelListError(
+        error,
+        output.success ? output.data.stdout : "",
+        output.success ? output.data.stderr : ""
+      )) {
+        throw new AcpModelListAuthRequiredError();
+      }
+      return null;
+    }
+  );
+  const key = JSON.stringify(listCommand);
+  if (stdout === null) {
+    process.stderr.write(
+      `acp bridge: model list command "${listCommand.command}" failed
+`
+    );
+    return cachedModelCatalog?.key === key ? cachedModelCatalog.catalog : null;
+  }
+  const catalog = buildAgentModelCatalog(parseAgentModelLines(stdout));
+  if (!catalog) {
+    process.stderr.write(
+      `acp bridge: model list command "${listCommand.command}" printed no models
+`
+    );
+    return cachedModelCatalog?.key === key ? cachedModelCatalog.catalog : null;
+  }
+  cachedModelCatalog = { key, catalog };
+  return catalog;
+}
+var cachedDeclaredSessionOptions = null;
+function declaredSessionOptionsKey(agent, parameterizedModelPicker) {
+  return JSON.stringify({ agent, parameterizedModelPicker });
+}
+function rememberDeclaredSessionOptions(key, sessionSetup) {
+  const model = createAcpSessionModel({ generation: 1 });
+  if (isJsonObject(sessionSetup)) {
+    model.applySessionSetup(sessionSetup);
+  }
+  cachedDeclaredSessionOptions = {
+    key,
+    options: toThreadSessionOptionsState(model.snapshot().configOptions).options,
+    fetchedAt: Date.now()
+  };
+}
+function freshDeclaredSessionOptions(key) {
+  return cachedDeclaredSessionOptions?.key === key && Date.now() - cachedDeclaredSessionOptions.fetchedAt < SESSION_MODEL_DISCOVERY_TTL_MS ? cachedDeclaredSessionOptions.options : null;
+}
+var ACP_DISCOVERY_SESSION_DELETE_TIMEOUT_MS = 2e3;
+var ACP_DISCOVERY_SESSION_CLI_DELETE_TIMEOUT_MS = 15e3;
+function discoverySessionCliDeleteArgs(args) {
+  if (args.dialectId !== "opencode" || args.agentArgs.at(-1) !== "acp" || !/^[A-Za-z0-9_-]+$/u.test(args.sessionId)) {
+    return null;
+  }
+  return [...args.agentArgs.slice(0, -1), "session", "delete", args.sessionId];
+}
+async function endDiscoveryConnection(args) {
+  const { connection, agent, session } = args;
+  const agentDeletes = session?.capabilities.session.delete === true;
+  if (session !== null && agentDeletes) {
+    await connection.request({
+      method: "session/delete",
+      params: { sessionId: session.sessionId },
+      resultSchema: z51.unknown(),
+      timeoutMs: ACP_DISCOVERY_SESSION_DELETE_TIMEOUT_MS
+    }).catch(() => void 0);
+  }
+  await connection.kill();
+  if (session === null || agentDeletes) {
+    return;
+  }
+  const cliArgs = discoverySessionCliDeleteArgs({
+    dialectId: args.dialectId,
+    agentArgs: agent.args,
+    sessionId: session.sessionId
+  });
+  if (cliArgs === null) {
+    return;
+  }
+  void execPortableFile(agent.command, cliArgs, {
+    cwd: agent.cwd ?? process.cwd(),
+    env: args.env,
+    maxBuffer: 64 * 1024,
+    timeout: ACP_DISCOVERY_SESSION_CLI_DELETE_TIMEOUT_MS
+  }).catch(() => void 0);
+}
+async function resolveModelListWorkspace(cwd) {
+  if (cwd === void 0) {
+    return void 0;
+  }
+  const stats = await fs4.stat(cwd).catch(() => null);
+  return stats?.isDirectory() === true ? cwd : void 0;
+}
+function inModelListWorkspace(params, workspace) {
+  if (workspace === void 0) {
+    return params;
+  }
+  const place = (command) => command.cwd === void 0 ? { ...command, cwd: workspace } : command;
+  return {
+    ...params,
+    ...params.listCommand === void 0 ? {} : { listCommand: place(params.listCommand) },
+    ...params.agent === void 0 ? {} : { agent: place(params.agent) },
+    ...params.optionsAgent === void 0 ? {} : { optionsAgent: place(params.optionsAgent) }
+  };
+}
+async function loadDeclaredSessionOptions(agent, parameterizedModelPicker, dialectId) {
+  const key = declaredSessionOptionsKey(agent, parameterizedModelPicker);
+  const cached = freshDeclaredSessionOptions(key);
+  if (cached !== null) {
+    return cached;
+  }
+  const childEnv = {
+    ...withoutBridgeRuntimeEnv(process.env),
+    ...agent.envVars ?? {}
+  };
+  const connection = createBridgeAgentConnection({
+    command: agent.command,
+    args: agent.args,
+    cwd: agent.cwd ?? process.cwd(),
+    env: childEnv,
+    recordThreadId: null,
+    onResponse: (method, result) => {
+      if (method === "session/new") {
+        rememberDeclaredSessionOptions(key, result);
+      }
+    },
+    onNotification: () => {
+    },
+    onRequest: (_method, _params, responder) => {
+      responder.error(-32601, "ACP option discovery does not support requests");
+    },
+    onExit: () => {
+    }
+  });
+  let timeout;
+  const timeoutReached = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      connection.kill();
+      reject(
+        new Error(
+          `ACP option discovery timed out after ${MODEL_LIST_TIMEOUT_MS}ms`
+        )
+      );
+    }, MODEL_LIST_TIMEOUT_MS);
+  });
+  let discoverySession = null;
+  try {
+    await Promise.race([
+      (async () => {
+        const capabilities = await requestAcpInitialize(connection, {
+          parameterizedModelPicker,
+          fsAccess: false
+        });
+        await authenticateAcpAgent({
+          connection,
+          env: childEnv,
+          capabilities
+        });
+        const newSession = await connection.request({
+          method: "session/new",
+          params: { cwd: agent.cwd ?? process.cwd(), mcpServers: [] },
+          resultSchema: z51.unknown()
+        });
+        const sessionId = isJsonObject(newSession) ? newSession["sessionId"] : void 0;
+        if (typeof sessionId === "string") {
+          discoverySession = { capabilities, sessionId };
+        }
+      })(),
+      timeoutReached
+    ]);
+  } catch (error) {
+    process.stderr.write(
+      `acp bridge: ACP option discovery for "${agent.command}" failed: ${error instanceof Error ? error.message : String(error)}
+`
+    );
+  } finally {
+    if (timeout !== void 0) {
+      clearTimeout(timeout);
+    }
+    await endDiscoveryConnection({
+      connection,
+      agent,
+      env: childEnv,
+      dialectId,
+      session: discoverySession
+    });
+  }
+  return settleDeclaredSessionOptions(key);
+}
+function settleDeclaredSessionOptions(key) {
+  const discovered = freshDeclaredSessionOptions(key);
+  if (discovered !== null) {
+    return discovered;
+  }
+  cachedDeclaredSessionOptions = { key, options: [], fetchedAt: Date.now() };
+  return [];
+}
+async function loadSessionDiscoveredModels(agent, reasoningProbePriorityModelIds, parameterizedModelPicker, dialectId, selectedModel) {
+  const key = JSON.stringify({
+    agent,
+    reasoningProbePriorityModelIds,
+    parameterizedModelPicker
+  });
+  if (selectedModel === void 0 && cachedSessionDiscoveredModels?.key === key && Date.now() - cachedSessionDiscoveredModels.fetchedAt < SESSION_MODEL_DISCOVERY_TTL_MS) {
+    return cachedSessionDiscoveredModels.models;
+  }
+  const childEnv = {
+    ...withoutBridgeRuntimeEnv(process.env),
+    ...agent.envVars ?? {}
+  };
+  const connection = createBridgeAgentConnection({
+    command: agent.command,
+    args: agent.args,
+    cwd: agent.cwd ?? process.cwd(),
+    env: childEnv,
+    recordThreadId: null,
+    onResponse: (method, result) => {
+      if (method === "session/new") {
+        rememberDeclaredSessionOptions(
+          declaredSessionOptionsKey(agent, parameterizedModelPicker),
+          result
+        );
+      }
+    },
+    onNotification: () => {
+    },
+    onRequest: (_method, _params, responder) => {
+      responder.error(-32601, "ACP model discovery does not support requests");
+    },
+    onExit: () => {
+    }
+  });
+  let timeout;
+  const timeoutReached = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      connection.kill();
+      reject(
+        new Error(
+          `The agent did not answer within ${MODEL_LIST_TIMEOUT_MS / 1e3} seconds while bb asked it for its models`
+        )
+      );
+    }, MODEL_LIST_TIMEOUT_MS);
+  });
+  let discoveredCapabilities = null;
+  let discoverySession = null;
+  try {
+    const newSession = await Promise.race([
+      (async () => {
+        const capabilities = await requestAcpInitialize(connection, {
+          parameterizedModelPicker,
+          fsAccess: false
+        });
+        discoveredCapabilities = capabilities;
+        await authenticateAcpAgent({
+          connection,
+          env: childEnv,
+          capabilities
+        });
+        const created = await connection.request({
+          method: "session/new",
+          params: { cwd: agent.cwd ?? process.cwd(), mcpServers: [] },
+          resultSchema: acpSessionNewResultSchema
+        });
+        discoverySession = { capabilities, sessionId: created.sessionId };
+        return created;
+      })(),
+      timeoutReached
+    ]);
+    if (timeout !== void 0) {
+      clearTimeout(timeout);
+      timeout = void 0;
+    }
+    const modelOption = findAcpModelConfigOption(newSession.configOptions);
+    const configOptionModels = buildModelCatalogFromConfigOptions(modelOption);
+    const sessionModels = buildModelCatalogFromSessionModels(newSession.models);
+    if (configOptionModels.length === 0 && sessionModels.length === 0) {
+      return null;
+    }
+    if (configOptionModels.length === 0) {
+      if (selectedModel === void 0) {
+        cachedSessionDiscoveredModels = {
+          key,
+          models: sessionModels,
+          fetchedAt: Date.now()
+        };
+      }
+      return sessionModels;
+    }
+    const supportByModel = await discoverAcpNativeModelSupport({
+      connection,
+      sessionId: newSession.sessionId,
+      modelOption,
+      configOptions: newSession.configOptions,
+      reasoningProbePriorityModelIds,
+      selectedModel
+    });
+    const models = buildModelCatalogFromConfigOptions(
+      modelOption,
+      supportByModel
+    );
+    if (selectedModel === void 0) {
+      cachedSessionDiscoveredModels = { key, models, fetchedAt: Date.now() };
+    }
+    return models;
+  } catch (error) {
+    process.stderr.write(
+      `acp bridge: ACP-native model discovery for "${agent.command}" failed: ${error instanceof Error ? error.message : String(error)}
+`
+    );
+    throw withAcpSignInGuidance(error, {
+      command: agent.command,
+      args: agent.args,
+      capabilities: discoveredCapabilities
+    });
+  } finally {
+    if (timeout !== void 0) {
+      clearTimeout(timeout);
+    }
+    await endDiscoveryConnection({
+      connection,
+      agent,
+      env: childEnv,
+      dialectId,
+      session: discoverySession
+    });
+    settleDeclaredSessionOptions(
+      declaredSessionOptionsKey(agent, parameterizedModelPicker)
+    );
+  }
+}
+async function discoverAcpNativeModelSupport(args) {
+  const modelOptions = args.modelOption?.options ?? [];
+  if (!args.modelOption || modelOptions.length === 0) {
+    return /* @__PURE__ */ new Map();
+  }
+  const modelOption = args.modelOption;
+  const modelByValue = new Map(
+    modelOptions.map((model) => [model.value, model])
+  );
+  const supportByModel = /* @__PURE__ */ new Map();
+  const currentValue = modelOption.currentValue;
+  if (currentValue !== void 0 && modelByValue.has(currentValue)) {
+    supportByModel.set(currentValue, {
+      ...buildAcpNativeReasoningSupport(
+        findAcpThoughtLevelConfigOption(args.configOptions)
+      ),
+      supportedServiceTiers: findAcpFastConfigOption(
+        args.configOptions
+      )?.options?.some((option) => option.value === "true") ? [{ id: "fast" }] : []
+    });
+  }
+  const modelsToProbe = [];
+  const addedModels = new Set(supportByModel.keys());
+  for (const value of args.selectedModel === void 0 ? args.reasoningProbePriorityModelIds : [args.selectedModel]) {
+    const model = modelByValue.get(value);
+    if (model && !addedModels.has(model.value)) {
+      modelsToProbe.push(model);
+      addedModels.add(model.value);
+    }
+  }
+  for (const model of args.selectedModel === void 0 ? modelOptions : []) {
+    if (!addedModels.has(model.value)) {
+      modelsToProbe.push(model);
+    }
+  }
+  if (modelsToProbe.length === 0) return supportByModel;
+  let timedOut = false;
+  let timeout;
+  const timeoutReached = new Promise((resolve5) => {
+    timeout = setTimeout(() => {
+      timedOut = true;
+      args.connection.kill();
+      resolve5(supportByModel);
+    }, ACP_NATIVE_REASONING_DISCOVERY_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      (async () => {
+        for (const model of modelsToProbe) {
+          if (timedOut) break;
+          try {
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+              const configState = await args.connection.request({
+                method: "session/set_config_option",
+                params: {
+                  sessionId: args.sessionId,
+                  configId: modelOption.id,
+                  value: model.value
+                },
+                resultSchema: acpConfigStateResultSchema
+              });
+              if (timedOut) break;
+              if (findAcpModelConfigOption(configState.configOptions)?.currentValue !== model.value) {
+                continue;
+              }
+              supportByModel.set(model.value, {
+                ...buildAcpNativeReasoningSupport(
+                  findAcpThoughtLevelConfigOption(configState.configOptions)
+                ),
+                supportedServiceTiers: findAcpFastConfigOption(
+                  configState.configOptions
+                )?.options?.some((option) => option.value === "true") ? [{ id: "fast" }] : []
+              });
+              break;
+            }
+          } catch (error) {
+            if (timedOut) {
+              break;
+            }
+            process.stderr.write(
+              `acp bridge: ACP-native reasoning discovery for model "${model.value}" failed: ${error instanceof Error ? error.message : String(error)}
+`
+            );
+          }
+        }
+        return supportByModel;
+      })(),
+      timeoutReached
+    ]);
+  } finally {
+    if (timeout !== void 0) {
+      clearTimeout(timeout);
+    }
+  }
+}
+function isMissingExecutableError(error) {
+  return error instanceof Error && "code" in error && error.code === "ENOENT" && "syscall" in error && typeof error.syscall === "string" && error.syscall.startsWith("spawn");
+}
+var AcpAuthRequiredError = class extends BridgeRecoveryError {
+  constructor(message) {
+    super({
+      code: -32e3,
+      message,
+      recovery: { kind: "authRequired", message, retryable: false }
+    });
+    this.name = "AcpAuthRequiredError";
+  }
+};
+var AcpModelListAuthRequiredError = class extends AcpAuthRequiredError {
+  constructor() {
+    super(AUTH_REQUIRED_MODEL_LIST_ERROR_MESSAGE);
+    this.name = "AcpModelListAuthRequiredError";
+  }
+};
+function isAcpAuthRequiredText(...texts) {
+  const text = texts.join("\n");
+  return text.includes("Authentication required") && (text.includes("agent login") || text.includes("CURSOR_API_KEY") || text.includes("CURSOR_AUTH_TOKEN") || text.includes("auth token") || text.includes("api key") || text.includes("login"));
+}
+function isAuthRequiredModelListError(error, stdout, stderr) {
+  return isAcpAuthRequiredText(
+    error instanceof Error ? error.message : String(error),
+    stdout,
+    stderr
+  );
+}
+var ACP_AUTH_REQUIRED_ERROR_CODE = -32e3;
+var ACP_AUTH_REQUIRED_ERROR_MESSAGE = "Authentication required";
+function isAcpAuthRequiredResponse(error) {
+  return error instanceof AcpAgentResponseError && error.code === ACP_AUTH_REQUIRED_ERROR_CODE && error.message.startsWith(ACP_AUTH_REQUIRED_ERROR_MESSAGE);
+}
+function withAcpAuthRequiredRecovery(error) {
+  if (error instanceof AcpAuthRequiredError) return error;
+  if (error instanceof Error && (isAcpAuthRequiredResponse(error) || isAcpAuthRequiredText(error.message))) {
+    return new AcpAuthRequiredError(error.message);
+  }
+  return error;
+}
+function withAcpSignInGuidance(error, agent) {
+  const typed = withAcpAuthRequiredRecovery(error);
+  if (!(typed instanceof AcpAuthRequiredError)) {
+    return error;
+  }
+  const guidance = agent.capabilities ? describeAcpSignIn({
+    command: agent.command,
+    args: agent.args,
+    authMethods: agent.capabilities.authMethods
+  }) : null;
+  return guidance === null ? typed : new AcpAuthRequiredError(
+    `${typed.message.replace(/[\s.!?:;]*$/u, "")}. ${guidance}`
+  );
+}
+async function resolveAgentLaunchArgs(params) {
+  const selection = params.modelSelection;
+  const agentArgs = applyPermissionCliArgs(
+    params.agent.args,
+    params.permissionCli,
+    params.permissionMode
+  );
+  const prefixArgs = [];
+  let warning;
+  if (selection && "selectFlag" in selection) {
+    let resolved;
+    const variantReasoningLevel = params.reasoningCli === void 0 ? selection.reasoningLevel : void 0;
+    if (variantReasoningLevel !== void 0 || selection.serviceTier === "fast") {
+      const key = JSON.stringify(selection.listCommand);
+      const catalog = cachedModelCatalog?.key === key ? cachedModelCatalog.catalog : await loadAgentModelCatalog(selection.listCommand);
+      resolved = catalog?.resolveVariant({
+        model: selection.model,
+        reasoningLevel: variantReasoningLevel,
+        serviceTier: selection.serviceTier
+      });
+      if (resolved === void 0 && variantReasoningLevel !== void 0) {
+        warning = `Model "${selection.model}" has no ${variantReasoningLevel} reasoning variant; launching it at its default effort.`;
+      }
+    }
+    prefixArgs.push(selection.selectFlag, resolved ?? selection.model);
+  }
+  if (params.reasoningCli !== void 0 && params.launchReasoningLevel !== void 0) {
+    const reasoningValue = resolveHintReasoningValue({
+      hint: params.reasoningCli,
+      reasoningLevel: params.launchReasoningLevel
+    });
+    if (reasoningValue !== void 0) {
+      prefixArgs.push(params.reasoningCli.flag, reasoningValue);
+    } else if (warning === void 0) {
+      warning = `Reasoning level "${params.launchReasoningLevel}" is not supported by this ACP agent's launch flag; launching it at its default effort.`;
+    }
+  }
+  return {
+    args: [...prefixArgs, ...agentArgs],
+    warning
+  };
+}
+// An agent may accept an effort-qualified model id through its model config and
+// report it back decomposed as family + thought level (Google Antigravity does).
+function acpConfigReflectsModel(configOptions, modelId) {
+  const modelOption = findAcpModelConfigOption(configOptions);
+  if (modelOption?.currentValue === void 0) return void 0;
+  if (modelOption.currentValue === modelId) return true;
+  const thought = findAcpThoughtLevelConfigOption(configOptions);
+  return typeof thought?.currentValue === "string" && `${modelOption.currentValue}-${thought.currentValue}` === modelId;
+}
+async function selectAcpNativeModel(args) {
+  const selection = args.modelSelection;
+  if (!selection || !("modelId" in selection)) {
+    return;
+  }
+  const { session } = args;
+  const { configOptions, models } = session.nativeConfig;
+  const modelOption = findAcpModelConfigOption(configOptions);
+  const availableSessionModels = models?.availableModels ?? [];
+  const sessionModelsIncludeSelection = availableSessionModels.some(
+    (model) => model.modelId === selection.modelId
+  );
+  const configIncludesSelection = modelOption?.options?.some((option) => option.value === selection.modelId) ?? false;
+  if (availableSessionModels.length > 0 && !sessionModelsIncludeSelection && !configIncludesSelection && models?.currentModelId !== selection.modelId) {
+    throw new Error("Requested ACP model is unavailable in the executing session");
+  }
+  // Missing restore metadata is not an authoritative empty roster: send a setter.
+  const shouldSetModel = modelOption ? acpConfigReflectsModel(configOptions, selection.modelId) !== true : models?.currentModelId !== selection.modelId;
+  if (shouldSetModel) {
+    let configState = null;
+    let setModel = !modelOption;
+    if (modelOption) {
+      try {
+        configState = await session.connection.request({
+          method: "session/set_config_option",
+          params: {
+            sessionId: args.sessionId,
+            configId: modelOption.id,
+            value: selection.modelId
+          },
+          resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+          timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+        });
+      } catch (error) {
+        if (!sessionModelsIncludeSelection) {
+          throw error;
+        }
+        setModel = true;
+      }
+    }
+    if (setModel) {
+      configState = await session.connection.request({
+        method: "session/set_model",
+        params: { sessionId: args.sessionId, modelId: selection.modelId },
+        resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+        timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+      });
+    }
+    if (configState?.models?.currentModelId !== void 0 && configState.models.currentModelId !== selection.modelId) {
+      throw new Error("ACP agent acknowledged a different model than requested");
+    }
+    if (!setModel && acpConfigReflectsModel(configState?.configOptions, selection.modelId) === false) {
+      throw new Error("ACP agent did not apply the requested model config");
+    }
+    const current = session.nativeConfig;
+    session.nativeConfig = {
+      configOptions: configState?.configOptions ?? withAcpConfigValue(
+        current.configOptions,
+        modelOption?.id,
+        selection.modelId
+      ),
+      models: configState?.models ?? (current.models && {
+        ...current.models,
+        currentModelId: selection.modelId
+      })
+    };
+  }
+  await selectAcpNativeReasoning({
+    session,
+    sessionId: args.sessionId,
+    modelSelection: selection,
+    nativeReasoning: args.nativeReasoning
+  });
+  await selectAcpNativeServiceTier({
+    session,
+    sessionId: args.sessionId,
+    modelSelection: selection
+  });
+}
+function withAcpConfigValue(configOptions, configId, value) {
+  return configOptions?.map(
+    (option) => option.id === configId ? { ...option, currentValue: value } : option
+  );
+}
+function recordAcpConfigValue(session, configState, configId, value) {
+  session.nativeConfig = {
+    ...session.nativeConfig,
+    configOptions: configState?.configOptions ?? withAcpConfigValue(session.nativeConfig.configOptions, configId, value)
+  };
+}
+function acpNativeModelDrifted(nativeConfig, modelSelection) {
+  if (!modelSelection || !("modelId" in modelSelection)) {
+    return false;
+  }
+  const currentModelId = findAcpModelConfigOption(nativeConfig.configOptions)?.currentValue ?? nativeConfig.models?.currentModelId;
+  return currentModelId !== void 0 && currentModelId !== modelSelection.modelId;
+}
+async function selectAcpNativeReasoning(args) {
+  const reasoningLevel = args.modelSelection.reasoningLevel;
+  if (reasoningLevel === void 0) return;
+  const configOptions = args.session.nativeConfig.configOptions;
+  const thoughtLevelOption = findAcpThoughtLevelConfigOption(configOptions) ??
+    configOptions?.find((option) => option.type === "select" && option.id === args.nativeReasoning?.configId) ??
+    (configOptions === void 0 ? nativeReasoningToThoughtLevelOption(args.nativeReasoning) : void 0);
+  if (!thoughtLevelOption) {
+    throw new Error("ACP agent does not expose the requested reasoning config");
+  }
+  const value = acpNativeReasoningLevelToValue(reasoningLevel, thoughtLevelOption);
+  if (value === void 0) {
+    throw new Error("Requested reasoning level is not supported by the executing model");
+  }
+  // Refusal and timeout propagate. A successful legacy null/empty ACK is allowed,
+  // but an explicitly contradictory currentValue is never accepted.
+  const configState = await args.session.connection.request({
+    method: "session/set_config_option",
+    params: { sessionId: args.sessionId, configId: thoughtLevelOption.id, value },
+    resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+    timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+  });
+  const returned = configState?.configOptions?.find((option) => option.id === thoughtLevelOption.id);
+  if (returned?.currentValue !== void 0 && returned.currentValue !== value) {
+    throw new Error("ACP agent acknowledged a different reasoning level than requested");
+  }
+  recordAcpConfigValue(args.session, configState, thoughtLevelOption.id, value);
+}
+async function selectAcpNativeServiceTier(args) {
+  const serviceTier = args.modelSelection.serviceTier;
+  if (serviceTier === void 0) {
+    return;
+  }
+  const fastOption = findAcpFastConfigOption(
+    args.session.nativeConfig.configOptions
+  );
+  const value = serviceTier === "fast" ? "true" : "false";
+  if (!fastOption?.options?.some((option) => option.value === value)) {
+    return;
+  }
+  const configState = await args.session.connection.request({
+    method: "session/set_config_option",
+    params: {
+      sessionId: args.sessionId,
+      configId: fastOption.id,
+      value
+    },
+    resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+    timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+  });
+  recordAcpConfigValue(args.session, configState, fastOption.id, value);
+}
+function textWithBbSkillCommandsSpelledOut(session, item) {
+  const bbSkillNames = new Set(
+    (configuredSkillRoots ?? []).flatMap(
+      (root) => root.skills.map((skill) => skill.name)
+    )
+  );
+  if (bbSkillNames.size === 0) {
+    return item.text;
+  }
+  const advertised = new Set(
+    session.model.snapshot().commands.map((command) => command.name)
+  );
+  const mentions = item.mentions.flatMap(
+    (mention) => mention.resource.kind === "command" && mention.resource.source === "skill" && mention.resource.trigger === "/" && bbSkillNames.has(mention.resource.name) && !advertised.has(mention.resource.name) && item.text.slice(mention.start, mention.end) === `/${mention.resource.name}` ? [
+      {
+        start: mention.start,
+        end: mention.end,
+        name: mention.resource.name
+      }
+    ] : []
+  ).sort((a2, b) => b.start - a2.start);
+  const firstCharacter = item.text.search(/\S/u);
+  let text = item.text;
+  let nextStart = text.length;
+  for (const mention of mentions) {
+    if (mention.end > nextStart) {
+      continue;
+    }
+    const leadsText = mention.start === firstCharacter && text.slice(mention.end).trim().length > 0;
+    text = `${text.slice(0, mention.start)}Use the bb skill "${mention.name}"${leadsText ? ":" : ""}${text.slice(mention.end)}`;
+    nextStart = mention.start;
+  }
+  return text;
+}
+function buildPromptContentBlocks(session, input) {
+  const blocks = [];
+  const instructions = session.pendingInstructions;
+  if (instructions) {
+    session.pendingInstructions = void 0;
+    blocks.push({
+      type: "text",
+      text: `<system_instructions>
+${instructions}
+</system_instructions>`
+    });
+  }
+  for (const item of input) {
+    switch (item.type) {
+      case "text":
+        blocks.push({
+          type: "text",
+          text: textWithBbSkillCommandsSpelledOut(session, item)
+        });
+        break;
+      case "image":
+        blocks.push({ type: "text", text: `[image attachment: ${item.url}]` });
+        break;
+      case "localImage": {
+        if (!session.supportsImageInput) {
+          blocks.push({
+            type: "text",
+            text: `[image attachment on disk: ${item.path}]`
+          });
+          break;
+        }
+        try {
+          const data = readFileSync3(item.path).toString("base64");
+          blocks.push({
+            type: "image",
+            data,
+            mimeType: mimeTypeFromExtension(item.path)
+          });
+        } catch {
+          blocks.push({
+            type: "text",
+            text: `[unreadable image attachment: ${item.path}]`
+          });
+        }
+        break;
+      }
+      case "localFile":
+        blocks.push({
+          type: "resource_link",
+          uri: `file://${item.path}`,
+          name: item.name ?? basename5(item.path)
+        });
+        break;
+    }
+  }
+  return blocks;
+}
+function findOptionIdByKinds(options, kinds) {
+  for (const kind of kinds) {
+    const option = options.find((candidate) => candidate.kind === kind);
+    if (option) {
+      return option.optionId;
+    }
+  }
+  return void 0;
+}
+function pickPermissionOptionId(options, decision) {
+  switch (decision) {
+    case "allow_once":
+      return findOptionIdByKinds(options, ["allow_once", "allow_always"]);
+    case "allow_for_session":
+      return findOptionIdByKinds(options, ["allow_always", "allow_once"]);
+    case "deny":
+      return findOptionIdByKinds(options, ["reject_once", "reject_always"]);
+  }
+}
+function respondPermission(pending, decision) {
+  if (decision === null) {
+    pending.responder.result({ outcome: { outcome: "cancelled" } });
+    return;
+  }
+  const optionId = pickPermissionOptionId(pending.options, decision);
+  if (optionId === void 0) {
+    pending.responder.result({ outcome: { outcome: "cancelled" } });
+    return;
+  }
+  pending.responder.result({ outcome: { outcome: "selected", optionId } });
+}
+function cancelPendingPermissions(session) {
+  for (const pending of session.pendingPermissions) {
+    pending.responder.result({ outcome: { outcome: "cancelled" } });
+  }
+  session.pendingPermissions.clear();
+  for (const responder of session.pendingElicitations) {
+    responder.result({ action: "cancel" });
+  }
+  session.pendingElicitations.clear();
+}
+function handleElicitationRequest(session, params, responder) {
+  if (session.stopping || session.cancelRequested || session.activePromptKind === "compaction") {
+    responder.result({ action: "cancel" });
+    return;
+  }
+  const plan = planAcpElicitation(params);
+  if (plan.kind === "unsupported") {
+    emitForSession(session, ACP_WARNING_METHOD, {
+      threadId: session.bbThreadId,
+      summary: "The agent asked a question bb could not show",
+      details: `bb answered the agent with an error because ${plan.reason}.`
+    });
+    responder.error(-32602, `bb cannot show this form: ${plan.reason}`);
+    return;
+  }
+  if (session.activePromptKind === null) {
+    openAgentTurn(session);
+  }
+  session.pendingElicitations.add(responder);
+  void sendRuntimeRequest(BRIDGE_INBOUND_REQUEST_METHODS.interactionRequest, {
+    providerThreadId: session.providerThreadId,
+    threadId: session.bbThreadId,
+    turnId: null,
+    payload: plan.payload
+  }).then((result) => {
+    if (!session.pendingElicitations.delete(responder)) {
+      return;
+    }
+    const resolution = userQuestionPendingInteractionResolutionSchema.safeParse(result);
+    responder.result(
+      resolution.success ? plan.toResponse(resolution.data) : { action: "cancel" }
+    );
+  }).catch(() => {
+    if (!session.pendingElicitations.delete(responder)) {
+      return;
+    }
+    responder.result({ action: "cancel" });
+  });
+}
+function handlePermissionRequest(session, params, responder) {
+  const parsed = acpRequestPermissionParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    responder.error(-32602, "Invalid session/request_permission params");
+    return;
+  }
+  if (session.stopping || session.cancelRequested || session.activePromptKind === "compaction") {
+    responder.result({ outcome: { outcome: "cancelled" } });
+    return;
+  }
+  const toolCall = parsed.data.toolCall;
+  const bound = toolCall?.toolCallId !== void 0 ? session.translator.notePermissionToolCall(session.bbThreadId, {
+    toolCallId: toolCall.toolCallId,
+    ...toolCall.title !== void 0 ? { title: toolCall.title } : {},
+    ...toolCall.kind !== void 0 ? { kind: toolCall.kind } : {},
+    ...toolCall.rawKind !== void 0 ? { rawKind: toolCall.rawKind } : {},
+    ...toolCall.locations !== void 0 ? { locations: toolCall.locations } : {},
+    ...toolCall.rawInput !== void 0 ? { rawInput: toolCall.rawInput } : {},
+    ...toolCall.rawOutput !== void 0 ? { rawOutput: toolCall.rawOutput } : {}
+  }) : void 0;
+  const pending = {
+    responder,
+    options: parsed.data.options
+  };
+  if (session.policy.permissionMode === "full") {
+    respondPermission(pending, "allow_once");
+    return;
+  }
+  // accept-edits: a file edit confined to the workspace write roots is approved
+  // like the fs/write_text_file path below; anything else still asks the user.
+  if (session.policy.permissionMode === "accept-edits" && isWorkspaceEditPermission(toolCall, session.policy.workspaceWriteRoots) && pickPermissionOptionId(parsed.data.options, "allow_once") !== void 0) {
+    respondPermission(pending, "allow_once");
+    return;
+  }
+  if (session.activePromptKind === null) {
+    openAgentTurn(session);
+  }
+  session.pendingPermissions.add(pending);
+  const normalizedToolCall = toolCall?.toolCallId !== void 0 && bound !== void 0 ? {
+    toolCallId: bound.toolCallId,
+    ...toolCall.title !== void 0 ? { title: toolCall.title } : {},
+    ...toolCall.kind !== void 0 ? { kind: toolCall.kind } : {},
+    ...toolCall.rawKind !== void 0 ? { rawKind: toolCall.rawKind } : {},
+    ...toolCall.content !== void 0 ? { content: toolCall.content } : {},
+    ...toolCall.rawInput !== void 0 ? { rawInput: toolCall.rawInput } : {},
+    ...toolCall.locations !== void 0 ? { locations: toolCall.locations } : {},
+    startedToolCall: bound.event,
+    injectedTool: session.translator.getInjectedToolBinding(
+      session.bbThreadId,
+      bound.toolCallId
+    )
+  } : void 0;
+  const payload = buildAcpPermissionInteractionPayload({
+    toolCall: normalizedToolCall,
+    options: parsed.data.options,
+    cwd: session.cwd,
+    classifyToolCall: session.dialect.classifyToolCall
+  });
+  void sendRuntimeRequest(BRIDGE_INBOUND_REQUEST_METHODS.interactionRequest, {
+    providerThreadId: session.providerThreadId,
+    threadId: session.bbThreadId,
+    turnId: null,
+    payload
+  }).then((result) => {
+    if (!session.pendingPermissions.delete(pending)) {
+      return;
+    }
+    const resolution = pendingInteractionResolutionSchema.safeParse(result);
+    const response = resolution.success ? resolveAcpPermissionDecision({
+      payload,
+      resolution: resolution.data
+    }) : null;
+    respondPermission(pending, response?.decision ?? null);
+  }).catch(() => {
+    if (!session.pendingPermissions.delete(pending)) {
+      return;
+    }
+    respondPermission(pending, null);
+  });
+}
+function isWorkspaceEditPermission(toolCall, roots) {
+  if (toolCall?.kind !== "edit" || !Array.isArray(roots) || roots.length === 0) {
+    return false;
+  }
+  const paths = [
+    ...(Array.isArray(toolCall.locations) ? toolCall.locations : []).map((location) => location?.path),
+    ...(Array.isArray(toolCall.content) ? toolCall.content : []).filter((entry) => entry?.type === "diff").map((entry) => entry.path)
+  ];
+  return paths.length > 0 && paths.every((path8) => typeof path8 === "string" && isAbsolute3(path8) && isPathInsideRoots(path8, roots));
+}
+function isPathInsideRoots(targetPath, roots) {
+  const resolvedTarget = resolve4(targetPath);
+  return roots.some((root) => {
+    const relativePath = relative2(resolve4(root), resolvedTarget);
+    return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute3(relativePath);
+  });
+}
+function sliceFileContent(content, line, limit) {
+  if (line == null && limit == null) {
+    return content;
+  }
+  const lines = content.split("\n");
+  const startIndex = line == null ? 0 : Math.max(0, line - 1);
+  const endIndex = limit == null ? lines.length : startIndex + limit;
+  return lines.slice(startIndex, endIndex).join("\n");
+}
+async function handleFsReadTextFile(params, responder) {
+  const parsed = acpReadTextFileParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    responder.error(-32602, "Invalid fs/read_text_file params");
+    return;
+  }
+  try {
+    const content = await fs4.readFile(parsed.data.path, "utf8");
+    responder.result({
+      content: sliceFileContent(content, parsed.data.line, parsed.data.limit)
+    });
+  } catch (error) {
+    responder.error(
+      -32603,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+async function handleFsWriteTextFile(session, params, responder) {
+  const parsed = acpWriteTextFileParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    responder.error(-32602, "Invalid fs/write_text_file params");
+    return;
+  }
+  if (session.policy.permissionMode === "accept-edits" && !isPathInsideRoots(parsed.data.path, session.policy.workspaceWriteRoots)) {
+    responder.error(
+      -32e3,
+      `File writes outside the workspace are denied by BB's accept-edits permission mode: ${parsed.data.path}`
+    );
+    return;
+  }
+  try {
+    let oldText;
+    try {
+      oldText = await fs4.readFile(parsed.data.path, "utf8");
+    } catch {
+      oldText = void 0;
+    }
+    await fs4.mkdir(dirname3(parsed.data.path), { recursive: true });
+    await fs4.writeFile(parsed.data.path, parsed.data.content, "utf8");
+    emitForSession(session, ACP_FS_WRITE_METHOD, {
+      threadId: session.bbThreadId,
+      path: parsed.data.path,
+      kind: oldText === void 0 ? "add" : "update",
+      ...oldText === void 0 ? {} : { oldText },
+      content: parsed.data.content
+    });
+    responder.result({});
+  } catch (error) {
+    responder.error(
+      -32603,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+function liveSessionForThread(bbThreadId) {
+  const session = sessionsByBbThreadId.get(bbThreadId);
+  if (!session || session.stopping || session.providerThreadId === "") {
+    return void 0;
+  }
+  return session;
+}
+function removeSession(session) {
+  for (const controller of session.pendingToolCalls) controller.abort();
+  if (sessionsByBbThreadId.get(session.bbThreadId) === session) {
+    sessionsByBbThreadId.delete(session.bbThreadId);
+  }
+  if (bbThreadIdByProviderThreadId.get(session.providerThreadId) === session.bbThreadId) {
+    bbThreadIdByProviderThreadId.delete(session.providerThreadId);
+  }
+}
+async function releaseCursorMcpApproval(session) {
+  const approval = session.cursorMcpApproval;
+  session.cursorMcpApproval = void 0;
+  if (!approval) {
+    return;
+  }
+  try {
+    await revokeCursorSessionMcpServer(approval);
+  } catch (error) {
+    process.stderr.write(
+      `acp bridge: failed to remove Cursor session MCP approval for thread "${session.bbThreadId}": ${error instanceof Error ? error.message : String(error)}
+`
+    );
+  }
+}
+function getSessionByProviderThreadId(providerThreadId) {
+  const bbThreadId = bbThreadIdByProviderThreadId.get(providerThreadId);
+  return bbThreadId ? sessionsByBbThreadId.get(bbThreadId) : void 0;
+}
+function fileCreatedSince(path12, sinceMs) {
+  if (sinceMs === void 0) {
+    return void 0;
+  }
+  try {
+    const { birthtimeMs } = statSync3(path12);
+    return birthtimeMs > 0 ? birthtimeMs >= sinceMs : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function dialectLaunchEnv(dialectId, permissionMode) {
+  if (dialectId !== "opencode") {
+    return {};
+  }
+  const outsideEdits = permissionMode === "full" ? "allow" : "ask";
+  return {
+    OPENCODE_CLIENT: "acp",
+    OPENCODE_ENABLE_QUESTION_TOOL: "false",
+    OPENCODE_PERMISSION: JSON.stringify({
+      edit: "allow",
+      bash: outsideEdits,
+      webfetch: outsideEdits,
+      external_directory: outsideEdits
+    })
+  };
+}
+// Google Antigravity sorts cwd + additionalDirectories and treats the first as
+// its working directory, so bb's ~/.bb/thread-storage root would replace the
+// project. The roots stay in BB's write policy; they are only not advertised.
+function isAntigravityAgent(command) {
+  return /^agy_acp_server(\.par|\.exe)?$/i.test(basename3(command ?? ""));
+}
+function additionalSessionDirectories(params, capabilities) {
+  if (isAntigravityAgent(params.agent?.command)) {
+    return {};
+  }
+  const directories = params.workspaceWriteRoots.filter(
+    (root) => root !== params.cwd
+  );
+  return directories.length > 0 && capabilities.session.additionalDirectories ? { additionalDirectories: directories } : {};
+}
+async function startAgentSession(request) {
+  const params = request.params;
+  const bbThreadId = params.threadId;
+  const stopGeneration = acpStopGeneration.get(bbThreadId) ?? 0;
+  const existing = sessionsByBbThreadId.get(bbThreadId);
+  if (existing) {
+    await stopSession(existing);
+  }
+  assertAcpConstructionCurrent(bbThreadId, stopGeneration);
+  const dialect = resolveAcpDialect({
+    ...params.dialectId === void 0 ? {} : { dialectId: params.dialectId },
+    command: params.agent.command
+  });
+  const translator = createAcpDeltaTranslator({
+    cwd: params.cwd,
+    dialect,
+    fileCreatedThisTurn: (path12) => fileCreatedSince(path12, session.turnStartedAtMs)
+  });
+  translator.configureInjectedTools(
+    (params.dynamicTools ?? []).map((tool) => ({
+      name: tool.name,
+      ...tool.presentation === void 0 ? {} : { presentation: tool.presentation }
+    }))
+  );
+  const deferredEmits = [];
+  const emitStartNotification = (method, notificationParams, sessionId, rawUpdate) => {
+    deferredEmits.push({
+      method,
+      params: notificationParams,
+      sessionId,
+      rawUpdate
+    });
+  };
+  const launch = await resolveAgentLaunchArgs(params);
+  assertAcpConstructionCurrent(bbThreadId, stopGeneration);
+  if (launch.warning) {
+    emitStartNotification(ACP_WARNING_METHOD, {
+      threadId: bbThreadId,
+      summary: launch.warning
+    });
+  }
+  const agentLabel = [params.agent.command, ...params.agent.args].join(" ");
+  let session;
+  const childEnv = {
+    ...withoutBridgeRuntimeEnv(process.env),
+    ...params.envVars,
+    ...dialectLaunchEnv(dialect.id, params.permissionMode)
+  };
+  const connection = createBridgeAgentConnection({
+    command: params.agent.command,
+    args: launch.args,
+    cwd: params.cwd,
+    env: childEnv,
+    recordThreadId: bbThreadId,
+    requestMethods: [
+      ...ACP_CORE_CLIENT_REQUEST_METHODS,
+      ...dialect.clientRequestMethods ?? []
+    ],
+    onResponse: (method, result) => noteAgentResponse(session, method, result),
+    onNotification: (method, notificationParams) => handleAgentNotification(session, method, notificationParams),
+    onRequest: (method, requestParams, responder) => handleAgentRequest(session, method, requestParams, responder),
+    onExit: (info) => {
+      const wasCurrent = sessionsByBbThreadId.get(bbThreadId) === session;
+      cancelPendingPermissions(session);
+      if (!wasCurrent || session.stopping || session.providerThreadId === "") {
+        removeSession(session);
+        return;
+      }
+      void releaseCursorMcpApproval(session);
+      emitSessionError(
+        session,
+        `ACP agent "${agentLabel}" exited unexpectedly${info.code !== null ? ` (code ${info.code})` : ""}${info.stderrTail ? `: ${info.stderrTail}` : ""}`
+      );
+      setActivePromptKind(session, null);
+    }
+  });
+  session = {
+    bbThreadId,
+    construction: params,
+    nativeConfig: { configOptions: void 0, models: void 0 },
+    providerThreadId: "",
+    cwd: params.cwd,
+    dialect,
+    translator,
+    connection,
+    model: createAcpSessionModel({ generation: 1 }),
+    promptWorkOpen: false,
+    agentTurnQuietTimer: void 0,
+    agentUpdateCount: 0,
+    turnOutputCount: 0,
+    publishedThreadState: /* @__PURE__ */ new Map(),
+    capabilities: void 0,
+    supportsImageInput: false,
+    supportsLoadSession: false,
+    policy: {
+      permissionMode: params.permissionMode,
+      workspaceWriteRoots: params.workspaceWriteRoots
+    },
+    pendingInstructions: params.instructions,
+    activePromptKind: null,
+    compactionAgentMessage: "",
+    queuedInputs: [],
+    promptRequestPending: false,
+    cancelRequested: false,
+    turnStartedAtMs: void 0,
+    restartAfterCancelError: false,
+    loading: false,
+    loadingSessionId: void 0,
+    pendingLoadUsageUpdate: void 0,
+    grokContextWindowSize: void 0,
+    stopping: false,
+    turnSettled: void 0,
+    pendingPermissions: /* @__PURE__ */ new Set(),
+    pendingElicitations: /* @__PURE__ */ new Set(),
+    pendingToolCalls: /* @__PURE__ */ new Set(),
+    cursorMcpApproval: void 0,
+    deferStartEmit: emitStartNotification,
+    awaitingFirstPrompt: true
+  };
+  sessionsByBbThreadId.set(bbThreadId, session);
+  try {
+    const capabilities = await requestAcpInitialize(connection, {
+      parameterizedModelPicker: params.parameterizedModelPicker,
+      fsAccess: true,
+      elicitation: true
+    });
+    session.capabilities = capabilities;
+    await authenticateAcpAgent({
+      connection,
+      env: childEnv,
+      capabilities
+    });
+    session.supportsImageInput = capabilities.prompt.image;
+    const supportsLoadSession = capabilities.session.load;
+    const supportsFork = capabilities.session.fork;
+    if (request.kind === "fork" && !supportsFork) {
+      throw new Error(
+        `ACP agent "${agentLabel}" does not advertise session/fork support.`
+      );
+    }
+    session.supportsLoadSession = supportsLoadSession || capabilities.session.resume;
+    const mcpServers = await buildSessionMcpServers(params);
+    const mcpServer = mcpServers[0];
+    if (mcpServer) {
+      session.cursorMcpApproval = await approveCursorSessionMcpServer({
+        agentCommand: params.agent.command,
+        config: mcpServer,
+        cwd: params.cwd,
+        env: childEnv
+      });
+      if (session.cursorMcpApproval?.installedByBb) {
+        process.stderr.write(
+          `acp bridge: installed Cursor session MCP approval for thread "${bbThreadId}"
+`
+        );
+      }
+    }
+    let sessionId;
+    let loadedConfigOptions;
+    let loadedModels;
+    let createdFreshSession = false;
+    if (request.kind === "fork") {
+      const forkedSession = await connection.request({
+        method: "session/fork",
+        params: {
+          sessionId: request.sourceProviderThreadId,
+          cwd: params.cwd,
+          mcpServers,
+          ...additionalSessionDirectories(params, capabilities)
+        },
+        resultSchema: acpSessionForkResultSchema,
+        timeoutMs: ACP_SESSION_SETUP_TIMEOUT_MS
+      });
+      if (forkedSession.sessionId === request.sourceProviderThreadId || getSessionByProviderThreadId(forkedSession.sessionId) !== void 0) {
+        throw new Error(
+          `ACP agent "${agentLabel}" returned an active session ID for session/fork.`
+        );
+      }
+      sessionId = forkedSession.sessionId;
+      loadedConfigOptions = forkedSession.configOptions;
+      loadedModels = forkedSession.models;
+      rememberGrokContextWindow(session, forkedSession.models);
+    } else if (request.kind === "resume" && (capabilities.session.resume || supportsLoadSession)) {
+      const restoreMethod = capabilities.session.resume ? "session/resume" : "session/load";
+      session.loading = true;
+      session.loadingSessionId = request.resumeProviderThreadId;
+      session.pendingLoadUsageUpdate = void 0;
+      session.model.beginReplay();
+      try {
+        const configState = await connection.request({
+          method: restoreMethod,
+          params: {
+            sessionId: request.resumeProviderThreadId,
+            cwd: params.cwd,
+            mcpServers,
+            ...additionalSessionDirectories(params, capabilities)
+          },
+          resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+          timeoutMs: ACP_SESSION_SETUP_TIMEOUT_MS
+        });
+        loadedConfigOptions = configState?.configOptions;
+        loadedModels = configState?.models;
+        rememberGrokContextWindow(session, configState?.models);
+        sessionId = request.resumeProviderThreadId;
+      } catch (error) {
+        if (isAcpAuthRequiredResponse(error)) {
+          throw error;
+        }
+        sessionId = void 0;
+        session.loading = false;
+        session.loadingSessionId = void 0;
+        session.pendingLoadUsageUpdate = void 0;
+      } finally {
+        session.model.endReplay();
+      }
+    }
+    if (sessionId === void 0) {
+      session.loading = false;
+      session.loadingSessionId = void 0;
+      session.pendingLoadUsageUpdate = void 0;
+      const newSession = await connection.request({
+        method: "session/new",
+        params: {
+          cwd: params.cwd,
+          mcpServers,
+          ...additionalSessionDirectories(params, capabilities)
+        },
+        resultSchema: acpSessionNewResultSchema,
+        timeoutMs: ACP_SESSION_SETUP_TIMEOUT_MS
+      });
+      sessionId = newSession.sessionId;
+      createdFreshSession = true;
+      rememberGrokContextWindow(session, newSession.models);
+      session.nativeConfig = {
+        configOptions: newSession.configOptions,
+        models: newSession.models
+      };
+      await selectAcpNativeModel({
+        session,
+        sessionId,
+        modelSelection: params.modelSelection,
+        nativeReasoning: params.nativeReasoning
+      });
+      if (request.kind === "resume") {
+        emitStartNotification(ACP_WARNING_METHOD, {
+          threadId: bbThreadId,
+          summary: `${agentLabel} could not restore the previous session; continuing in a fresh session without in-agent history.`
+        });
+      }
+    } else {
+      session.nativeConfig = {
+        configOptions: loadedConfigOptions,
+        models: loadedModels
+      };
+      session.pendingInstructions = void 0;
+      await selectAcpNativeModel({
+        session,
+        sessionId,
+        modelSelection: params.modelSelection,
+        nativeReasoning: params.nativeReasoning
+      });
+      const loadUsageUpdate = session.pendingLoadUsageUpdate;
+      session.loading = false;
+      session.loadingSessionId = void 0;
+      session.pendingLoadUsageUpdate = void 0;
+      if (loadUsageUpdate) {
+        emitStartNotification(ACP_UPDATE_METHOD, {
+          threadId: session.bbThreadId,
+          update: loadUsageUpdate
+        });
+      }
+    }
+    assertAcpConstructionCurrent(bbThreadId, stopGeneration);
+    if (session.stopping || sessionsByBbThreadId.get(bbThreadId) !== session) {
+      throw new Error(
+        `ACP session for thread "${bbThreadId}" was released during construction`
+      );
+    }
+    session.providerThreadId = sessionId;
+    bbThreadIdByProviderThreadId.set(sessionId, bbThreadId);
+    sendNotification(BRIDGE_NOTIFICATION_METHODS.threadIdentity, {
+      threadId: bbThreadId,
+      providerThreadId: sessionId,
+      sessionRestorable: session.supportsLoadSession
+    });
+    if (request.kind !== "resume" || !request.continuesTurn) {
+      sendThreadDeltas(bbThreadId, [{ kind: "session.reset" }]);
+    }
+    publishSessionSnapshot(session);
+    if (createdFreshSession) {
+      emitGrokContextWindow(session, 0);
+    }
+    session.deferStartEmit = void 0;
+    for (const deferred of deferredEmits) {
+      if (deferred.sessionId !== void 0 && deferred.sessionId !== sessionId) {
+        continue;
+      }
+      if (deferred.method === ACP_UPDATE_METHOD) {
+        emitSessionUpdate(
+          session,
+          deferred.params["update"],
+          deferred.rawUpdate ?? deferred.params["update"]
+        );
+      } else {
+        emitForSession(session, deferred.method, deferred.params);
+      }
+    }
+    deferredEmits.length = 0;
+    return session;
+  } catch (error) {
+    session.stopping = true;
+    session.deferStartEmit = void 0;
+    await connection.kill();
+    removeSession(session);
+    await releaseCursorMcpApproval(session);
+    throw withAcpSignInGuidance(error, {
+      command: params.agent.command,
+      args: params.agent.args,
+      capabilities: session.capabilities
+    });
+  }
+}
+async function stopSession(session, cancelTimeoutMs = THREAD_STOP_CANCEL_TIMEOUT_MS) {
+  if (session.stopping) {
+    return;
+  }
+  session.stopping = true;
+  dropQueuedTurnInputs(
+    session,
+    "ACP session stopped before the steer was sent"
+  );
+  cancelPendingPermissions(session);
+  if (session.activePromptKind !== null && !session.connection.exited) {
+    session.connection.notify("session/cancel", {
+      sessionId: session.providerThreadId
+    });
+    if (session.turnSettled) {
+      await Promise.race([
+        session.turnSettled,
+        new Promise(
+          (resolveTimeout) => setTimeout(resolveTimeout, cancelTimeoutMs)
+        )
+      ]);
+    }
+  }
+  settleInterruptedPrompt(session);
+  await session.connection.kill();
+  removeSession(session);
+  await releaseCursorMcpApproval(session);
+}
+function settleInterruptedPrompt(session) {
+  switch (session.activePromptKind) {
+    case "turn":
+      finishTurn(session, "cancelled");
+      return;
+    case "agent":
+      finishAgentTurn(session, "cancelled");
+      return;
+    case "compaction":
+      finishCompaction(session, { status: "interrupted" });
+      return;
+    case null:
+      return;
+  }
+}
+function setActivePromptKind(session, kind) {
+  session.activePromptKind = kind;
+  if (kind === "turn" || kind === "compaction") {
+    clearAgentTurnQuietTimer(session);
+    if (!session.promptWorkOpen) {
+      session.promptWorkOpen = true;
+      session.model.promptSubmitted();
+    }
+    return;
+  }
+  if (kind === null) {
+    clearAgentTurnQuietTimer(session);
+    if (session.promptWorkOpen) {
+      session.promptWorkOpen = false;
+      session.model.promptSettled({ stopReason: "end_turn" });
+    }
+    session.model.agentWorkSettled("end_turn");
+    session.model.closeUnfinishedToolCalls("cancelled");
+  }
+}
+function clearAgentTurnQuietTimer(session) {
+  if (session.agentTurnQuietTimer !== void 0) {
+    clearTimeout(session.agentTurnQuietTimer);
+    session.agentTurnQuietTimer = void 0;
+  }
+}
+function agentTurnHasOpenWork(session) {
+  return session.pendingPermissions.size > 0 || session.pendingElicitations.size > 0 || session.model.hasUnfinishedToolCalls();
+}
+function armAgentTurnQuietTimer(session) {
+  clearAgentTurnQuietTimer(session);
+  const timer = setTimeout(() => {
+    if (session.agentTurnQuietTimer !== timer) {
+      return;
+    }
+    session.agentTurnQuietTimer = void 0;
+    if (session.activePromptKind !== "agent" || session.stopping) {
+      return;
+    }
+    if (agentTurnHasOpenWork(session)) {
+      armAgentTurnQuietTimer(session);
+      return;
+    }
+    finishAgentTurn(session, "end_turn");
+  }, AGENT_TURN_QUIET_MS);
+  timer.unref?.();
+  session.agentTurnQuietTimer = timer;
+}
+function openAgentTurn(session) {
+  setActivePromptKind(session, "agent");
+  emitForSession(session, ACP_TURN_STARTED_METHOD, {
+    threadId: session.bbThreadId
+  });
+  armAgentTurnQuietTimer(session);
+}
+function finishAgentTurn(session, stopReason) {
+  if (session.activePromptKind !== "agent") {
+    return;
+  }
+  for (const controller of session.pendingToolCalls) controller.abort();
+  setActivePromptKind(session, null);
+  emitForSession(session, ACP_TURN_COMPLETED_METHOD, {
+    threadId: session.bbThreadId,
+    stopReason
+  });
+}
+function startsAgentWork(events) {
+  return events.some(
+    (event) => event.type === "work" && event.work.state !== "idle" && event.work.initiator === "agent"
+  );
+}
+function publishThreadState(session, kind, payload, isEmpty) {
+  if (session.providerThreadId === "" || session.stopping) {
+    return;
+  }
+  const serialized = JSON.stringify(payload);
+  const published = session.publishedThreadState.get(kind);
+  if (published === serialized || published === void 0 && isEmpty) {
+    return;
+  }
+  session.publishedThreadState.set(kind, serialized);
+  sendThreadDeltas(session.bbThreadId, [
+    { kind: "extension.state", extensionKind: kind, payload }
+  ]);
+}
+async function applySessionOptionSelections(session, selections) {
+  for (const [optionId, value] of Object.entries(selections)) {
+    const option = session.model.snapshot().configOptions.find((candidate) => candidate.id === optionId);
+    if (option === void 0 || !isUserSelectableSessionOption(option) || option.currentValue === value) {
+      continue;
+    }
+    const offered = option.type === "boolean" ? typeof value === "boolean" : typeof value === "string" && option.values.some((candidate) => candidate.value === value);
+    if (!offered) {
+      continue;
+    }
+    let result;
+    try {
+      if (option.setMethod === "session/set_mode") {
+        await session.connection.request({
+          method: "session/set_mode",
+          params: { sessionId: session.providerThreadId, modeId: value },
+          resultSchema: z51.unknown(),
+          timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+        });
+      } else {
+        result = await session.connection.request({
+          method: "session/set_config_option",
+          params: {
+            sessionId: session.providerThreadId,
+            configId: option.id,
+            ...option.type === "boolean" ? { type: "boolean" } : {},
+            value
+          },
+          resultSchema: z51.unknown(),
+          timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+        });
+      }
+    } catch (error) {
+      emitForSession(session, ACP_WARNING_METHOD, {
+        threadId: session.bbThreadId,
+        summary: `The agent did not apply ${option.name.trim() === "" ? option.id : option.name}`,
+        details: error instanceof Error ? error.message : String(error)
+      });
+      continue;
+    }
+    if (!isJsonObject(result) || !("configOptions" in result)) {
+      publishSessionStateEvents(
+        session,
+        session.model.applyConfigOptionValue(optionId, value)
+      );
+    }
+  }
+}
+function publishSessionSnapshot(session) {
+  const snapshot = session.model.snapshot();
+  const commands = toThreadProviderCommandsState(snapshot.commands);
+  publishThreadState(
+    session,
+    THREAD_PROVIDER_COMMANDS_STATE_KIND,
+    commands,
+    commands.commands.length === 0
+  );
+  const options = toThreadSessionOptionsState(snapshot.configOptions);
+  publishThreadState(
+    session,
+    THREAD_SESSION_OPTIONS_STATE_KIND,
+    options,
+    options.options.length === 0
+  );
+}
+function publishSessionStateEvents(session, events) {
+  if (events.some(
+    (event) => event.type === "commands" || event.type === "configOptions"
+  )) {
+    publishSessionSnapshot(session);
+  }
+}
+function noteAgentResponse(session, method, result) {
+  if (!isJsonObject(result)) {
+    return;
+  }
+  switch (method) {
+    case "session/new":
+    case "session/load":
+    case "session/resume":
+    case "session/fork":
+      publishSessionStateEvents(
+        session,
+        session.model.applySessionSetup(result)
+      );
+      return;
+    case "session/set_config_option":
+    case "session/set_model":
+      if ("configOptions" in result) {
+        publishSessionStateEvents(
+          session,
+          session.model.applyConfigOptions(result["configOptions"])
+        );
+      }
+      return;
+  }
+}
+function emitSessionUpdate(session, update, rawUpdate) {
+  const turnOutput = isTurnOutputUpdate(update);
+  if (turnOutput && session.awaitingFirstPrompt && session.activePromptKind === null) {
+    return;
+  }
+  const events = session.model.applySessionUpdate(rawUpdate);
+  publishSessionStateEvents(session, events);
+  session.agentUpdateCount += 1;
+  if (turnOutput) {
+    session.turnOutputCount += 1;
+  }
+  if (session.activePromptKind === null && startsAgentWork(events)) {
+    openAgentTurn(session);
+  } else if (session.activePromptKind === "agent") {
+    armAgentTurnQuietTimer(session);
+  }
+  emitForSession(session, ACP_UPDATE_METHOD, {
+    threadId: session.bbThreadId,
+    update
+  });
+}
+async function releaseSession(session) {
+  if (session.stopping) {
+    return;
+  }
+  session.stopping = true;
+  clearAgentTurnQuietTimer(session);
+  dropQueuedTurnInputs(
+    session,
+    "ACP session released before the steer was sent"
+  );
+  cancelPendingPermissions(session);
+  await session.connection.kill();
+  removeSession(session);
+  await releaseCursorMcpApproval(session);
+}
+function requestSteerCancel(session) {
+  if (session.stopping || session.cancelRequested || !session.promptRequestPending || session.connection.exited) {
+    return;
+  }
+  session.cancelRequested = true;
+  cancelPendingPermissions(session);
+  session.connection.notify("session/cancel", {
+    sessionId: session.providerThreadId
+  });
+}
+function acceptTurnInput(session, pending) {
+  sendThreadDeltas(session.bbThreadId, [
+    { kind: "input.accepted", clientRequestId: pending.clientRequestId }
+  ]);
+  const requestId = takeTurnInputRequestId(pending);
+  if (requestId !== null) {
+    sendResult(requestId, { threadId: session.bbThreadId });
+  }
+}
+function dropTurnInput(pending, reason) {
+  const requestId = takeTurnInputRequestId(pending);
+  if (requestId !== null) {
+    sendError(requestId, -32e3, reason);
+  }
+}
+function takeTurnInputRequestId(pending) {
+  const requestId = pending.requestId;
+  pending.requestId = null;
+  return requestId;
+}
+function dropQueuedTurnInputs(session, reason) {
+  for (const pending of session.queuedInputs.splice(0)) {
+    dropTurnInput(pending, reason);
+  }
+}
+function finishTurn(session, stopReason) {
+  if (session.activePromptKind !== "turn") {
+    return;
+  }
+  session.turnStartedAtMs = void 0;
+  for (const controller of session.pendingToolCalls) controller.abort();
+  setActivePromptKind(session, null);
+  dropQueuedTurnInputs(session, "ACP turn ended before the steer was sent");
+  session.promptRequestPending = false;
+  session.cancelRequested = false;
+  emitForSession(session, ACP_TURN_COMPLETED_METHOD, {
+    threadId: session.bbThreadId,
+    stopReason
+  });
+}
+function isSessionBusyError(error) {
+  return error instanceof AcpAgentResponseError && error.code === ACP_SESSION_BUSY_ERROR_CODE && isJsonObject(error.data) && error.data["reason"] === "session_busy";
+}
+async function waitForAgentQuiet(session) {
+  for (let waits = 0; waits < SESSION_BUSY_MAX_WAITS; waits += 1) {
+    const updatesBefore = session.agentUpdateCount;
+    await new Promise((resolveWait) => {
+      setTimeout(resolveWait, SESSION_BUSY_QUIET_MS);
+    });
+    if (session.stopping || session.connection.exited || session.cancelRequested) {
+      return false;
+    }
+    if (session.agentUpdateCount === updatesBefore && !session.model.hasUnfinishedToolCalls()) {
+      return true;
+    }
+  }
+  return false;
+}
+var TURN_OUTPUT_UPDATE_KINDS = /* @__PURE__ */ new Set([
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+  "plan"
+]);
+function isTurnOutputUpdate(update) {
+  const kind = isJsonObject(update) ? update["sessionUpdate"] : void 0;
+  return typeof kind === "string" && TURN_OUTPUT_UPDATE_KINDS.has(kind);
+}
+function runTurn(session, firstInput, turnAlreadyOpen = false) {
+  setActivePromptKind(session, "turn");
+  if (!turnAlreadyOpen) {
+    emitForSession(session, ACP_TURN_STARTED_METHOD, {
+      threadId: session.bbThreadId
+    });
+  }
+  session.awaitingFirstPrompt = false;
+  const outputBeforeTurn = session.turnOutputCount;
+  session.turnSettled = (async () => {
+    let pending = firstInput;
+    for (; ; ) {
+      if (session.stopping) {
+        dropTurnInput(pending, "ACP session is stopping");
+        finishTurn(session, "cancelled");
+        return;
+      }
+      let stopReason;
+      session.cancelRequested = false;
+      try {
+        const previousSession = session;
+        const reconciled = reconcileExecutionSettings(session, pending.options);
+        session = reconciled instanceof Promise ? await reconciled : reconciled;
+        if (session.stopping || sessionsByBbThreadId.get(session.bbThreadId) !== session) {
+          dropTurnInput(pending, "ACP session is stopping");
+          finishTurn(session, "cancelled");
+          return;
+        }
+        setActivePromptKind(session, "turn");
+        session.turnSettled = previousSession.turnSettled;
+        session.awaitingFirstPrompt = false;
+        const prompt = buildPromptContentBlocks(session, pending.input);
+        let inputAccepted = false;
+        let busyRetries = 0;
+        session.turnStartedAtMs ??= Date.now();
+        for (; ; ) {
+          session.promptRequestPending = true;
+          const promptResult = session.connection.request({
+            method: "session/prompt",
+            params: { sessionId: session.providerThreadId, prompt },
+            resultSchema: acpPromptResultSchema
+          });
+          if (!inputAccepted) {
+            inputAccepted = true;
+            acceptTurnInput(session, pending);
+          }
+          if (session.queuedInputs.length > 0) {
+            requestSteerCancel(session);
+          }
+          try {
+            const result = await promptResult;
+            stopReason = result.stopReason;
+            const grokUsage = grokContextUsageFromPromptResult(result);
+            if (grokUsage !== void 0) {
+              emitGrokContextWindow(session, grokUsage.used);
+            }
+            break;
+          } catch (error) {
+            if (!isSessionBusyError(error) || busyRetries >= SESSION_BUSY_MAX_RETRIES || session.stopping || session.cancelRequested) {
+              throw error;
+            }
+            busyRetries += 1;
+            session.promptRequestPending = false;
+            if (!await waitForAgentQuiet(session)) {
+              throw error;
+            }
+          }
+        }
+      } catch (error) {
+        session.restartAfterCancelError = session.cancelRequested;
+        session.promptRequestPending = false;
+        dropTurnInput(pending, "ACP turn failed before the prompt was sent");
+        dropQueuedTurnInputs(
+          session,
+          "ACP turn failed before the steer was sent"
+        );
+        session.cancelRequested = false;
+        if (!session.stopping) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!session.connection.exited) {
+            emitSessionError(session, message);
+          } else if (session.activePromptKind === "turn") {
+            emitForSession(session, "error", {
+              threadId: session.bbThreadId,
+              message
+            });
+          }
+        }
+        setActivePromptKind(session, null);
+        return;
+      }
+      session.promptRequestPending = false;
+      if (!session.stopping) {
+        const next = session.queuedInputs.shift();
+        if (next) {
+          if (stopReason === "cancelled") {
+            emitForSession(session, ACP_PROMPT_INTERRUPTED_METHOD, {
+              threadId: session.bbThreadId
+            });
+          }
+          pending = next;
+          continue;
+        }
+      }
+      if (stopReason === "end_turn" && !session.stopping && session.turnOutputCount === outputBeforeTurn) {
+        emitForSession(session, ACP_WARNING_METHOD, {
+          threadId: session.bbThreadId,
+          summary: "The agent ended the turn without replying",
+          details: "The agent reported no error and sent nothing back. If this keeps happening, check that the agent runs and is signed in on the machine that hosts the thread."
+        });
+      }
+      finishTurn(session, stopReason);
+      return;
+    }
+  })();
+}
+function reconcileExecutionSettings(session, options) {
+  if (options.permissionMode === "auto") {
+    throw new Error('ACP does not support permission mode "auto".');
+  }
+  const launchSpec = decodeLaunchSpec(options.providerOptions);
+  const envVars = Object.keys(options.envVars ?? {}).length > 0 ? {
+    ...launchSpec?.env ?? {},
+    ...options.envVars
+  } : session.construction.envVars;
+  const workspaceWriteRoots = options.providerOptions?.additionalWorkspaceWriteRoots !== void 0 ? [
+    session.cwd,
+    ...decodeAdditionalWorkspaceWriteRoots(options.providerOptions)
+  ] : session.policy.workspaceWriteRoots;
+  const modelParams = launchSpec === null ? session.construction : buildAcpModelSelectionParams(
+    launchSpec,
+    options,
+    decodeAcpModelPickerOptions(options.providerOptions).parameterizedModelPicker,
+    decodeDialectId(options.providerOptions)
+  );
+  const construction = {
+    ...session.construction,
+    modelSelection: modelParams.modelSelection,
+    launchReasoningLevel: modelParams.launchReasoningLevel,
+    nativeReasoning: launchSpec === null ? session.construction.nativeReasoning : launchSpec.nativeReasoning,
+    envVars,
+    permissionMode: options.permissionMode,
+    workspaceWriteRoots
+  };
+  const launchModelChanged = !isDeepStrictEqual(
+    launchModelSelection(session.construction),
+    launchModelSelection(construction)
+  );
+  if (launchModelChanged && !session.supportsLoadSession) {
+    throw new Error(
+      "This ACP agent cannot restore its session. Start a new thread to change the launch-time model or reasoning level."
+    );
+  }
+  const launchArgsChanged = !isDeepStrictEqual(
+    permissionCliArgsForMode(
+      session.construction.permissionCli,
+      session.construction.permissionMode
+    ),
+    permissionCliArgsForMode(
+      construction.permissionCli,
+      construction.permissionMode
+    )
+  ) || !isDeepStrictEqual(
+    dialectLaunchEnv(session.dialect.id, session.construction.permissionMode),
+    dialectLaunchEnv(session.dialect.id, construction.permissionMode)
+  ) || launchModelChanged;
+  const restart = session.connection.exited || session.restartAfterCancelError || launchArgsChanged || !isDeepStrictEqual(envVars ?? {}, session.construction.envVars ?? {});
+  cancelPendingPermissions(session);
+  session.policy = {
+    permissionMode: options.permissionMode,
+    workspaceWriteRoots
+  };
+  if (restart) {
+    return rebuildAgentSession(session, construction);
+  }
+  if (isDeepStrictEqual(
+    construction.modelSelection,
+    session.construction.modelSelection
+  ) && !acpNativeModelDrifted(session.nativeConfig, construction.modelSelection)) {
+    session.construction = construction;
+    return session;
+  }
+  return applyNativeModelSelection(session, construction);
+}
+function launchModelSelection(params) {
+  return {
+    modelSelection: params.modelSelection && "selectFlag" in params.modelSelection ? params.modelSelection : void 0,
+    launchReasoningLevel: params.launchReasoningLevel
+  };
+}
+async function applyNativeModelSelection(session, construction) {
+  await selectAcpNativeModel({
+    session,
+    sessionId: session.providerThreadId,
+    modelSelection: construction.modelSelection,
+    nativeReasoning: construction.nativeReasoning
+  });
+  session.construction = construction;
+  return session;
+}
+async function rebuildAgentSession(session, construction) {
+  const previousProviderThreadId = session.providerThreadId;
+  const reason = session.connection.exited ? "The ACP agent exited unexpectedly; its session was rebuilt before continuing." : session.restartAfterCancelError ? "The ACP agent failed during cancellation; its session was rebuilt before continuing." : "Execution settings changed; the ACP session was rebuilt to apply them.";
+  const queuedInputs = session.queuedInputs.splice(0);
+  const continuingTurn = session.activePromptKind === "turn";
+  if (continuingTurn) {
+    emitForSession(session, ACP_PROMPT_INTERRUPTED_METHOD, {
+      threadId: session.bbThreadId
+    });
+    for (const controller of session.pendingToolCalls) controller.abort();
+    setActivePromptKind(session, null);
+    session.promptRequestPending = false;
+    session.cancelRequested = false;
+  }
+  let replacement;
+  try {
+    replacement = await startAgentSession({
+      kind: "resume",
+      params: construction,
+      resumeProviderThreadId: previousProviderThreadId,
+      continuesTurn: continuingTurn
+    });
+  } catch (error) {
+    if (continuingTurn) {
+      const message = error instanceof Error ? error.message : String(error);
+      emitForSession(session, "error", {
+        threadId: session.bbThreadId,
+        message
+      });
+      emitSessionError(session, message);
+    }
+    throw error;
+  }
+  replacement.queuedInputs.push(...queuedInputs);
+  sendNotification(BRIDGE_NOTIFICATION_METHODS.sessionReplaced, {
+    threadId: session.bbThreadId,
+    providerThreadId: replacement.providerThreadId,
+    reason,
+    contextLost: replacement.providerThreadId !== previousProviderThreadId
+  });
+  return replacement;
+}
+function startCompaction(session, pending) {
+  setActivePromptKind(session, "compaction");
+  session.awaitingFirstPrompt = false;
+  session.compactionAgentMessage = "";
+  emitForSession(session, ACP_COMPACTION_STARTED_METHOD, {
+    threadId: session.bbThreadId
+  });
+  const finish = (outcome) => {
+    finishCompaction(session, outcome);
+  };
+  const promptResult = session.connection.request({
+    method: "session/prompt",
+    params: {
+      sessionId: session.providerThreadId,
+      prompt: [{ type: "text", text: "/compact" }]
+    },
+    resultSchema: acpPromptResultSchema
+  });
+  acceptTurnInput(session, pending);
+  session.turnSettled = promptResult.then((result) => {
+    const grokUsage = grokContextUsageFromPromptResult(result);
+    if (grokUsage !== void 0) {
+      emitGrokContextWindow(session, grokUsage.used);
+    }
+    finish(
+      result.stopReason === "end_turn" ? compactionOutcomeForEndTurn(
+        session.dialect,
+        session.compactionAgentMessage
+      ) : result.stopReason === "cancelled" ? { status: "interrupted" } : {
+        status: "failed",
+        error: `Agent stopped compaction: ${result.stopReason}`
+      }
+    );
+  }).catch((error) => {
+    finish({
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  });
+}
+function finishCompaction(session, outcome) {
+  if (session.activePromptKind !== "compaction") {
+    return;
+  }
+  emitForSession(session, ACP_COMPACTION_COMPLETED_METHOD, {
+    threadId: session.bbThreadId,
+    ...outcome
+  });
+  setActivePromptKind(session, null);
+  session.turnSettled = void 0;
+}
+function handleAgentRequest(session, method, params, responder) {
+  switch (method) {
+    case "session/request_permission":
+      handlePermissionRequest(session, params, responder);
+      return;
+    case "fs/read_text_file":
+      void handleFsReadTextFile(params, responder);
+      return;
+    case "fs/write_text_file":
+      void handleFsWriteTextFile(session, params, responder);
+      return;
+    case "elicitation/create":
+      handleElicitationRequest(session, params, responder);
+      return;
+    default:
+      handleDialectRequest(session, method, params, responder);
+  }
+}
+function handleDialectRequest(session, method, params, responder) {
+  const outcome = session.dialect.handleClientRequest?.(method, params);
+  if (outcome === void 0) {
+    responder.error(-32601, `Unsupported ACP client method "${method}"`);
+    return;
+  }
+  if (outcome.delegation !== void 0) {
+    sendThreadDeltas(
+      session.bbThreadId,
+      session.translator.noteDelegationReport(
+        session.bbThreadId,
+        outcome.delegation
+      )
+    );
+  }
+  responder.result(outcome.result);
+}
+function handleAgentNotification(session, method, params) {
+  if (method !== "session/update") {
+    return;
+  }
+  if (session.stopping) {
+    return;
+  }
+  const parsed = acpSessionNotificationParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    return;
+  }
+  const rawUpdate = isJsonObject(params) ? params["update"] : void 0;
+  if (session.loading) {
+    if (parsed.data.sessionId === session.loadingSessionId) {
+      session.model.applySessionUpdate(rawUpdate);
+      if (parsed.data.update.sessionUpdate === "usage_update") {
+        const usageUpdate = acpUsageUpdateSchema.safeParse(parsed.data.update);
+        if (usageUpdate.success) {
+          session.pendingLoadUsageUpdate = usageUpdate.data;
+        }
+      }
+    }
+    return;
+  }
+  if (session.providerThreadId === "") {
+    session.deferStartEmit?.(
+      ACP_UPDATE_METHOD,
+      { threadId: session.bbThreadId, update: parsed.data.update },
+      parsed.data.sessionId,
+      rawUpdate
+    );
+    return;
+  }
+  if (parsed.data.sessionId !== session.providerThreadId) {
+    return;
+  }
+  if (parsed.data.update.sessionUpdate === "config_option_update") {
+    const configState = acpConfigStateResultSchema.safeParse(
+      parsed.data.update
+    );
+    if (configState.success && configState.data.configOptions) {
+      session.nativeConfig = {
+        ...session.nativeConfig,
+        configOptions: configState.data.configOptions
+      };
+    }
+  }
+  if (session.activePromptKind === "compaction") {
+    const chunk = acpAgentMessageChunkUpdateSchema.safeParse(
+      parsed.data.update
+    );
+    if (chunk.success) {
+      session.compactionAgentMessage += extractAcpContentText(chunk.data.content) ?? "";
+    }
+  }
+  emitSessionUpdate(session, parsed.data.update, rawUpdate);
+}
+function decodeAcpBridgeJsonRpcRequest(raw) {
+  const envelope = bridgeRequestEnvelopeSchema.safeParse(raw);
+  if (!envelope.success) {
+    return { kind: "ignored" };
+  }
+  const command = acpBridgeCommandSchema.safeParse({
+    method: envelope.data.method,
+    params: envelope.data.params ?? {}
+  });
+  if (command.success) {
+    return {
+      kind: "request",
+      request: { ...command.data, id: envelope.data.id }
+    };
+  }
+  if (!acpBridgeCommandMethodValues.includes(
+    envelope.data.method
+  )) {
+    return {
+      kind: "unknown-method",
+      id: envelope.data.id,
+      method: envelope.data.method
+    };
+  }
+  return {
+    kind: "invalid-params",
+    id: envelope.data.id,
+    method: envelope.data.method,
+    issues: command.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+  };
+}
+async function handleModelList(id, params, dialectId, selectedModel) {
+  const dialect = resolveAcpDialect({
+    dialectId,
+    command: params.optionsAgent?.command ?? params.agent?.command ?? ""
+  });
+  const resolvedDialectId = dialect.id;
+  const declaredOptions = () => params.optionsAgent ? loadDeclaredSessionOptions(
+    params.optionsAgent,
+    params.parameterizedModelPicker,
+    resolvedDialectId
+  ) : Promise.resolve([]);
+  function withDeclaredOptions(models, options) {
+    return options.length === 0 ? [...models] : models.map((model) => ({ ...model, sessionOptions: [...options] }));
+  }
+  async function sendModels(models) {
+    sendResult(
+      id,
+      splitPrimaryModels(
+        withDeclaredOptions(
+          applyConfiguredReasoningToModels(
+            models.map((model) => dialect.presentModel?.(model) ?? model),
+            {
+              reasoningCli: params.reasoningCli,
+              nativeReasoning: params.nativeReasoning
+            }
+          ),
+          await declaredOptions()
+        ),
+        params.primaryModels
+      )
+    );
+  }
+  const catalog = params.listCommand ? await loadAgentModelCatalog(params.listCommand) : null;
+  if (catalog) {
+    await sendModels(
+      params.parameterizedModelPicker && dialectId === "cursor" ? buildCursorParameterizedModelCatalog(catalog.models) : catalog.models
+    );
+    return;
+  }
+  if (params.listCommand) {
+    throw new Error(
+      "ACP model list command failed to provide a model catalog."
+    );
+  }
+  const sessionDiscoveredModels = params.agent ? await loadSessionDiscoveredModels(
+    params.agent,
+    params.reasoningProbePriorityModelIds,
+    params.parameterizedModelPicker,
+    resolvedDialectId,
+    selectedModel
+  ) : null;
+  if (sessionDiscoveredModels) {
+    await sendModels(sessionDiscoveredModels);
+    return;
+  }
+  sendResult(id, {
+    models: withDeclaredOptions(
+      [
+        applyConfiguredReasoningToModel(ACP_DEFAULT_MODEL, {
+          reasoningCli: params.reasoningCli,
+          nativeReasoning: params.nativeReasoning
+        })
+      ],
+      await declaredOptions()
+    ),
+    selectedOnlyModels: []
+  });
+}
+function decodeLaunchSpec(providerOptions) {
+  const launchSpec = acpLaunchSpecSchema.safeParse(
+    providerOptions?.["acpLaunchSpec"]
+  );
+  return launchSpec.success ? launchSpec.data : null;
+}
+var acpProviderOptionsSchema = z51.object({
+  additionalWorkspaceWriteRoots: z51.array(z51.string()).optional(),
+  acpDialect: z51.string().min(1).optional(),
+  parameterizedModelPicker: z51.boolean().optional(),
+  primaryModels: z51.array(z51.string().min(1)).optional(),
+  reasoningProbePriorityModelIds: z51.array(z51.string().min(1)).optional()
+}).passthrough();
+function decodeAcpModelPickerOptions(providerOptions) {
+  const parsed = acpProviderOptionsSchema.parse(providerOptions ?? {});
+  return {
+    parameterizedModelPicker: parsed.parameterizedModelPicker === true,
+    ...parsed.primaryModels === void 0 ? {} : { primaryModels: [...parsed.primaryModels] },
+    reasoningProbePriorityModelIds: [
+      ...parsed.reasoningProbePriorityModelIds ?? []
+    ]
+  };
+}
+function decodeAdditionalWorkspaceWriteRoots(providerOptions) {
+  return acpProviderOptionsSchema.parse(providerOptions ?? {}).additionalWorkspaceWriteRoots ?? [];
+}
+function decodeDialectId(providerOptions) {
+  return acpProviderOptionsSchema.parse(providerOptions ?? {}).acpDialect;
+}
+function maintenanceTarget(providerOptions) {
+  const launchSpec = decodeLaunchSpec(providerOptions);
+  const dialect = resolveAcpDialect({
+    dialectId: decodeDialectId(providerOptions),
+    command: launchSpec?.command ?? ""
+  });
+  return {
+    maintenance: dialect.maintenance,
+    command: launchSpec?.command ?? null,
+    dialectId: dialect.id,
+    env: { ...process.env, ...launchSpec?.env }
+  };
+}
+// Admission covers async reconciliation and construction, never the lifetime of a turn.
+// Internal rebuilds do not re-enter the external lock. Stop always bypasses it.
+var acpSelectionAdmission = new Set();
+var acpStopGeneration = new Map();
+function assertAcpConstructionCurrent(threadId, generation) {
+  if (shuttingDown || (acpStopGeneration.get(threadId) ?? 0) !== generation) {
+    throw new Error("ACP construction cancelled while applying execution settings");
+  }
+}
+async function handleRequest2(request) {
+  const threadId = request.params.threadId;
+  if (request.method === "thread/stop") {
+    acpStopGeneration.set(threadId, (acpStopGeneration.get(threadId) ?? 0) + 1);
+    return handleRequestUnlocked(request);
+  }
+  const guarded = ["thread/start", "thread/resume", "thread/fork", "turn/start"].includes(request.method);
+  if ((guarded || request.method === "turn/steer") && acpSelectionAdmission.has(threadId)) {
+    sendError(request.id, -32000, "ACP execution settings are already being applied for this thread");
+    return;
+  }
+  if (!guarded) return handleRequestUnlocked(request);
+  if (shuttingDown) throw new Error("ACP bridge is shutting down");
+  acpSelectionAdmission.add(threadId);
+  try {
+    return await handleRequestUnlocked(request);
+  } finally {
+    acpSelectionAdmission.delete(threadId);
+  }
+}
+async function handleRequestUnlocked(request) {
+  switch (request.method) {
+    case "initialize":
+      const result = {
+        ok: true,
+        protocolVersion: PROVIDER_BRIDGE_PROTOCOL_VERSION,
+        capabilities: {
+          sessionRestore: false,
+          threadArchive: false,
+          threadRename: false,
+          threadGoalClear: false,
+          fork: "tip",
+          approvalEnforcedBy: "runtime",
+          grammarVersions: [THREAD_DELTA_GRAMMAR_V3, THREAD_DELTA_GRAMMAR_V3],
+          steerMode: "queue",
+          skills: { configure: true },
+          commands: { list: false }
+        }
+      };
+      sendResult(request.id, result);
+      return;
+    case "model/list": {
+      const modelPicker = decodeAcpModelPickerOptions(
+        request.params.providerOptions
+      );
+      await handleModelList(
+        request.id,
+        inModelListWorkspace(
+          buildAcpModelListParams(
+            decodeLaunchSpec(request.params.providerOptions),
+            modelPicker
+          ),
+          await resolveModelListWorkspace(request.params.cwd)
+        ),
+        decodeDialectId(request.params.providerOptions),
+        request.params.selectedModel
+      );
+      return;
+    }
+    case "provider/health":
+      sendResult(
+        request.id,
+        await getAcpProviderHealth(
+          maintenanceTarget(request.params.providerOptions)
+        )
+      );
+      return;
+    case "provider/usage":
+      sendResult(
+        request.id,
+        await getAcpProviderUsage(
+          maintenanceTarget(request.params.providerOptions)
+        )
+      );
+      return;
+    case "provider/installation/status":
+      sendResult(
+        request.id,
+        await getAcpProviderInstallationStatus(
+          maintenanceTarget(request.params.providerOptions)
+        )
+      );
+      return;
+    case "provider/installation/run":
+      sendResult(
+        request.id,
+        await getAcpProviderInstallationRun({
+          ...maintenanceTarget(request.params.providerOptions),
+          action: request.params.action
+        })
+      );
+      return;
+    case "thread/start":
+    case "thread/resume":
+    case "thread/fork": {
+      if (request.method === "thread/fork" && request.params.sourceProviderCheckpointId !== void 0) {
+        sendError(
+          request.id,
+          BRIDGE_JSON_RPC_ERRORS.FORK_CHECKPOINT_UNSUPPORTED,
+          "ACP session/fork cannot fork at a checkpoint; only tip forks are supported"
+        );
+        return;
+      }
+      const params = request.params;
+      const launchSpec = decodeLaunchSpec(params.options.providerOptions);
+      if (launchSpec === null) {
+        sendError(
+          request.id,
+          BRIDGE_JSON_RPC_ERRORS.INVALID_PARAMS,
+          `Invalid params for "${request.method}": options.providerOptions.acpLaunchSpec is required by the ACP bridge`
+        );
+        return;
+      }
+      const modelPicker = decodeAcpModelPickerOptions(
+        params.options.providerOptions
+      );
+      const sessionParams = buildAcpSessionParams({
+        additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
+          params.options.providerOptions
+        ),
+        dialectId: decodeDialectId(params.options.providerOptions),
+        cwd: params.cwd,
+        dynamicTools: params.dynamicTools,
+        options: {
+          ...params.options,
+          skillRoots: configuredSkillRoots ?? void 0
+        },
+        parameterizedModelPicker: modelPicker.parameterizedModelPicker,
+        launchSpec,
+        providerLabel: launchSpec.displayName,
+        threadId: params.threadId
+      });
+      const session = await startAgentSession(
+        request.method === "thread/resume" ? {
+          kind: "resume",
+          params: sessionParams,
+          resumeProviderThreadId: request.params.providerThreadId,
+          continuesTurn: false
+        } : request.method === "thread/fork" ? {
+          kind: "fork",
+          params: sessionParams,
+          sourceProviderThreadId: request.params.sourceProviderThreadId
+        } : { kind: "start", params: sessionParams }
+      );
+      sendResult(request.id, {
+        providerThreadId: session.providerThreadId,
+        sessionRestorable: session.supportsLoadSession
+      });
+      return;
+    }
+    case "turn/start": {
+      const params = request.params;
+      let session = liveSessionForThread(params.threadId);
+      if (session === void 0) {
+        sendError(request.id, -32e3, "No active ACP session");
+        return;
+      }
+      if (session.activePromptKind === "agent") {
+        finishAgentTurn(
+          session,
+          agentTurnHasOpenWork(session) ? "cancelled" : "end_turn"
+        );
+      }
+      if (session.activePromptKind !== null) {
+        sendError(request.id, -32e3, "A turn is already active");
+        return;
+      }
+      const reconciled = reconcileExecutionSettings(session, params.options);
+      session = reconciled instanceof Promise ? await reconciled : reconciled;
+      if (params.options.sessionOptions !== void 0) {
+        await applySessionOptionSelections(
+          session,
+          params.options.sessionOptions
+        );
+      }
+      if (session.stopping || sessionsByBbThreadId.get(params.threadId) !== session) {
+        throw new Error("ACP session was stopped while applying execution settings");
+      }
+      const pending = {
+        clientRequestId: params.clientRequestId,
+        input: params.input,
+        requestId: request.id,
+        options: params.options
+      };
+      if (isStandaloneBuiltinCompactCommand(params.input)) {
+        startCompaction(session, pending);
+      } else {
+        runTurn(session, pending);
+      }
+      return;
+    }
+    case "turn/steer": {
+      const params = request.params;
+      const session = liveSessionForThread(params.threadId);
+      if (session === void 0) {
+        sendError(request.id, -32e3, "No active ACP session");
+        return;
+      }
+      if (session.activePromptKind === "agent") {
+        sendResult(request.id, { threadId: params.threadId });
+        runTurn(
+          session,
+          {
+            clientRequestId: params.clientRequestId,
+            input: params.input,
+            requestId: null,
+            options: params.options
+          },
+          true
+        );
+        return;
+      }
+      if (session.activePromptKind !== "turn") {
+        const message = "No active turn to steer";
+        sendError(request.id, BRIDGE_JSON_RPC_ERRORS.NO_ACTIVE_TURN, message, {
+          recovery: { kind: "staleTurn", message, retryable: false }
+        });
+        return;
+      }
+      session.queuedInputs.push({
+        clientRequestId: params.clientRequestId,
+        input: params.input,
+        requestId: null,
+        options: params.options
+      });
+      requestSteerCancel(session);
+      sendResult(request.id, { threadId: params.threadId });
+      return;
+    }
+    case "thread/stop": {
+      const session = sessionsByBbThreadId.get(request.params.threadId);
+      if (session) {
+        if (request.params.intent === "release") {
+          await releaseSession(session);
+        } else {
+          await stopSession(session);
+        }
+      }
+      sendResult(request.id, { ok: true });
+      return;
+    }
+    case "thread/discard":
+      sendResult(request.id, { ok: true });
+      return;
+    case "skills/configure":
+      configuredSkillRoots = request.params.roots.map((root) => ({
+        id: root.id,
+        skillDirectoryRootPath: root.path,
+        skills: root.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description
+        }))
+      }));
+      sendResult(request.id, { ok: true });
+      return;
+  }
+}
+function handleParsedMessage(parsed) {
+  const response = decodeBridgeJsonRpcResponse(parsed);
+  if (response && typeof response.id === "number") {
+    const pending = pendingRuntimeRequests.get(response.id);
+    if (pending) {
+      pendingRuntimeRequests.delete(response.id);
+      pending(response);
+      return;
+    }
+  }
+  const decoded = decodeAcpBridgeJsonRpcRequest(parsed);
+  if (decoded.kind === "ignored") {
+    return;
+  }
+  if (decoded.kind === "unknown-method") {
+    sendError(
+      decoded.id,
+      BRIDGE_JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+      `Unknown method "${decoded.method}"`
+    );
+    return;
+  }
+  if (decoded.kind === "invalid-params") {
+    sendError(
+      decoded.id,
+      BRIDGE_JSON_RPC_ERRORS.INVALID_PARAMS,
+      `Invalid params for "${decoded.method}": ${decoded.issues}`
+    );
+    return;
+  }
+  runBridgeRequest({
+    request: decoded.request,
+    handleRequest: (request) => handleRequest2(request).catch((error) => {
+      throw withAcpAuthRequiredRecovery(error);
+    }),
+    sendError
+  });
+}
+var handleLine = createBridgeLineHandler({ handleParsedMessage });
+async function stopAllSessions() {
+  const sessions = Array.from(sessionsByBbThreadId.values());
+  const sessionConnections = new Set(
+    sessions.map((session) => session.connection)
+  );
+  const results = await Promise.allSettled([
+    ...sessions.map(
+      (session) => stopSession(session, SHUTDOWN_CANCEL_TIMEOUT_MS)
+    ),
+    ...Array.from(agentConnections).filter((connection) => !sessionConnections.has(connection)).map((connection) => connection.kill())
+  ]);
+  results.push(
+    ...await Promise.allSettled(
+      Array.from(agentConnections, (connection) => connection.kill())
+    )
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      process.stderr.write(
+        `acp bridge: shutdown cleanup failed: ${String(result.reason)}
+`
+      );
+    }
+  }
+  const dynamicToolBridge = dynamicToolBridgePromise ? await dynamicToolBridgePromise.catch(() => null) : null;
+  await new Promise((resolveClose) => {
+    if (!dynamicToolBridge) {
+      resolveClose();
+      return;
+    }
+    dynamicToolBridge.server.close(() => resolveClose());
+  });
+}
+function shutdownBridge() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  void stopAllSessions().catch((error) => {
+    process.stderr.write(`acp bridge: shutdown failed: ${String(error)}
+`);
+  }).finally(() => process.exit(0));
+}
+if (process.argv.includes("--mcp-stdio")) {
+  runAcpDynamicToolMcpServer();
+}
+var experimental_providerBridge = experimental_defineProviderBridge({
+  handleLine,
+  onClose: shutdownBridge,
+  onSigterm: shutdownBridge,
+  onSigint: shutdownBridge
+});
+
+// ../provider-bridge-acp/src/probe.ts
+import { z as z52 } from "zod";
+var PROBE_TIMEOUT_MS2 = 1e4;
+function describe(error) {
+  if (error instanceof AcpAgentExitedError) {
+    return `the agent exited before it answered initialize: ${error.message}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+async function probeAcpAgent(request) {
+  const timeoutMs = request.timeoutMs ?? PROBE_TIMEOUT_MS2;
+  let connection;
+  try {
+    connection = createAcpAgentConnection({
+      command: request.command,
+      args: [...request.args],
+      cwd: request.cwd,
+      env: withoutBridgeRuntimeEnv({ ...process.env, ...request.env ?? {} }),
+      recordThreadId: null,
+      onNotification: () => {
+      },
+      onRequest: (_method, _params, responder) => {
+        responder.error(-32601, "bb is probing this agent's capabilities");
+      },
+      onExit: () => {
+      }
+    });
+  } catch (error) {
+    return { reachable: false, reason: describe(error) };
+  }
+  const connected = connection;
+  const timeout = new Promise((_resolve, reject) => {
+    setTimeout(
+      () => reject(
+        new Error(
+          `the agent did not answer initialize within ${timeoutMs}ms`
+        )
+      ),
+      timeoutMs
+    ).unref?.();
+  });
+  try {
+    const result = await Promise.race([
+      requestAcpInitialize(connected, {
+        parameterizedModelPicker: false,
+        fsAccess: true
+      }),
+      timeout
+    ]);
+    return {
+      reachable: true,
+      fork: result.session.fork
+    };
+  } catch (error) {
+    return { reachable: false, reason: describe(error) };
+  } finally {
+    connected.kill();
+  }
+}
+var acpAgentProbeSchema = z52.union([
+  z52.object({ reachable: z52.literal(true), fork: z52.boolean() }),
+  z52.object({ reachable: z52.literal(false), reason: z52.string() })
+]);
+export {
+  acpAgentProbeSchema as experimental_acpAgentProbeSchema,
+  acpLaunchSpecSchema as experimental_acpLaunchSpecSchema,
+  experimental_providerBridge as experimental_acpProviderBridge,
+  probeAcpAgent as experimental_probeAcpAgent,
+  registerAcpDialect as experimental_registerAcpDialect
+};
+
+export const reinhAcpRuntimePatch = Object.freeze({"sdkVersion":"0.6.132","sourceSha256":"d6b36e1440f5b43d5e664b243bf94631359cb500c2b73ac21d313890b4b30b7e","patchSha256":"288ef89b49d3c70723f40fc879d6e0a890489d4986cba91fb5a5b70c4e2b6b56","revision":"reinh-acp-strict-3"});

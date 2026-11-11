@@ -1,0 +1,112 @@
+--- a/provider-bridge-acp.js
++++ b/provider-bridge-acp.js
+@@ -22830,6 +22830,9 @@
+   const sessionModelsIncludeSelection = availableSessionModels.some(
+     (model) => model.modelId === selection.modelId
+   );
++  if (!modelOption && !sessionModelsIncludeSelection && models?.currentModelId !== selection.modelId) {
++    throw new Error("Requested ACP model is unavailable in the executing session");
++  }
+   const shouldSetModel = modelOption && modelOption.currentValue !== selection.modelId || !modelOption && sessionModelsIncludeSelection && models?.currentModelId !== selection.modelId;
+   if (shouldSetModel) {
+     let configState = null;
+@@ -22933,7 +22936,7 @@
+       timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+     });
+   } catch {
+-    return;
++    throw new Error("ACP agent could not apply the requested reasoning level");
+   }
+   recordAcpConfigValue(args.session, configState, thoughtLevelOption.id, value);
+ }
+@@ -24528,6 +24531,7 @@
+     env: { ...process.env, ...launchSpec?.env }
+   };
+ }
++var pendingTurnStarts = new Set();
+ async function handleRequest2(request) {
+   switch (request.method) {
+     case "initialize":
+@@ -24660,41 +24664,50 @@
+     }
+     case "turn/start": {
+       const params = request.params;
+-      let session = liveSessionForThread(params.threadId);
+-      if (session === void 0) {
+-        sendError(request.id, -32e3, "No active ACP session");
++      if (pendingTurnStarts.has(params.threadId)) {
++        sendError(request.id, -32000, "A turn start is already applying execution settings");
+         return;
+       }
+-      if (session.activePromptKind === "agent") {
+-        finishAgentTurn(
+-          session,
+-          agentTurnHasOpenWork(session) ? "cancelled" : "end_turn"
+-        );
++      pendingTurnStarts.add(params.threadId);
++      try {
++        let session = liveSessionForThread(params.threadId);
++        if (session === void 0) {
++          sendError(request.id, -32e3, "No active ACP session");
++          return;
++        }
++        if (session.activePromptKind === "agent") {
++          finishAgentTurn(
++            session,
++            agentTurnHasOpenWork(session) ? "cancelled" : "end_turn"
++          );
++        }
++        if (session.activePromptKind !== null) {
++          sendError(request.id, -32e3, "A turn is already active");
++          return;
++        }
++        const reconciled = reconcileExecutionSettings(session, params.options);
++        session = reconciled instanceof Promise ? await reconciled : reconciled;
++        if (params.options.sessionOptions !== void 0) {
++          await applySessionOptionSelections(
++            session,
++            params.options.sessionOptions
++          );
++        }
++        const pending = {
++          clientRequestId: params.clientRequestId,
++          input: params.input,
++          requestId: request.id,
++          options: params.options
++        };
++        if (isStandaloneBuiltinCompactCommand(params.input)) {
++          startCompaction(session, pending);
++        } else {
++          runTurn(session, pending);
++        }
++        return;
++      } finally {
++        pendingTurnStarts.delete(params.threadId);
+       }
+-      if (session.activePromptKind !== null) {
+-        sendError(request.id, -32e3, "A turn is already active");
+-        return;
+-      }
+-      const reconciled = reconcileExecutionSettings(session, params.options);
+-      session = reconciled instanceof Promise ? await reconciled : reconciled;
+-      if (params.options.sessionOptions !== void 0) {
+-        await applySessionOptionSelections(
+-          session,
+-          params.options.sessionOptions
+-        );
+-      }
+-      const pending = {
+-        clientRequestId: params.clientRequestId,
+-        input: params.input,
+-        requestId: request.id,
+-        options: params.options
+-      };
+-      if (isStandaloneBuiltinCompactCommand(params.input)) {
+-        startCompaction(session, pending);
+-      } else {
+-        runTurn(session, pending);
+-      }
+-      return;
+     }
+     case "turn/steer": {
+       const params = request.params;

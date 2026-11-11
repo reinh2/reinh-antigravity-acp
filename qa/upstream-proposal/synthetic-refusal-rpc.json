@@ -1,0 +1,290 @@
+{
+  "evidence": "SYNTHETIC ACP — NOT GOOGLE",
+  "data": {
+    "failed": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "error": {
+        "code": -32000,
+        "message": "Synthetic model selection refused"
+      }
+    },
+    "rpc": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {
+            "fs": {
+              "readTextFile": true,
+              "writeTextFile": true
+            },
+            "terminal": false,
+            "auth": {
+              "terminal": true
+            },
+            "elicitation": {
+              "form": {}
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58786",
+          "configId": "model",
+          "value": "gemini-4-argon-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58786",
+          "modelId": "gemini-4-argon-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58786",
+          "configId": "model",
+          "value": "gemini-4-argon-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58786",
+          "modelId": "gemini-4-argon-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58786",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "must not run at the old effort"
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "ok": true,
+          "protocolVersion": 2,
+          "capabilities": {
+            "sessionRestore": false,
+            "threadArchive": false,
+            "threadRename": false,
+            "threadGoalClear": false,
+            "fork": "tip",
+            "approvalEnforcedBy": "runtime",
+            "grammarVersions": [
+              3,
+              3
+            ],
+            "steerMode": "queue",
+            "skills": {
+              "configure": true
+            },
+            "commands": {
+              "list": false
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/identity",
+        "params": {
+          "threadId": "refusal-thread",
+          "providerThreadId": "synthetic-session-58786",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "refusal-thread",
+          "deltas": [
+            {
+              "kind": "session.reset"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+          "providerThreadId": "synthetic-session-58786",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "error": {
+          "code": -32000,
+          "message": "Synthetic model selection refused"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "refusal-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "refusal-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_bcdefghijk"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": {
+          "threadId": "refusal-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "refusal-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-4-argon-high",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "refusal-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-4-argon-high"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "refusal-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

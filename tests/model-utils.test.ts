@@ -8,11 +8,10 @@ import {
   parseRawModels,
   resolveRawModelId,
   rawListsEqual,
-  FALLBACK_DEFAULT_VARIANT_ID,
   type RawModel,
 } from "../model-utils.js";
 
-// Mock data matching current ACP server
+// Synthetic fixtures based on the upstream issue; not a live Google capture.
 const CURRENT_RAW: RawModel[] = [
   { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" },
   { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
@@ -103,32 +102,14 @@ describe("parseRawModels — dynamic discovery", () => {
     assert.equal(pro.supportedReasoningEfforts.length, 2);
   });
 
-  it("handles future model with new effort without code change", () => {
-    const future: RawModel[] = [
-      ...CURRENT_RAW,
-      { id: "gemini-3.9-flash-ultra", name: "Gemini 3.9 Flash (Ultra)" },
-      { id: "gemini-3.9-flash-thinking-high", name: "Gemini 3.9 Flash (Thinking High)" },
+  it("retains unknown future variants as standalone models without invalid reasoning", () => {
+    const raw = [
+      { id: "future-model-turbo", name: "Future Model (Turbo)" },
+      { id: "future-model-thinking-high", name: "Future Model (Thinking High)" },
     ];
-    const { families, models } = parseRawModels(future);
-    assert.equal(families.size, 5);
-    const f = families.get("gemini-3.9-flash")!;
-    assert.ok(f.variants.has("ultra"), "ultra effort should be captured");
-    assert.ok(f.variants.has("thinking-high"), "thinking-high effort should be captured");
-    const m = models.find((x) => x.id === "gemini-3.9-flash")!;
-    assert.ok(m.supportedReasoningEfforts.some((e) => e.reasoningEffort === "ultra"));
-    assert.ok(m.supportedReasoningEfforts.some((e) => e.reasoningEffort === "thinking-high"));
-  });
-
-  it("handles id-only effort (no parens) generically", () => {
-    const raw: RawModel[] = [
-      { id: "future-model-turbo", name: "Future Model" },
-      { id: "future-model-standard", name: "Future Model" },
-    ];
-    const { families } = parseRawModels(raw);
-    const fam = families.get("future-model")!;
-    assert.ok(fam, "family should be future-model");
-    assert.ok(fam.variants.has("turbo"));
-    assert.ok(fam.variants.has("standard"));
+    const { models } = parseRawModels(raw);
+    assert.equal(models.length, 2);
+    for (const model of models) assert.deepEqual(model.supportedReasoningEfforts, []);
   });
 
   it("respects preferred default from settings (per-provider configurability)", () => {
@@ -164,8 +145,7 @@ describe("resolveRawModelId — launch variant resolution (tested via payload, n
   it("resolves gemini-3.1-pro variants (including gemini-pro-agent mapping)", () => {
     assert.equal(resolveRawModelId("gemini-3.1-pro", "high", catalog), "gemini-pro-agent");
     assert.equal(resolveRawModelId("gemini-3.1-pro", "low", catalog), "gemini-3.1-pro-low");
-    const res = resolveRawModelId("gemini-3.1-pro", "medium", catalog);
-    assert.ok(["gemini-pro-agent", "gemini-3.1-pro-low"].includes(res));
+    assert.throws(() => resolveRawModelId("gemini-3.1-pro", "medium", catalog));
   });
 
   it("passes through raw legacy ids for backward compat", () => {
@@ -178,21 +158,17 @@ describe("resolveRawModelId — launch variant resolution (tested via payload, n
     assert.equal(resolved, "gemini-3.8-flash-medium");
   });
 
-  it("falls back safely to static default variant when catalog is cold/empty", () => {
-    const emptyCatalog = { families: new Map(), models: [], defaultFamilyId: "", rawModels: [] };
-    const resolved = resolveRawModelId(undefined, undefined, emptyCatalog);
-    assert.equal(resolved, FALLBACK_DEFAULT_VARIANT_ID);
-    assert.equal(resolved, "gemini-3.8-flash-medium");
+  it("rejects execution when discovery returned no models", () => {
+    assert.throws(() => resolveRawModelId(undefined, undefined, parseRawModels([])));
   });
 
-  it("handles future effort generically", () => {
-    const future: RawModel[] = [
+  it("allows future protocol-supported levels but rejects non-protocol labels", () => {
+    const futureCatalog = parseRawModels([
       { id: "gemini-3.9-flash-ultra", name: "Gemini 3.9 Flash (Ultra)" },
       { id: "gemini-3.9-flash-default", name: "Gemini 3.9 Flash (Default)" },
-    ];
-    const futureCatalog = parseRawModels(future);
+    ]);
     assert.equal(resolveRawModelId("gemini-3.9-flash", "ultra", futureCatalog), "gemini-3.9-flash-ultra");
-    assert.equal(resolveRawModelId("gemini-3.9-flash", "default", futureCatalog), "gemini-3.9-flash-default");
+    assert.throws(() => resolveRawModelId("gemini-3.9-flash", "default", futureCatalog));
   });
 
   it("verifies intercepted payload rather than LLM identity", () => {
@@ -218,13 +194,5 @@ describe("rawListsEqual — staleness detection", () => {
     assert.equal(rawListsEqual(a, a), true);
     const c = CURRENT_RAW.filter((m) => m.id !== "gemini-3.6-flash-low");
     assert.equal(rawListsEqual(CURRENT_RAW, c), false);
-  });
-});
-
-describe("cache staleness — TTL behavior", () => {
-  it("cache file includes timestamp and is comparable", () => {
-    const mockCache = { rawModels: CURRENT_RAW, timestamp: Date.now() };
-    assert.ok(typeof mockCache.timestamp === "number");
-    assert.ok(Array.isArray(mockCache.rawModels));
   });
 });

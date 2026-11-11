@@ -5,3 +5,25 @@ node_modules/
 # global "Icon?" pattern matches the icons/ dir name
 !icons/
 !icons/**
+
+# Local release and original-source rollback snapshots
+.release/
+
+# Python verification helpers
+__pycache__/
+
+# Local-only working material (QA logs with machine paths, internal notes)
+CODEX_TASK.md
+qa/REPORT.md
+qa/REVIEW.md
+qa/changes.patch
+qa/changed-files.txt
+qa/evidence/
+qa/live/
+qa/before-after/
+docs/INSTALL_ROLLBACK.md
+docs/VIDEO_NOTES.md
+
+# Created by the Antigravity agent when a thread runs in this checkout
+skills/
+.agents/

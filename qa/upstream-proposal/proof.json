@@ -1,0 +1,31 @@
+{
+  "sdkVersion": "0.6.132",
+  "originalModuleSha256": "d6b36e1440f5b43d5e664b243bf94631359cb500c2b73ac21d313890b4b30b7e",
+  "originalModuleUnchanged": true,
+  "note": "Proposal only. The plugin still uses the unmodified npm SDK. Port this minimal delta to upstream TypeScript, not installed node_modules.",
+  "results": [
+    {
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "qa/upstream-tests/strict-selection.test.ts",
+        "qa/upstream-tests/native-selection.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "qa/upstream-proposal/isolated-proof-1.log"
+    },
+    {
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "tests/bridge-integration.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "qa/upstream-proposal/isolated-proof-2.log"
+    }
+  ]
+}

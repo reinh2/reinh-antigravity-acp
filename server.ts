@@ -1,11 +1,38 @@
-import type {
-  BbPluginApi,
-  PluginCliContext,
-} from "@get-bb/plugin-sdk";
+import { defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
+import { z } from "zod";
 import { agyHostContract } from "./contract.js";
 import { FALLBACK_DIST, detectTarget, probeLocal, runInstall, type InstallResult } from "./install.js";
 
 const PROVIDER_ID = "acp-antigravity";
+
+// BB's Provider Usage panel reads sources through this RPC pair (one resource per host).
+const LIST_USAGE = "provider-usage.v1.listResources";
+const GET_USAGE = "provider-usage.v1.getResource";
+const usageIdentity = { plan: z.null(), accountEmail: z.null(), planLabel: z.string().nullable() };
+const usageSourceContract = defineRpcContract({
+  [LIST_USAGE]: {
+    input: z.object({}),
+    output: z.object({ resources: z.array(z.object({
+      accountKey: z.null(), id: z.string().min(1), providerId: z.string().min(1), label: z.string().min(1),
+      scope: z.object({ kind: z.literal("host"), hostId: z.string().min(1), hostName: z.string().min(1) }),
+    })) }),
+  },
+  [GET_USAGE]: {
+    input: z.object({ resourceId: z.string().min(1), refresh: z.boolean() }),
+    output: z.object({
+      accountKey: z.null(),
+      observedAt: z.number().int().nonnegative().nullable(),
+      usage: z.discriminatedUnion("status", [
+        z.object({ status: z.literal("ok"), ...usageIdentity, windows: z.array(z.object({
+          kind: z.enum(["five-hour", "daily", "weekly", "custom"]), id: z.string().min(1), label: z.string().min(1),
+          usedPercent: z.number().nonnegative(), resetsAt: z.string().nullable(), model: z.string().nullable(), cost: z.null(),
+        })) }),
+        ...(["not_installed", "unauthenticated", "expired"] as const).map(status => z.object({ status: z.literal(status), plan: z.null(), accountEmail: z.null(), planLabel: z.null() })),
+        z.object({ status: z.literal("error"), plan: z.null(), accountEmail: z.null(), planLabel: z.null(), message: z.string() }),
+      ]),
+    }),
+  },
+});
 
 export default async function plugin(bb: BbPluginApi) {
   // Installs run on each host, so ~ expands per host and binaries are found via PATH.
@@ -26,7 +53,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "Default model",
       description:
-        "Default model family for Google Antigravity threads (e.g. gemini-3.8-flash, gemini-3.7-flash, gemini-3.1-pro). Leave empty to use the latest Flash model.",
+        "Default model family for Google Antigravity threads (e.g. gemini-3.8-flash, gemini-3.7-flash, gemini-3.1-pro). Leave empty to use the ACP default, or the latest available Flash model.",
       default: "",
     },
     defaultReasoningEffort: {
@@ -81,12 +108,18 @@ export default async function plugin(bb: BbPluginApi) {
         iconTint: { light: "#4285F4", dark: "#8AB4F8" },
       },
       // Effort variants are separate ACP model ids; no separate service tier control.
-      reasoningLevels: [{ id: "medium", label: "Medium" }],
+      // Fallback labels; the discovered catalog limits efforts per model.
+      reasoningLevels: [
+        { id: "low", label: "Low" },
+        { id: "medium", label: "Medium" },
+        { id: "high", label: "High" },
+      ],
       // Only listed on hosts where the binary is installed and the probe passes.
       experimental_visibility: "installed",
       // One probe per machine serves every workspace on it.
       models: { scope: "host" },
-      maintenance: { health: true, usage: false, installation: false },
+      // usage: per-bucket quota (Argon separate from Flash/Pro) from the server's /usage command.
+      maintenance: { health: true, usage: true, installation: false },
       capabilities: {
         supportsServiceTier: false,
         supportsNativeUserQuestion: false,
@@ -125,6 +158,30 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   const host = bb.hosts.experimental_client({ contract: agyHostContract });
+
+  bb.rpc.register(usageSourceContract, {
+    [LIST_USAGE]: async () => ({
+      resources: (await bb.sdk.hosts.list()).filter(h => h.status === "connected").map(h => ({
+        accountKey: null, id: h.id, providerId: PROVIDER_ID, label: "Google Antigravity",
+        scope: { kind: "host" as const, hostId: h.id, hostName: h.name },
+      })),
+    }),
+    [GET_USAGE]: async ({ resourceId }) => {
+      const base = { accountKey: null, observedAt: Date.now() };
+      const none = { plan: null, accountEmail: null, planLabel: null };
+      try {
+        const state = await host.call("usage", null, { hostId: resourceId, timeoutMs: 30_000 });
+        if (state.status === "ok") {
+          return { ...base, usage: { status: "ok" as const, plan: null, accountEmail: null, planLabel: state.planLabel,
+            windows: state.windows.map(w => ({ ...w, cost: null })) } };
+        }
+        if (state.status === "error") return { ...base, observedAt: null, usage: { status: "error" as const, ...none, message: state.message } };
+        return { ...base, usage: { status: state.status, ...none } };
+      } catch (error) {
+        return { ...base, observedAt: null, usage: { status: "error" as const, ...none, message: error instanceof Error ? error.message : "Antigravity usage query failed." } };
+      }
+    },
+  }, { experimental_discoverable: true, experimental_description: "Google Antigravity quota (Gemini 4 Argon separate from Flash/Pro) for BB Provider Usage." });
 
 
 

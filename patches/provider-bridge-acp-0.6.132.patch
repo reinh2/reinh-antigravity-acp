@@ -1,0 +1,242 @@
+--- a/provider-bridge-acp.js
++++ b/provider-bridge-acp.js
+@@ -22817,6 +22817,15 @@
+     args: [...prefixArgs, ...agentArgs],
+     warning
+   };
++}
++// An agent may accept an effort-qualified model id through its model config and
++// report it back decomposed as family + thought level (Google Antigravity does).
++function acpConfigReflectsModel(configOptions, modelId) {
++  const modelOption = findAcpModelConfigOption(configOptions);
++  if (modelOption?.currentValue === void 0) return void 0;
++  if (modelOption.currentValue === modelId) return true;
++  const thought = findAcpThoughtLevelConfigOption(configOptions);
++  return typeof thought?.currentValue === "string" && `${modelOption.currentValue}-${thought.currentValue}` === modelId;
+ }
+ async function selectAcpNativeModel(args) {
+   const selection = args.modelSelection;
+@@ -22830,7 +22839,12 @@
+   const sessionModelsIncludeSelection = availableSessionModels.some(
+     (model) => model.modelId === selection.modelId
+   );
+-  const shouldSetModel = modelOption && modelOption.currentValue !== selection.modelId || !modelOption && sessionModelsIncludeSelection && models?.currentModelId !== selection.modelId;
++  const configIncludesSelection = modelOption?.options?.some((option) => option.value === selection.modelId) ?? false;
++  if (availableSessionModels.length > 0 && !sessionModelsIncludeSelection && !configIncludesSelection && models?.currentModelId !== selection.modelId) {
++    throw new Error("Requested ACP model is unavailable in the executing session");
++  }
++  // Missing restore metadata is not an authoritative empty roster: send a setter.
++  const shouldSetModel = modelOption ? acpConfigReflectsModel(configOptions, selection.modelId) !== true : models?.currentModelId !== selection.modelId;
+   if (shouldSetModel) {
+     let configState = null;
+     let setModel = !modelOption;
+@@ -22860,7 +22874,13 @@
+         resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+         timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+       });
++    }
++    if (configState?.models?.currentModelId !== void 0 && configState.models.currentModelId !== selection.modelId) {
++      throw new Error("ACP agent acknowledged a different model than requested");
+     }
++    if (!setModel && acpConfigReflectsModel(configState?.configOptions, selection.modelId) === false) {
++      throw new Error("ACP agent did not apply the requested model config");
++    }
+     const current = session.nativeConfig;
+     session.nativeConfig = {
+       configOptions: configState?.configOptions ?? withAcpConfigValue(
+@@ -22906,34 +22926,29 @@
+ }
+ async function selectAcpNativeReasoning(args) {
+   const reasoningLevel = args.modelSelection.reasoningLevel;
+-  if (reasoningLevel === void 0) {
+-    return;
+-  }
+-  const thoughtLevelOption = findAcpThoughtLevelConfigOption(args.session.nativeConfig.configOptions) ?? nativeReasoningToThoughtLevelOption(args.nativeReasoning);
++  if (reasoningLevel === void 0) return;
++  const configOptions = args.session.nativeConfig.configOptions;
++  const thoughtLevelOption = findAcpThoughtLevelConfigOption(configOptions) ??
++    configOptions?.find((option) => option.type === "select" && option.id === args.nativeReasoning?.configId) ??
++    (configOptions === void 0 ? nativeReasoningToThoughtLevelOption(args.nativeReasoning) : void 0);
+   if (!thoughtLevelOption) {
+-    return;
++    throw new Error("ACP agent does not expose the requested reasoning config");
+   }
+-  const value = acpNativeReasoningLevelToValue(
+-    reasoningLevel,
+-    thoughtLevelOption
+-  );
++  const value = acpNativeReasoningLevelToValue(reasoningLevel, thoughtLevelOption);
+   if (value === void 0) {
+-    return;
++    throw new Error("Requested reasoning level is not supported by the executing model");
+   }
+-  let configState;
+-  try {
+-    configState = await args.session.connection.request({
+-      method: "session/set_config_option",
+-      params: {
+-        sessionId: args.sessionId,
+-        configId: thoughtLevelOption.id,
+-        value
+-      },
+-      resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
+-      timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
+-    });
+-  } catch {
+-    return;
++  // Refusal and timeout propagate. A successful legacy null/empty ACK is allowed,
++  // but an explicitly contradictory currentValue is never accepted.
++  const configState = await args.session.connection.request({
++    method: "session/set_config_option",
++    params: { sessionId: args.sessionId, configId: thoughtLevelOption.id, value },
++    resultSchema: z51.union([acpConfigStateResultSchema, z51.null()]),
++    timeoutMs: ACP_SESSION_CONFIG_TIMEOUT_MS
++  });
++  const returned = configState?.configOptions?.find((option) => option.id === thoughtLevelOption.id);
++  if (returned?.currentValue !== void 0 && returned.currentValue !== value) {
++    throw new Error("ACP agent acknowledged a different reasoning level than requested");
+   }
+   recordAcpConfigValue(args.session, configState, thoughtLevelOption.id, value);
+ }
+@@ -23160,6 +23175,12 @@
+     respondPermission(pending, "allow_once");
+     return;
+   }
++  // accept-edits: a file edit confined to the workspace write roots is approved
++  // like the fs/write_text_file path below; anything else still asks the user.
++  if (session.policy.permissionMode === "accept-edits" && isWorkspaceEditPermission(toolCall, session.policy.workspaceWriteRoots) && pickPermissionOptionId(parsed.data.options, "allow_once") !== void 0) {
++    respondPermission(pending, "allow_once");
++    return;
++  }
+   if (session.activePromptKind === null) {
+     openAgentTurn(session);
+   }
+@@ -23206,6 +23227,16 @@
+     respondPermission(pending, null);
+   });
+ }
++function isWorkspaceEditPermission(toolCall, roots) {
++  if (toolCall?.kind !== "edit" || !Array.isArray(roots) || roots.length === 0) {
++    return false;
++  }
++  const paths = [
++    ...(Array.isArray(toolCall.locations) ? toolCall.locations : []).map((location) => location?.path),
++    ...(Array.isArray(toolCall.content) ? toolCall.content : []).filter((entry) => entry?.type === "diff").map((entry) => entry.path)
++  ];
++  return paths.length > 0 && paths.every((path8) => typeof path8 === "string" && isAbsolute3(path8) && isPathInsideRoots(path8, roots));
++}
+ function isPathInsideRoots(targetPath, roots) {
+   const resolvedTarget = resolve4(targetPath);
+   return roots.some((root) => {
+@@ -23339,7 +23370,16 @@
+     })
+   };
+ }
++// Google Antigravity sorts cwd + additionalDirectories and treats the first as
++// its working directory, so bb's ~/.bb/thread-storage root would replace the
++// project. The roots stay in BB's write policy; they are only not advertised.
++function isAntigravityAgent(command) {
++  return /^agy_acp_server(\.par|\.exe)?$/i.test(basename3(command ?? ""));
++}
+ function additionalSessionDirectories(params, capabilities) {
++  if (isAntigravityAgent(params.agent?.command)) {
++    return {};
++  }
+   const directories = params.workspaceWriteRoots.filter(
+     (root) => root !== params.cwd
+   );
+@@ -23348,10 +23388,12 @@
+ async function startAgentSession(request) {
+   const params = request.params;
+   const bbThreadId = params.threadId;
++  const stopGeneration = acpStopGeneration.get(bbThreadId) ?? 0;
+   const existing = sessionsByBbThreadId.get(bbThreadId);
+   if (existing) {
+     await stopSession(existing);
+   }
++  assertAcpConstructionCurrent(bbThreadId, stopGeneration);
+   const dialect = resolveAcpDialect({
+     ...params.dialectId === void 0 ? {} : { dialectId: params.dialectId },
+     command: params.agent.command
+@@ -23377,6 +23419,7 @@
+     });
+   };
+   const launch = await resolveAgentLaunchArgs(params);
++  assertAcpConstructionCurrent(bbThreadId, stopGeneration);
+   if (launch.warning) {
+     emitStartNotification(ACP_WARNING_METHOD, {
+       threadId: bbThreadId,
+@@ -23614,7 +23657,8 @@
+         });
+       }
+     }
+-    if (session.stopping) {
++    assertAcpConstructionCurrent(bbThreadId, stopGeneration);
++    if (session.stopping || sessionsByBbThreadId.get(bbThreadId) !== session) {
+       throw new Error(
+         `ACP session for thread "${bbThreadId}" was released during construction`
+       );
+@@ -24026,7 +24070,7 @@
+         const previousSession = session;
+         const reconciled = reconcileExecutionSettings(session, pending.options);
+         session = reconciled instanceof Promise ? await reconciled : reconciled;
+-        if (session.stopping) {
++        if (session.stopping || sessionsByBbThreadId.get(session.bbThreadId) !== session) {
+           dropTurnInput(pending, "ACP session is stopping");
+           finishTurn(session, "cancelled");
+           return;
+@@ -24142,6 +24186,7 @@
+     ...session.construction,
+     modelSelection: modelParams.modelSelection,
+     launchReasoningLevel: modelParams.launchReasoningLevel,
++    nativeReasoning: launchSpec === null ? session.construction.nativeReasoning : launchSpec.nativeReasoning,
+     envVars,
+     permissionMode: options.permissionMode,
+     workspaceWriteRoots
+@@ -24528,7 +24573,36 @@
+     env: { ...process.env, ...launchSpec?.env }
+   };
+ }
++// Admission covers async reconciliation and construction, never the lifetime of a turn.
++// Internal rebuilds do not re-enter the external lock. Stop always bypasses it.
++var acpSelectionAdmission = new Set();
++var acpStopGeneration = new Map();
++function assertAcpConstructionCurrent(threadId, generation) {
++  if (shuttingDown || (acpStopGeneration.get(threadId) ?? 0) !== generation) {
++    throw new Error("ACP construction cancelled while applying execution settings");
++  }
++}
+ async function handleRequest2(request) {
++  const threadId = request.params.threadId;
++  if (request.method === "thread/stop") {
++    acpStopGeneration.set(threadId, (acpStopGeneration.get(threadId) ?? 0) + 1);
++    return handleRequestUnlocked(request);
++  }
++  const guarded = ["thread/start", "thread/resume", "thread/fork", "turn/start"].includes(request.method);
++  if ((guarded || request.method === "turn/steer") && acpSelectionAdmission.has(threadId)) {
++    sendError(request.id, -32000, "ACP execution settings are already being applied for this thread");
++    return;
++  }
++  if (!guarded) return handleRequestUnlocked(request);
++  if (shuttingDown) throw new Error("ACP bridge is shutting down");
++  acpSelectionAdmission.add(threadId);
++  try {
++    return await handleRequestUnlocked(request);
++  } finally {
++    acpSelectionAdmission.delete(threadId);
++  }
++}
++async function handleRequestUnlocked(request) {
+   switch (request.method) {
+     case "initialize":
+       const result = {
+@@ -24683,6 +24757,9 @@
+           params.options.sessionOptions
+         );
+       }
++      if (session.stopping || sessionsByBbThreadId.get(params.threadId) !== session) {
++        throw new Error("ACP session was stopped while applying execution settings");
++      }
+       const pending = {
+         clientRequestId: params.clientRequestId,
+         input: params.input,

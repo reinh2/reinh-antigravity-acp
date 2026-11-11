@@ -1,0 +1,108 @@
+{
+  "evidence": "SYNTHETIC ACP — NOT GOOGLE",
+  "data": {
+    "started": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "error": {
+        "code": -32000,
+        "message": "Requested ACP model is unavailable in the executing session"
+      }
+    },
+    "rpc": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {
+            "fs": {
+              "readTextFile": true,
+              "writeTextFile": true
+            },
+            "terminal": false,
+            "auth": {
+              "terminal": true
+            },
+            "elicitation": {
+              "form": {}
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      }
+    ],
+    "events": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "ok": true,
+          "protocolVersion": 2,
+          "capabilities": {
+            "sessionRestore": false,
+            "threadArchive": false,
+            "threadRename": false,
+            "threadGoalClear": false,
+            "fork": "tip",
+            "approvalEnforcedBy": "runtime",
+            "grammarVersions": [
+              3,
+              3
+            ],
+            "steerMode": "queue",
+            "skills": {
+              "configure": true
+            },
+            "commands": {
+              "list": false
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "error": {
+          "code": -32000,
+          "message": "Requested ACP model is unavailable in the executing session"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,730 @@
+{
+  "evidence": "SYNTHETIC ACP — NOT GOOGLE",
+  "data": {
+    "models": [
+      {
+        "id": "gemini-4-argon",
+        "model": "gemini-4-argon",
+        "displayName": "Gemini 4 Argon",
+        "description": "",
+        "supportedReasoningEfforts": [
+          {
+            "reasoningEffort": "low",
+            "description": "Low reasoning effort"
+          },
+          {
+            "reasoningEffort": "medium",
+            "description": "Medium reasoning effort"
+          },
+          {
+            "reasoningEffort": "high",
+            "description": "High reasoning effort"
+          }
+        ],
+        "defaultReasoningEffort": "medium",
+        "isDefault": false
+      },
+      {
+        "id": "gemini-3.8-flash",
+        "model": "gemini-3.8-flash",
+        "displayName": "Gemini 3.8 Flash",
+        "description": "",
+        "supportedReasoningEfforts": [
+          {
+            "reasoningEffort": "low",
+            "description": "Low reasoning effort"
+          },
+          {
+            "reasoningEffort": "medium",
+            "description": "Medium reasoning effort"
+          },
+          {
+            "reasoningEffort": "high",
+            "description": "High reasoning effort"
+          }
+        ],
+        "defaultReasoningEffort": "medium",
+        "isDefault": true
+      }
+    ],
+    "rpc": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {
+            "fs": {
+              "readTextFile": true,
+              "writeTextFile": true
+            },
+            "terminal": false,
+            "auth": {
+              "terminal": true
+            },
+            "elicitation": {
+              "form": {}
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "configId": "model",
+          "value": "gemini-4-argon-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "modelId": "gemini-4-argon-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "synthetic smoke"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "configId": "model",
+          "value": "gemini-4-argon-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "modelId": "gemini-4-argon-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "direct low switch"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {
+            "fs": {
+              "readTextFile": true,
+              "writeTextFile": true
+            },
+            "terminal": false,
+            "auth": {
+              "terminal": true
+            },
+            "elicitation": {
+              "form": {}
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "session/load",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "configId": "model",
+          "value": "gemini-4-argon-medium"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "modelId": "gemini-4-argon-medium"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58687",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "synthetic second smoke"
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "ok": true,
+          "protocolVersion": 2,
+          "capabilities": {
+            "sessionRestore": false,
+            "threadArchive": false,
+            "threadRename": false,
+            "threadGoalClear": false,
+            "fork": "tip",
+            "approvalEnforcedBy": "runtime",
+            "grammarVersions": [
+              3,
+              3
+            ],
+            "steerMode": "queue",
+            "skills": {
+              "configure": true
+            },
+            "commands": {
+              "list": false
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+          "models": [
+            {
+              "id": "gemini-4-argon",
+              "model": "gemini-4-argon",
+              "displayName": "Gemini 4 Argon",
+              "description": "",
+              "supportedReasoningEfforts": [
+                {
+                  "reasoningEffort": "low",
+                  "description": "Low reasoning effort"
+                },
+                {
+                  "reasoningEffort": "medium",
+                  "description": "Medium reasoning effort"
+                },
+                {
+                  "reasoningEffort": "high",
+                  "description": "High reasoning effort"
+                }
+              ],
+              "defaultReasoningEffort": "medium",
+              "isDefault": false
+            },
+            {
+              "id": "gemini-3.8-flash",
+              "model": "gemini-3.8-flash",
+              "displayName": "Gemini 3.8 Flash",
+              "description": "",
+              "supportedReasoningEfforts": [
+                {
+                  "reasoningEffort": "low",
+                  "description": "Low reasoning effort"
+                },
+                {
+                  "reasoningEffort": "medium",
+                  "description": "Medium reasoning effort"
+                },
+                {
+                  "reasoningEffort": "high",
+                  "description": "High reasoning effort"
+                }
+              ],
+              "defaultReasoningEffort": "medium",
+              "isDefault": true
+            }
+          ],
+          "selectedOnlyModels": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/identity",
+        "params": {
+          "threadId": "test-thread",
+          "providerThreadId": "synthetic-session-58687",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "session.reset"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": {
+          "providerThreadId": "synthetic-session-58687",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_abcdefghij"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": {
+          "threadId": "test-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-4-argon-high",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "test-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-4-argon-high"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_cdefghijkm"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "result": {
+          "threadId": "test-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-4-argon-low",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "test-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-4-argon-low"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/identity",
+        "params": {
+          "threadId": "test-thread",
+          "providerThreadId": "synthetic-session-58687",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "session.reset"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "result": {
+          "providerThreadId": "synthetic-session-58687",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_bcdefghijk"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "result": {
+          "threadId": "test-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-4-argon-medium",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "test-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-4-argon-medium"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "test-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

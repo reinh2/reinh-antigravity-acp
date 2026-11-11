@@ -1,137 +1,153 @@
-# bb-plugin-google-antigravity-acp
+# Reinh Antigravity ACP — Google Antigravity для bb
 
-Google Antigravity as a first-class bb agent provider through Antigravity's
-official **ACP** server (`agy_acp_server.par`).
+Плагин-провайдер для [bb](https://github.com/get-bb/bb), который запускает **Google Antigravity** (Gemini 4 Argon, Gemini 3.8 Flash) через официальный ACP-сервер Google.
 
-Registers the `acp-antigravity` provider (family `acp`), exactly like bb's
-builtin ACP agents:
+Это форк [rawizhere/bb-plugin-antigravity-acp](https://github.com/rawizhere/bb-plugin-antigravity-acp). Исходный автор — **rawizhere**, лицензия MIT сохранена. ID плагина и провайдера те же (`google-antigravity-acp` / `acp-antigravity`), поэтому форк заменяет оригинал.
 
-- `server.ts` — `bb.providers.register` with the launch spec in
-  `experimental_bridgeOptions.acpLaunchSpec`; plugin settings for install
-  paths; the `bb google-antigravity-acp status` and
-  `bb google-antigravity-acp install` commands.
-- `host.ts` — re-exports the canonical ACP provider bridge
-  (`@get-bb/plugin-sdk/provider-bridge/acp`, the same bridge the builtin
-  `provider-acp` plugin uses) and implements the host RPC the install/status
-  commands call, so installs run on the target machine, not on the bb server.
-- `install.ts` — shared install logic: resolves the official distribution
-  from the ACP registry (pinned to a commit SHA), downloads, safely extracts,
-  and links the server binary, usage proxy wrapper, and sandbox helper onto PATH
-  (no environment variables needed).
-- `icons/google-antigravity.svg` — provider mark (path-shaped, theme-tinted).
+## Что исправлено и добавлено
 
-## Install the plugin
-
-```sh
-bb plugin install git:github.com/rawizhere/bb-plugin-antigravity-acp --yes
-```
-
-For development, install from a checkout instead:
-
-```sh
-bb plugin install .                  # from this directory
-bb plugin reload google-antigravity-acp
-```
-
-## Settings
-
-| Setting | Default | Purpose |
+| | Оригинал 0.2.5 | Этот форк |
 |---|---|---|
-| `installDir` | `~/.local/opt/agy-acp-server` | Where the downloaded server binaries are extracted. `~` expands per machine. |
-| `binDir` | `~/.local/bin` | Where the server binary and sandbox helper are linked; must be on the machine's PATH. |
-| `defaultModel` | *(empty — latest Flash)* | Default model family for new threads, e.g. `gemini-3.8-flash` or `gemini-3.1-pro`. |
-| `defaultReasoningEffort` | *(empty — model default)* | Preferred effort variant for the default model: `low`, `medium`, or `high`. |
+| Уровни reasoning | в списке один пункт `Argon` или `Flash` | настоящие **Low / Medium / High**, только те, что объявил сервер |
+| Смена уровня | не работала | переключается в том же треде, выбранный вариант проверяется до отправки запроса |
+| Лимиты в bb | не показывались | **Gemini 4 Argon** и **Flash/Pro** отдельно: неделя и 5 часов, время сброса |
+| Режим `accept-edits` | спрашивал подтверждение на каждую правку | правки файлов внутри проекта проходят сами, команды и правки вне проекта спрашиваются |
+| Рабочая папка агента | правки могли уйти в `~/.bb/thread-storage` | агент работает в папке проекта |
 
-## Install the server binary
+Подробности в [CHANGELOG.md](CHANGELOG.md).
 
-```sh
+## Требования
+
+- **bb 0.49.0 или новее** (`bb --version`).
+- Аккаунт Google с доступом к Antigravity (проверено на Google AI Pro).
+- macOS (проверено на Apple Silicon). Linux и Windows поддерживаются кодом оригинала, но в этом форке не проверялись.
+
+## Установка
+
+### 1. Если у вас стоит оригинальный плагин rawizhere
+
+bb не даёт заменить плагин, установленный из другого git-репозитория. Сначала удалите его:
+
+```bash
+bb plugin config google-antigravity-acp
+```
+
+```bash
+bb plugin remove google-antigravity-acp
+```
+
+> `remove` удаляет **настройки плагина** (папки установки и модель по умолчанию). Первая команда показывает их, чтобы при желании вернуть их потом. Вход в Google (`~/.gemini`), установленный ACP-сервер и ваши треды не затрагиваются.
+
+### 2. Установите форк
+
+```bash
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.0 --yes
+```
+
+bb сам соберёт плагин. Диапазон `^0.3.0` позволяет получать обновления командой `bb plugin update google-antigravity-acp`.
+
+### 3. Установите ACP-сервер Google (если ещё не стоит)
+
+```bash
+bb google-antigravity-acp status
+```
+
+Если статус не `Ready`, установите сервер:
+
+```bash
 bb google-antigravity-acp install
 ```
 
-The command runs on the machine that will launch the agent (the current
-thread's host, or `--machine <id-or-name>` to pick another enrolled machine):
+### 4. Проверьте
 
-- detects the platform/arch and takes the official zip URL for it from the
-  ACP registry (`agentclientprotocol/registry` → `antigravity-acp`, pinned to
-  `REGISTRY_COMMIT` in `install.ts`), falling back to a pinned copy embedded
-  in the plugin;
-- downloads and extracts into `~/.local/opt/agy-acp-server` (configurable via
-  `--install-dir`, or the `installDir` plugin setting). Extraction never uses
-  `tar` (bsdtar does not sanitize `../` zip entries); it uses `unzip` or a
-  validated `python3` zipfile extraction, and PowerShell's `Expand-Archive`
-  on Windows;
-- symlinks the raw binary `agy_acp_server_raw.par` and sandbox helper `localharness_external`
-  into `~/.local/bin` (configurable via `--bin-dir` / `binDir`), and installs the
-  lightweight ACP context usage proxy wrapper as `agy_acp_server.par`; on Windows it
-  copies them and only appends the dir to the user PATH when you pass
-  `--update-path` (setx permanently edits `HKCU\Environment` — opt in
-  explicitly, and be aware of its 1024-character truncation limit);
-- makes the binaries executable and records the install in a manifest.
-
-Install once per machine that should run Antigravity threads. The provider
-only appears on a machine where the health probe finds `agy_acp_server.par`
-on PATH; the ACP server finds the sandbox helper on PATH too (the install
-links both into `binDir`), so no per-machine environment variables are
-needed.
-
-```sh
-bb google-antigravity-acp install --machine macbook        # this machine
-```
-
-The machine's daemon shell must have `binDir` on PATH. The command warns
-when it is not; pick a dir that is (e.g. `/usr/local/bin`) with `--bin-dir`.
-
-Useful flags:
-
-```sh
-bb google-antigravity-acp install --machine macbook        # install on a specific machine
-bb google-antigravity-acp install --force                  # re-download even if already installed
-bb google-antigravity-acp install --from ./agy-acp.zip     # explicit source (URL or local file)
-bb google-antigravity-acp install --update-path            # also append binDir to the user PATH (Windows)
-bb google-antigravity-acp install --json                   # machine-readable output
-```
-
-`~/.local/bin` must be on the machine's PATH for the provider health probe to
-find the server. The command warns when it is not.
-
-## Verify
-
-```sh
-bb google-antigravity-acp status        # where the server is, per machine
-bb provider list                        # acp-antigravity appears (visibility: installed)
+```bash
 bb provider models acp-antigravity
-bb thread spawn --provider acp-antigravity --prompt 'hi'
 ```
 
-## Model and reasoning selection
+У обеих моделей должны быть уровни `low, medium, high`. Затем откройте новый тред с провайдером **Google Antigravity** и при первом запуске пройдите вход в Google.
 
-Antigravity exposes effort variants as separate models (`... Low`, `... Medium`,
-and `... High`). Select the desired variant in the model picker. BB reasoning
-remains `Medium` because Antigravity's ACP server manages it internally; Fast
-mode is unavailable.
+### Лимиты
 
-## Context window usage reporting
+Откройте в bb экран **Usage**. Там появится карточка Google Antigravity с окнами «Gemini 4 Argon · weekly», «Gemini Flash + Gemini Pro · weekly» и «· 5h». Данные берутся встроенной командой сервера `/usage`: модель не вызывается, токены не тратятся. Ответ обновляется не чаще раза в минуту.
 
-Google's official `agy_acp_server.par` tracks exact token usage inside its local conversation database (`~/.gemini/antigravity-acp/conversations/<sessionId>.db`), but omits emitting `usage_update` over the ACP stdio bridge.
+Если у вас стоит сторонний плагин `bb-antigravity-usage`, он покажет вторую карточку Antigravity (у некоторых — с подсказкой входа). Его можно отключить:
 
-The POSIX install renders a lightweight transparent proxy wrapper as `agy_acp_server.par`, pinning the verified Node interpreter and installed real-binary path while keeping the official raw binary intact (`agy_acp_server_raw.par`). Installation verifies an ACP `initialize` handshake before succeeding. Windows currently runs the raw binary without context usage injection. The POSIX wrapper reads token usage metadata in real time from the session database and injects standard ACP `session/update` (`usage_update`) events with `used` and `size` before turn completion.
+```bash
+bb plugin disable bb-antigravity-usage
+```
 
-This enables BB's native context window tracking and context meter plugins (such as `context-meter`) to display live token usage for Antigravity threads.
+## Обновление и откат
 
-## Security notes
+Обновить:
 
-- The ACP registry is fetched from a **pinned commit** (`REGISTRY_COMMIT`),
-  never from an unpinned branch, so a registry compromise cannot inject an
-  arbitrary binary onto PATH.
-- The download source is explicit: the pinned registry URL, or an explicit
-  `--from` flag. There is no environment-variable redirect.
-- Extraction validates archive entries and refuses `../`/absolute paths.
-- No code from this plugin executes the downloaded file except impossible —
-  the server binary itself (`agy_acp_server.par`), which is Google's official
-  release, is what the provider runs.
+```bash
+bb plugin update google-antigravity-acp
+```
 
-## Auth
+Вернуть оригинал rawizhere:
 
-Auth is handled in-band by the ACP server (Google account OAuth, Gemini API
-key, Agent Platform). First run surfaces a login flow in the thread. State
-lives under `~/.gemini/antigravity-acp/settings.json`.
+```bash
+bb plugin remove google-antigravity-acp
+```
+
+```bash
+bb plugin install git:github.com/rawizhere/bb-plugin-antigravity-acp@semver:^0.2.0 --yes
+```
+
+## Известные ограничения
+
+- **Первый ответ после запуска плагина бывает долгим** (до ~5 минут). Так же ведёт себя и оригинал; следующие ответы обычно приходят за 15–40 секунд.
+- **Лимиты читаются из текстового отчёта `/usage`.** Если Google поменяет его формат, bb покажет ошибку загрузки лимитов, а не неверные цифры.
+- **Агент не видит служебную папку bb (`~/.bb/thread-storage`) как рабочую.** Это сделано специально: сервер Google выбирает рабочую папку по алфавиту и иначе писал бы туда вместо проекта. Вложения он читает по полному пути.
+- **Модели, у которых уровень мышления задаётся только отдельной настройкой** (а не вариантом модели), пока не запускаются. Gemini 4 Argon и Gemini 3.8 Flash сюда не относятся.
+
+## Как это устроено
+
+- `model-discovery.ts`, `model-utils.ts`, `model-cache.ts` — получение каталога моделей у ACP-сервера, группировка вариантов в «семейство + уровень», кэш.
+- `model-bridge.ts` — обёртка моста bb: переводит «модель + уровень» в точный ID варианта ACP; отвечает на запрос лимитов.
+- `usage.ts` — запрос `/usage` и разбор отчёта в окна лимитов.
+- `vendor/provider-bridge-acp.js` — копия ACP-моста из `@get-bb/plugin-sdk@0.6.132` с патчем [`patches/provider-bridge-acp-0.6.132.patch`](patches/provider-bridge-acp-0.6.132.patch): строгая проверка выбранной модели, защита от гонок, `accept-edits`, рабочая папка. Генерируется воспроизводимо и сверяется по SHA-256 (`patches/acp-runtime-lock.json`).
+
+## Разработка
+
+```bash
+npm ci
+```
+
+```bash
+npm test
+```
+
+```bash
+npm run test:bundle
+```
+
+`npm run build` пересобирает `vendor/` из закреплённого SDK и патча и собирает плагин; `python3 scripts/verify-local.py` прогоняет все проверки разом. Все тесты используют синтетический ACP-сервер и не обращаются к Google.
+
+Подключить локальную копию вместо установленной из git:
+
+```bash
+bb plugin remove google-antigravity-acp
+```
+
+```bash
+bb plugin install path:$PWD --yes
+```
+
+## English
+
+Fork of [rawizhere/bb-plugin-antigravity-acp](https://github.com/rawizhere/bb-plugin-antigravity-acp) for [bb](https://github.com/get-bb/bb). It fixes the reasoning picker (real Low/Medium/High instead of `Argon`/`Flash`), applies and verifies the selected variant before every prompt, shows Antigravity quota in bb's Usage panel (Gemini 4 Argon separately from Flash/Pro), makes `accept-edits` approve in-workspace file edits, and keeps the agent's working directory on the project. Requires bb ≥ 0.49.0.
+
+```bash
+bb plugin remove google-antigravity-acp
+```
+
+```bash
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.0 --yes
+```
+
+`remove` deletes the plugin's settings (not your Google sign-in or threads).
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE). Оригинал © rawizhere. Встроенный ACP-мост — © bb (MIT) и Agent Client Protocol SDK (Apache-2.0), см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

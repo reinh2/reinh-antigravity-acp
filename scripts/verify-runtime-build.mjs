@@ -1,0 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { root, verifyOrWrite, sha256 } from "./vendor-acp-runtime.mjs";
+const { identity, manifest } = verifyOrWrite();
+const bundlePath = path.join(root, "dist/host.js");
+const bundle = await import(pathToFileURL(bundlePath).href);
+if (JSON.stringify(bundle.reinhAcpRuntimePatch) !== JSON.stringify(identity)) throw new Error("Built host does not export the reviewed local runtime identity");
+const map = JSON.parse(fs.readFileSync(bundlePath + ".map", "utf8"));
+if (!map.sources.some(source => source.endsWith("vendor/provider-bridge-acp.js"))) throw new Error("Vendored ACP module is absent from host source map");
+if (map.sources.some(source => source.includes("node_modules/@get-bb/plugin-sdk/dist/provider-bridge-acp.js"))) throw new Error("Unpatched ACP singleton was also bundled into host");
+const report = { ...identity, generatedSha256: manifest.generatedSha256, hostSha256: sha256(fs.readFileSync(bundlePath)), sourceMapConfirmsVendoredRuntime: true, unpatchedAcpModuleBundled: false };
+fs.mkdirSync(path.join(root, "qa/evidence"), { recursive: true });
+fs.writeFileSync(path.join(root, "qa/evidence/runtime-build.json"), JSON.stringify(report, null, 2) + "\n");
+process.stdout.write("Built host uses " + identity.revision + " (" + report.hostSha256 + ")\n");

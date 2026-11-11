@@ -1,0 +1,15 @@
+✔ canonical bb bridge: discovery → family+effort → exact RPC → direct effort switch → resume (734.686042ms)
+✔ config-only thinking selects and verifies the real native level before prompt (521.475583ms)
+✔ canonical bridge rejects invalid, missing and unsupported models before execution (838.605125ms)
+✔ Gemini Flash switches Low/Medium/High on the same ACP session without restart (551.398708ms)
+✔ a refused model switch returns an error before prompt and the session can recover (761.694417ms)
+✔ SDK 0.6.132 executes a roster model with grouped config options (460.263667ms)
+✔ Antigravity-style decomposed model config (family + thinking_level) is accepted as the requested variant (444.997167ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4411.088208

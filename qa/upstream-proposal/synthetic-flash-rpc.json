@@ -1,0 +1,523 @@
+{
+  "evidence": "SYNTHETIC ACP — NOT GOOGLE",
+  "data": {
+    "rpc": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {}
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 1,
+          "clientInfo": {
+            "name": "bb",
+            "version": "1.0.0"
+          },
+          "clientCapabilities": {
+            "fs": {
+              "readTextFile": true,
+              "writeTextFile": true
+            },
+            "terminal": false,
+            "auth": {
+              "terminal": true
+            },
+            "elicitation": {
+              "form": {}
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "session/new",
+        "params": {
+          "cwd": "<isolated-home>",
+          "mcpServers": []
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "configId": "model",
+          "value": "gemini-3.8-flash-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "modelId": "gemini-3.8-flash-low"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "synthetic low"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "configId": "model",
+          "value": "gemini-3.8-flash-medium"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "modelId": "gemini-3.8-flash-medium"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "synthetic medium"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "session/set_config_option",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "configId": "model",
+          "value": "gemini-3.8-flash-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "session/set_model",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "modelId": "gemini-3.8-flash-high"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "synthetic-session-58741",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "synthetic high"
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "ok": true,
+          "protocolVersion": 2,
+          "capabilities": {
+            "sessionRestore": false,
+            "threadArchive": false,
+            "threadRename": false,
+            "threadGoalClear": false,
+            "fork": "tip",
+            "approvalEnforcedBy": "runtime",
+            "grammarVersions": [
+              3,
+              3
+            ],
+            "steerMode": "queue",
+            "skills": {
+              "configure": true
+            },
+            "commands": {
+              "list": false
+            }
+          }
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/identity",
+        "params": {
+          "threadId": "flash-thread",
+          "providerThreadId": "synthetic-session-58741",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "session.reset"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+          "providerThreadId": "synthetic-session-58741",
+          "sessionRestorable": true
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_abcdefghij"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": {
+          "threadId": "flash-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-3.8-flash-low",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "flash-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-3.8-flash-low"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_bcdefghijk"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": {
+          "threadId": "flash-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-3.8-flash-medium",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "flash-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-3.8-flash-medium"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "turn.open"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "input.accepted",
+              "clientRequestId": "creq_cdefghijkm"
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "result": {
+          "threadId": "flash-thread"
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textDelta",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage",
+              "text": "gemini-3.8-flash-high",
+              "noTurnFallback": {
+                "raw": {
+                  "jsonrpc": "2.0",
+                  "method": "acp/update",
+                  "params": {
+                    "threadId": "flash-thread",
+                    "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {
+                        "type": "text",
+                        "text": "gemini-3.8-flash-high"
+                      }
+                    }
+                  }
+                },
+                "rawType": "acp/update:agent_message_chunk"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "jsonrpc": "2.0",
+        "method": "thread/delta",
+        "params": {
+          "threadId": "flash-thread",
+          "deltas": [
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "thought"
+              },
+              "channel": "reasoningText"
+            },
+            {
+              "kind": "item.textClose",
+              "key": {
+                "channel": "assistant"
+              },
+              "channel": "agentMessage"
+            },
+            {
+              "kind": "turn.boundary",
+              "status": "completed",
+              "claimIfIdle": true
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
