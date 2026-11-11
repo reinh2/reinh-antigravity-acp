@@ -4,6 +4,7 @@
 
 - Windows: установка сервера больше не падает с «No Antigravity ACP distribution for win32» (ключ платформы `win32` → `windows`, как в реестре ACP). Ошибка была и в оригинале.
 - Windows: путь с апострофом (`C:\Users\O'Brien`) не ломает распаковку через PowerShell.
+- Windows: короткие запросы к серверу (каталог моделей, лимиты, проверка установки) завершают всё дерево процессов (`taskkill /T`), а не только `agy_acp_server.exe`; раньше `localharness_external.exe` оставался висеть.
 - Тесты и харнесс работают на Windows; `.gitattributes` фиксирует LF для файлов, сверяемых по SHA-256.
 - CI: Linux x64/arm64, Windows, macOS — тесты и установка настоящего ACP-сервера Google с проверкой handshake.
 

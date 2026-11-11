@@ -10,6 +10,7 @@ import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import * as readline from "node:readline";
 import { renderWrapperScript } from "./wrapper-script.ts";
+import { killProcessTree } from "./process-tree.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -28,9 +29,9 @@ async function terminateChild(child: ReturnType<typeof spawn>): Promise<void> {
       resolve();
     };
     child.once("close", done);
-    child.kill("SIGTERM");
+    killProcessTree(child, "SIGTERM");
     const killTimer = setTimeout(() => {
-      child.kill("SIGKILL");
+      killProcessTree(child, "SIGKILL");
       done();
     }, 2_000);
     killTimer.unref();

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import readline from "node:readline";
+import { killProcessTree } from "./process-tree.js";
 import { isReasoningLevel, parseRawModels, type RawModel, type NativeReasoning } from "./model-utils.js";
 
 export interface LaunchSpec {
@@ -144,8 +145,8 @@ export async function withAcpConnection<T>(
     fail(new Error("ACP connection closed."));
     rl.close();
     proc.stdin.destroy();
-    proc.kill();
-    const killTimer = setTimeout(() => proc.kill("SIGKILL"), 250);
+    killProcessTree(proc);
+    const killTimer = setTimeout(() => killProcessTree(proc, "SIGKILL"), 250);
     killTimer.unref();
     proc.once("close", () => clearTimeout(killTimer));
   }
