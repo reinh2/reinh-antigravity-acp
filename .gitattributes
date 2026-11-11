@@ -1,0 +1,3 @@
+# Checksummed files (vendor runtime, SDK patch) must keep LF on every OS.
+* text=auto eol=lf
+*.svg text eol=lf

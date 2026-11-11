@@ -31,3 +31,27 @@ test("localizeLaunchSpec — rewrites command/args per host platform, keeps env"
 test("localizeLaunchSpec — missing spec is a no-op", () => {
   assert.doesNotThrow(() => localizeLaunchSpec(undefined, targets.darwin));
 });
+
+test("detectTarget — every supported host maps to a registry distribution key", async () => {
+  const { detectTarget } = await import("../install.ts");
+  const real = { platform: process.platform, arch: process.arch };
+  const cases = [["darwin", "arm64", "darwin-aarch64"], ["linux", "x64", "linux-x86_64"], ["linux", "arm64", "linux-aarch64"], ["win32", "x64", "windows-x86_64"], ["win32", "arm64", "windows-aarch64"]];
+  try {
+    for (const [platform, arch, key] of cases) {
+      Object.defineProperty(process, "platform", { value: platform });
+      Object.defineProperty(process, "arch", { value: arch });
+      const target = detectTarget();
+      assert.equal(target.distKey, key);
+      assert.ok(FALLBACK_DIST[target.distKey], `${key} must exist in FALLBACK_DIST`);
+      assert.equal(target.binaryName, platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par");
+    }
+  } finally {
+    Object.defineProperty(process, "platform", { value: real.platform });
+    Object.defineProperty(process, "arch", { value: real.arch });
+  }
+});
+
+test("psQuote — Windows paths with apostrophes stay one PowerShell literal", async () => {
+  const { psQuote } = await import("../install.ts");
+  assert.equal(psQuote("C:\\Users\\O'Brien\\x.zip"), "'C:\\Users\\O''Brien\\x.zip'");
+});

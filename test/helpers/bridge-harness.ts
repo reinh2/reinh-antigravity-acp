@@ -9,8 +9,21 @@ import readline from "node:readline";
 export async function harness(t: TestContext, mode = "variants", rawSdk = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "reinh-acp-bridge-"));
   const bin = path.join(dir, "bin"); fs.mkdirSync(bin);
-  const executable = path.join(bin, "agy_acp_server.par");
-  fs.writeFileSync(executable, fs.readFileSync(path.resolve("test/fixtures/catalog-agent.mjs"), "utf8").replace('import readline from "node:readline";', 'const readline = require("node:readline");').replace('import { appendFileSync, readFileSync } from "node:fs";', 'const { appendFileSync, readFileSync } = require("node:fs");')); fs.chmodSync(executable, 0o700);
+  const agentSource = fs.readFileSync(path.resolve("test/fixtures/catalog-agent.mjs"), "utf8").replace('import readline from "node:readline";', 'const readline = require("node:readline");').replace('import { appendFileSync, readFileSync } from "node:fs";', 'const { appendFileSync, readFileSync } = require("node:fs");');
+  // The plugin recognises the agent by its file name. POSIX runs the script
+  // through its shebang; Windows cannot, so node.exe itself carries the name.
+  let executable: string, agentArgs: string[];
+  if (process.platform === "win32") {
+    executable = path.join(bin, "agy_acp_server.exe");
+    try { fs.linkSync(process.execPath, executable); } catch { fs.copyFileSync(process.execPath, executable); }
+    const script = path.join(dir, "catalog-agent.cjs");
+    fs.writeFileSync(script, agentSource);
+    agentArgs = [script];
+  } else {
+    executable = path.join(bin, "agy_acp_server.par");
+    fs.writeFileSync(executable, agentSource); fs.chmodSync(executable, 0o700);
+    agentArgs = [];
+  }
   const log = path.join(dir, "rpc.ndjson");
   const child = spawn(process.execPath, ["--import", "./test/node-runtime.mjs", "--import", "tsx", "test/fixtures/bridge-runner.ts"], {
     env: { ...process.env, HOME: dir, GEMINI_HOME: path.join(dir, "gemini"), TEST_CACHE_DIR: path.join(dir, "cache"), PATH: `${bin}${path.delimiter}${process.env.PATH}`, TEST_ACP_MODE: mode, TEST_RPC_LOG: log, REINH_TEST_RAW_SDK: rawSdk ? "1" : "" },
@@ -40,7 +53,7 @@ export async function harness(t: TestContext, mode = "variants", rawSdk = false)
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
     });
   }
-  const launch = { displayName: "Synthetic Antigravity", command: executable, args: [], env: { TEST_ACP_MODE: mode, TEST_RPC_LOG: log } };
+  const launch = { displayName: "Synthetic Antigravity", command: executable, args: agentArgs, env: { TEST_ACP_MODE: mode, TEST_RPC_LOG: log } };
   const options = (model?: string, reasoningLevel?: string) => ({ model, reasoningLevel,
     permissionMode: "accept-edits", permissionScope: "workspace", approvalReviewer: "user", permissionEscalation: "deny",
     providerOptions: { acpLaunchSpec: structuredClone(launch) },

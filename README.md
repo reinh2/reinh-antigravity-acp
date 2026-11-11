@@ -1,5 +1,7 @@
 # Reinh Antigravity ACP — Google Antigravity для bb
 
+[![CI](https://github.com/reinh2/reinh-antigravity-acp/actions/workflows/ci.yml/badge.svg)](https://github.com/reinh2/reinh-antigravity-acp/actions/workflows/ci.yml)
+
 Плагин-провайдер для [bb](https://github.com/get-bb/bb), который запускает **Google Antigravity** (Gemini 4 Argon, Gemini 3.8 Flash) через официальный ACP-сервер Google.
 
 Это форк [rawizhere/bb-plugin-antigravity-acp](https://github.com/rawizhere/bb-plugin-antigravity-acp). Исходный автор — **rawizhere**, лицензия MIT сохранена. ID плагина и провайдера те же (`google-antigravity-acp` / `acp-antigravity`), поэтому форк заменяет оригинал.
@@ -20,7 +22,11 @@
 
 - **bb 0.49.0 или новее** (`bb --version`).
 - Аккаунт Google с доступом к Antigravity (проверено на Google AI Pro).
-- macOS (проверено на Apple Silicon). Linux и Windows поддерживаются кодом оригинала, но в этом форке не проверялись.
+- **macOS** (Apple Silicon), **Linux** (x86_64, arm64) или **Windows** (x64, arm64).
+  - Linux: для распаковки сервера нужен `unzip` или `python3`.
+  - Windows: сервер ставится в `~/.local/bin`; чтобы bb его нашёл, добавьте эту папку в `PATH` или установите с `--update-path`.
+
+Тесты и установка настоящего ACP-сервера Google проверяются в CI на всех этих системах (бейдж выше). Полноценный запуск тредов с входом в Google проверен вручную на macOS.
 
 ## Установка
 
@@ -41,7 +47,7 @@ bb plugin remove google-antigravity-acp
 ### 2. Установите форк
 
 ```bash
-bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.0 --yes
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.1 --yes
 ```
 
 bb сам соберёт плагин. Диапазон `^0.3.0` позволяет получать обновления командой `bb plugin update google-antigravity-acp`.
@@ -57,6 +63,14 @@ bb google-antigravity-acp status
 ```bash
 bb google-antigravity-acp install
 ```
+
+На Windows, чтобы сразу добавить папку сервера в `PATH`:
+
+```bash
+bb google-antigravity-acp install --update-path
+```
+
+После этого перезапустите bb.
 
 ### 4. Проверьте
 
@@ -143,7 +157,7 @@ bb plugin remove google-antigravity-acp
 ```
 
 ```bash
-bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.0 --yes
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.1 --yes
 ```
 
 `remove` deletes the plugin's settings (not your Google sign-in or threads).

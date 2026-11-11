@@ -4,6 +4,9 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+
+// The context-usage wrapper is a node script installed only on macOS/Linux.
+const posixOnly = process.platform === "win32" && "the context-usage wrapper is POSIX-only";
 import readline from "node:readline";
 import test from "node:test";
 import { renderWrapperScript } from "../wrapper-script.ts";
@@ -75,7 +78,7 @@ function collectLines(child) {
   };
 }
 
-test("proxies ACP lines and emits usage for the matching prompt session", async () => {
+test("proxies ACP lines and emits usage for the matching prompt session", { skip: posixOnly }, async () => {
   const root = await mkdtemp(join(tmpdir(), "agy-wrapper-test-"));
   const geminiHome = join(root, "gemini");
   const conversations = join(geminiHome, "antigravity-acp", "conversations");
@@ -143,7 +146,7 @@ test("proxies ACP lines and emits usage for the matching prompt session", async 
   assert.ok(afterPromptIndex > promptResponseIndex);
 });
 
-test("emits usage when the server omits cached-token field 5", async () => {
+test("emits usage when the server omits cached-token field 5", { skip: posixOnly }, async () => {
   const root = await mkdtemp(join(tmpdir(), "agy-wrapper-test-"));
   const geminiHome = join(root, "gemini");
   const conversations = join(geminiHome, "antigravity-acp", "conversations");

@@ -7,4 +7,4 @@ Google Antigravity provider for bb, forked from rawizhere's plugin (MIT).
 - Antigravity quota in bb's Usage panel: Argon separately from Flash/Pro (weekly and 5-hour windows).
 - `accept-edits` approves file edits inside the workspace; commands and outside edits still ask.
 
-Install: `bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.0` (remove the original `google-antigravity-acp` first). See README.md.
+Install: `bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.1` (remove the original `google-antigravity-acp` first). See README.md.

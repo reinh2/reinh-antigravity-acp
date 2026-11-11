@@ -220,7 +220,8 @@ export function detectTarget(): TargetInfo {
   return {
     platform,
     arch,
-    distKey: `${platform}-${arch}`,
+    // ACP registry keys use "windows", not Node's "win32".
+    distKey: `${platform === "win32" ? "windows" : platform}-${arch}`,
     binaryName: platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par",
     isWindows: platform === "win32",
   };
@@ -299,6 +300,9 @@ for name in zf.namelist():
 zf.extractall(dest)
 `;
 
+// PowerShell single-quoted literal: an apostrophe (C:\Users\O'Brien) is doubled.
+export const psQuote = (value: string) => `'${value.replaceAll("'", "''")}'`;
+
 async function extractZip(zipPath: string, destDir: string, isWindows: boolean): Promise<void> {
   if (isWindows) {
     // Expand-Archive rejects entries that escape the destination; bsdtar does not.
@@ -306,7 +310,7 @@ async function extractZip(zipPath: string, destDir: string, isWindows: boolean):
       "powershell",
       [
         "-NoProfile", "-NonInteractive", "-Command",
-        `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`,
+        `Expand-Archive -LiteralPath ${psQuote(zipPath)} -DestinationPath ${psQuote(destDir)} -Force`,
       ],
       { windowsHide: true },
     );

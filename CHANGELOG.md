@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-11-11
+
+- Windows: установка сервера больше не падает с «No Antigravity ACP distribution for win32» (ключ платформы `win32` → `windows`, как в реестре ACP). Ошибка была и в оригинале.
+- Windows: путь с апострофом (`C:\Users\O'Brien`) не ломает распаковку через PowerShell.
+- Тесты и харнесс работают на Windows; `.gitattributes` фиксирует LF для файлов, сверяемых по SHA-256.
+- CI: Linux x64/arm64, Windows, macOS — тесты и установка настоящего ACP-сервера Google с проверкой handshake.
+
 ## 0.3.0 — 2026-11-11
 
 Первый публичный релиз форка.
