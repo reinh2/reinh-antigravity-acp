@@ -35,7 +35,7 @@ test("localizeLaunchSpec — missing spec is a no-op", () => {
 test("detectTarget — every supported host maps to a registry distribution key", async () => {
   const { detectTarget } = await import("../install.ts");
   const real = { platform: process.platform, arch: process.arch };
-  const cases = [["darwin", "arm64", "darwin-aarch64"], ["linux", "x64", "linux-x86_64"], ["linux", "arm64", "linux-aarch64"], ["win32", "x64", "windows-x86_64"], ["win32", "arm64", "windows-aarch64"]];
+  const cases = [["darwin", "arm64", "darwin-aarch64"], ["darwin", "x64", "darwin-x86_64"], ["linux", "x64", "linux-x86_64"], ["linux", "arm64", "linux-aarch64"], ["win32", "x64", "windows-x86_64"], ["win32", "arm64", "windows-aarch64"]];
   try {
     for (const [platform, arch, key] of cases) {
       Object.defineProperty(process, "platform", { value: platform });
@@ -54,4 +54,21 @@ test("detectTarget — every supported host maps to a registry distribution key"
 test("psQuote — Windows paths with apostrophes stay one PowerShell literal", async () => {
   const { psQuote } = await import("../install.ts");
   assert.equal(psQuote("C:\\Users\\O'Brien\\x.zip"), "'C:\\Users\\O''Brien\\x.zip'");
+});
+
+test("FALLBACK_DIST pins agy-acp-server 1.4.5 with a SHA-256 for every platform", () => {
+  for (const [key, entry] of Object.entries(FALLBACK_DIST)) {
+    assert.match(entry.archive, /agy-acp-server-1\.4\.5-/, key);
+    assert.match(entry.sha256 ?? "", /^[0-9a-f]{64}$/, key);
+  }
+});
+
+test("sha256File hashes an archive", async () => {
+  const { sha256File } = await import("../install.ts");
+  const { writeFileSync, mkdtempSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const file = join(mkdtempSync(join(tmpdir(), "sha-")), "a.zip");
+  writeFileSync(file, "abc");
+  assert.equal(await sha256File(file), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 });

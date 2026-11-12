@@ -1,7 +1,7 @@
 // Install logic for the Antigravity ACP server, runs on the target machine from the host entry or directly in the server process.
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { constants as fsConstants, createWriteStream } from "node:fs";
+import { constants as fsConstants, createReadStream, createWriteStream } from "node:fs";
 import { access, chmod, copyFile, mkdir, open, readdir, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -109,42 +109,56 @@ export interface DistEntry {
   archive: string;
   cmd: string;
   args?: string[];
+  /** Hex SHA-256 of the archive, as published in the ACP registry. */
+  sha256?: string;
 }
 
 export type DistMap = Record<string, DistEntry>;
 
-// Pinned ACP registry commit. Bump when tracking newer releases.
-export const REGISTRY_COMMIT = "81bf71b55e15f630c4fb8a86d20d3088071d2071";
+// Pinned ACP registry commit (agy-acp-server 1.4.5). Bump when tracking newer releases.
+// 1.1.1 sent personal accounts to a deprecated endpoint and failed with 502.
+export const REGISTRY_COMMIT = "02b460362cfedf4d43b03df7aad6d79a353fe064";
 const REGISTRY_URL = `https://raw.githubusercontent.com/agentclientprotocol/registry/${REGISTRY_COMMIT}/antigravity-acp/agent.json`;
 
 // Copy of the ACP registry entry for when the pinned registry fetch fails.
 export const FALLBACK_DIST: DistMap = {
   "darwin-aarch64": {
     archive:
-      "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-agy_acp_server_1.1.1-darwin-arm64.zip",
+      "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.5-darwin-arm64.zip",
     cmd: "./agy_acp_server.par",
+    sha256: "886fff7767d08994ca39eb02c3d01a7532c7325a94aa33aaf52d52068733284f",
+  },
+  "darwin-x86_64": {
+    archive:
+      "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.5-darwin-x86_64.zip",
+    cmd: "./agy_acp_server.par",
+    sha256: "b39f3573c03b9acb9df028853f647527f1f3133f32bd77e78b796e48a205114a",
   },
   "linux-x86_64": {
     archive:
-      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-x86_64.zip",
+      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.5-linux-x86_64.zip",
     cmd: "./agy_acp_server.par",
     args: ["--uid="],
+    sha256: "923923a0d7dc8073f66cc6f78647a3107e3a7ee2b7e1a24df8b3927b5188013b",
   },
   "linux-aarch64": {
     archive:
-      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-arm64.zip",
+      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.5-linux-arm64.zip",
     cmd: "./agy_acp_server.par",
     args: ["--uid="],
+    sha256: "7d64246633ae094f67e3bbcd2d679e89048f91346d5339313336e7483f40f056",
   },
   "windows-x86_64": {
     archive:
-      "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-x86_64.zip",
+      "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.5-windows-x86_64.zip",
     cmd: "./agy_acp_server.exe",
+    sha256: "d24f4c73c9f96d4f44384e281c855a56c72d8eaa9c5b0fad7ccb1635c6b63f50",
   },
   "windows-aarch64": {
     archive:
-      "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-arm64.zip",
+      "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.5-windows-arm64.zip",
     cmd: "./agy_acp_server.exe",
+    sha256: "ab0a9aac8349e08ef289be6d16da8f89e3abe60eba5158032ef78c4a1220261c",
   },
 };
 
@@ -244,6 +258,7 @@ export async function fetchDistMap(): Promise<DistMap> {
           archive: entry.archive,
           cmd: entry.cmd,
           args: Array.isArray(entry.args) ? entry.args.map((a) => String(a)) : undefined,
+          sha256: typeof (entry as { sha256?: unknown }).sha256 === "string" ? (entry as { sha256: string }).sha256 : undefined,
         };
       }
     }
@@ -271,6 +286,12 @@ async function findOnPath(name: string): Promise<string | null> {
     }
   }
   return null;
+}
+
+export async function sha256File(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  return hash.digest("hex");
 }
 
 async function downloadTo(url: string, dest: string): Promise<void> {
@@ -578,6 +599,13 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
         sourceLabel = entry.archive;
         notes.push(`Downloading ${entry.archive}`);
         await downloadTo(entry.archive, zipPath);
+        if (entry.sha256) {
+          const actual = await sha256File(zipPath);
+          if (actual !== entry.sha256.toLowerCase()) {
+            throw new Error(`Archive checksum mismatch for ${entry.archive}: expected ${entry.sha256}, got ${actual}`);
+          }
+          notes.push("Archive SHA-256 matches the ACP registry.");
+        }
       }
       await extractZip(zipPath, installDir, target.isWindows);
     } finally {

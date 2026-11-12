@@ -22,7 +22,7 @@
 
 - **bb 0.49.0 или новее** (`bb --version`).
 - Аккаунт Google с доступом к Antigravity (проверено на Google AI Pro).
-- **macOS** (Apple Silicon), **Linux** (x86_64, arm64) или **Windows** (x64, arm64).
+- **macOS** (Apple Silicon и Intel), **Linux** (x86_64, arm64) или **Windows** (x64, arm64).
   - Linux: для распаковки сервера нужен `unzip` или `python3`.
   - Windows: сервер ставится в `~/.local/bin`; чтобы bb его нашёл, добавьте эту папку в `PATH` или установите с `--update-path`.
 
@@ -47,7 +47,7 @@ bb plugin remove google-antigravity-acp
 ### 2. Установите форк
 
 ```bash
-bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.1 --yes
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.2 --yes
 ```
 
 bb сам соберёт плагин. Диапазон `^0.3.0` позволяет получать обновления командой `bb plugin update google-antigravity-acp`.
@@ -157,7 +157,7 @@ bb plugin remove google-antigravity-acp
 ```
 
 ```bash
-bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.1 --yes
+bb plugin install git:github.com/reinh2/reinh-antigravity-acp@semver:^0.3.2 --yes
 ```
 
 `remove` deletes the plugin's settings (not your Google sign-in or threads).
